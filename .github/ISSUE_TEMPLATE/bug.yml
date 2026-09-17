@@ -1,0 +1,53 @@
+name: Bug
+description: Something behaves differently from what we documented or intended.
+title: '[bug] '
+labels: ['bug']
+body:
+  - type: textarea
+    id: observed
+    attributes:
+      label: What happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What should have happened
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Failing test, log excerpt, or screenshot. Please redact personal data.
+    validations:
+      required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: v0.1.0-demo
+    validations:
+      required: true
+
+  - type: textarea
+    id: regression-test
+    attributes:
+      label: Regression test
+      description: The test that should be added so this cannot come back.
+    validations:
+      required: true

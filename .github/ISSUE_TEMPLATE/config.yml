@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Privacy question
+    url: https://github.com/focusloop/focusloop/blob/main/docs/privacy.md
+    about: Read the privacy statement before opening an issue about data collection.
+  - name: Contributing guide
+    url: https://github.com/focusloop/focusloop/blob/main/CONTRIBUTING.md
+    about: Branch, commit, TDD and review rules.
