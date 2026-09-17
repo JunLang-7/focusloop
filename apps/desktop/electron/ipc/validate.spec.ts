@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { SUPPORTED_LOCALES } from '@focusloop/shared-types';
+import { INSIGHT_RANGES, SUPPORTED_LOCALES } from '@focusloop/shared-types';
 import {
   IpcValidationError,
   parseDispatchRequest,
   parseEndSession,
   parseImportMaterial,
+  parseInsightsRequest,
   parseNoArgs,
   parseResolveIntervention,
   parseResumeDecision,
@@ -185,6 +186,23 @@ describe('parseNoArgs', () => {
 
   it('rejects any argument — these channels take none', () => {
     expectFailure(() => parseNoArgs(CHANNEL, { anything: true }));
+  });
+});
+
+describe('parseInsightsRequest', () => {
+  it('accepts each range the dashboard can ask for', () => {
+    for (const range of INSIGHT_RANGES) {
+      expect(parseInsightsRequest(CHANNEL, { range })).toEqual({ range });
+    }
+  });
+
+  it('rejects an unknown range', () => {
+    expectFailure(() => parseInsightsRequest(CHANNEL, { range: 'year' }));
+  });
+
+  it('rejects a missing or non-string range', () => {
+    expectFailure(() => parseInsightsRequest(CHANNEL, {}));
+    expectFailure(() => parseInsightsRequest(CHANNEL, { range: 7 }));
   });
 });
 

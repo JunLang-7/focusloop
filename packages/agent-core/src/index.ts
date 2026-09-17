@@ -1,6 +1,7 @@
 export * from './demo-course';
 export * from './micro-task-generator';
 export * from './dashboard';
+export * from './insights';
 export * from './engine';
 /**
  * A supported in-memory harness (deterministic clock + sqlite `:memory:`), used

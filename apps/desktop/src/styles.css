@@ -588,6 +588,309 @@ textarea:focus {
   white-space: pre-wrap;
 }
 
+/* ===========================================================================
+   Insights dashboard
+   =========================================================================== */
+
+/* Segmented control — the window switcher. */
+.window {
+  margin-bottom: 4px;
+}
+
+.segmented {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  margin-bottom: 18px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+
+.segmented__btn {
+  padding: 5px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.segmented__btn:hover {
+  color: var(--text);
+}
+
+.segmented__btn.is-active {
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+}
+
+/* Two headline numbers, the thing the eye should land on first. */
+.hero {
+  display: flex;
+  gap: 40px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.hero__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hero__label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.hero__value {
+  font-size: 32px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.hero__value--muted {
+  color: var(--text-muted);
+}
+
+/* Chart panels sit side by side on a wide window and stack when narrow. */
+.insights {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.panel {
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-soft);
+}
+
+.panel__title {
+  margin-bottom: 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* Donut + legend ------------------------------------------------------- */
+.donut-row {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.donut {
+  position: relative;
+  flex: 0 0 132px;
+  width: 132px;
+}
+
+.donut svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.donut__track {
+  fill: none;
+  stroke: var(--bg-elevated);
+  stroke-width: 13;
+}
+
+.donut__center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  text-align: center;
+  pointer-events: none;
+}
+
+.donut__center strong {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  min-width: 0;
+}
+
+.legend li {
+  display: grid;
+  grid-template-columns: 9px 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.legend__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+.legend__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.legend__pct {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.legend__time {
+  min-width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Activity heatmap ----------------------------------------------------- */
+.heat__grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.heat__day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.heat__day .heat__cell {
+  width: 100%;
+  max-width: 40px;
+  aspect-ratio: 1;
+}
+
+.heat__label {
+  color: var(--text-muted);
+  font-size: 10px;
+  line-height: 1;
+}
+
+/* An empty day must recede, not stand out: a heatmap reads as "heat", so the
+   floor of the scale has to be quieter than the panel it sits on. */
+.heat__cell {
+  display: block;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 4%);
+}
+
+.heat__cell.is-blank {
+  background: transparent;
+}
+
+.heat__cell[data-level='0'] {
+  background: var(--bg-elevated);
+}
+.heat__cell[data-level='1'] {
+  background: rgb(74 222 128 / 25%);
+}
+.heat__cell[data-level='2'] {
+  background: rgb(74 222 128 / 45%);
+}
+.heat__cell[data-level='3'] {
+  background: rgb(74 222 128 / 68%);
+}
+.heat__cell[data-level='4'] {
+  background: rgb(74 222 128 / 92%);
+}
+
+.heat__scale {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin: 14px 0 0;
+}
+
+.heat__scale .heat__cell {
+  width: 11px;
+  aspect-ratio: 1;
+}
+
+/* Window-scoped counters. Deliberately not the session cards further down: this
+   row describes the window, those describe the session on screen. */
+.heat__facts {
+  display: flex;
+  gap: 26px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.heat__fact {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.heat__fact strong {
+  font-size: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Course bars ---------------------------------------------------------- */
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.bar__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.bar__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar__track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  overflow: hidden;
+}
+
+.bar__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent-strong), var(--accent));
+}
+
 .token {
   margin: 8px 0 0;
   padding: 8px 10px;

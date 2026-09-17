@@ -97,6 +97,45 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.noSession': '还没有会话',
   'dashboard.subtitle': '只保留能回答「续接到底有没有用」的数字。',
   'dashboard.refresh': '刷新',
+
+  // The window switcher.
+  'dashboard.range.label': '时间范围',
+  'dashboard.range.session': '本次',
+  'dashboard.range.today': '今日',
+  'dashboard.range.week': '近 7 天',
+  'dashboard.range.all': '全部',
+
+  'dashboard.hero.total': '总时长',
+  'dashboard.hero.daily': '日均',
+  'dashboard.hero.over.one': '1 天有记录',
+  'dashboard.hero.over.other': '共 {days} 天有记录',
+  'dashboard.focusRatio': '专注占比',
+  'dashboard.session.title': '本次会话',
+  'dashboard.states.title': '学习状态占比',
+  'dashboard.activity.title': '每日活动',
+  'dashboard.activity.hint': '颜色越深，当天学习越久。',
+  'dashboard.activity.empty': '这个区间还没有记录。',
+  'dashboard.activity.busiest': '最多的一天：{date} · {time}',
+  'dashboard.window.tasks': '完成任务',
+  'dashboard.window.interruptions': '打断次数',
+  'dashboard.window.sessions': '会话数',
+  'dashboard.outcomes.none': '还没有展示过干预。',
+  'dashboard.courses.title': '课程时长占比',
+
+  // Chinese does not space a number from its unit, so these carry no padding.
+  'unit.s': '{s}秒',
+  'unit.hm': '{h}小时{m}分',
+  'unit.m': '{m}分钟',
+
+  // Index 0 is Sunday, to match `Date.getDay()`.
+  'weekday.0': '周日',
+  'weekday.1': '周一',
+  'weekday.2': '周二',
+  'weekday.3': '周三',
+  'weekday.4': '周四',
+  'weekday.5': '周五',
+  'weekday.6': '周六',
+
   'dashboard.duration': '会话时长',
   'dashboard.tasks': '微任务',
   'dashboard.interruptions': '打断次数',

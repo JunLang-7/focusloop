@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { IPC_CHANNELS, SUPPORTED_LOCALES } from '@focusloop/shared-types';
+import { IPC_CHANNELS, INSIGHT_RANGES, SUPPORTED_LOCALES } from '@focusloop/shared-types';
 import { payload } from './payloads';
 import {
   parseCourseId,
   parseDispatchRequest,
   parseEndSession,
   parseImportMaterial,
+  parseInsightsRequest,
   parseNoArgs,
   parseResolveIntervention,
   parseResumeDecision,
@@ -75,6 +76,14 @@ describe('the preload and the main process agree on every payload', () => {
   it('the locale channel accepts what the preload sends', () => {
     for (const locale of SUPPORTED_LOCALES) {
       expect(parseSetLocale(IPC_CHANNELS.setLocale, payload.setLocale(locale))).toEqual({ locale });
+    }
+  });
+
+  it('the insights channel accepts what the preload sends', () => {
+    for (const range of INSIGHT_RANGES) {
+      expect(parseInsightsRequest(IPC_CHANNELS.getInsights, payload.insights(range))).toEqual({
+        range,
+      });
     }
   });
 

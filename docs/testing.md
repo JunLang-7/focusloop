@@ -9,6 +9,16 @@ pnpm --filter @focusloop/desktop-e2e run e2e    # the golden path, in the real a
 node scripts/verify-no-scaffolding.mjs          # release hygiene gate
 ```
 
+For UI work there is a capture helper that drives the real app through the golden path and writes a
+PNG per screen to `../demo-ui-review/` — outside the repository, because screenshots are not source:
+
+```bash
+pnpm --filter @focusloop/desktop run build
+node apps/desktop-e2e/capture-ui.mjs
+```
+
+It is a review aid, not a test: nothing asserts on the images.
+
 `pnpm test` is the fast loop and must stay under a few seconds per package. It deliberately does
 **not** run Playwright: `apps/desktop-e2e` has only an `e2e` target, so the E2E suite cannot be
 pulled into the unit run by accident. `pnpm e2e` is the slow loop — it builds the desktop app as a
@@ -17,13 +27,13 @@ dependency, launches Electron and drives the real UI.
 ## The pyramid, and why it is shaped this way
 
 ```text
-        ▲  E2E (Playwright, 4 tests)
+        ▲  E2E (Playwright, 5 tests)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
-     ╱     ╲  Integration (agent-core, 71 tests)
+     ╱     ╲  Integration (agent-core, 98 tests)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
-  ╱___________╲ Unit (domain packages, 267 tests)
+  ╱___________╲ Unit (domain packages, 296 tests)
                 the rules, with no IO at all
 ```
 
@@ -72,7 +82,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - A file-backed database survives close and reopen.
 - Sessions are isolated from one another.
 
-### `agent-core` — 71 tests
+### `agent-core` — 98 tests
 
 - The demo course has the shape the golden path needs.
 - Material import is idempotent per content hash.
@@ -84,7 +94,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Simulator availability, including the production-disabled path.
 - Deterministic micro-task generation: same material in, same course out.
 
-### `apps/desktop` — 69 tests
+### `apps/desktop` — 96 tests
 
 - IPC validation rejects non-objects, unknown event types, unknown sources, oversize payloads,
   unknown session-end reasons, unknown simulator commands, unsupported locales, and unexpected
@@ -104,7 +114,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   closed payload shape, reconnects after a close, bounds the offline queue, and survives a socket
   factory that throws.
 
-### `apps/desktop-e2e` — 4 tests
+### `apps/desktop-e2e` — 5 tests
 
 The golden path, in the real application:
 

@@ -1,11 +1,13 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { DEFAULT_LOCALE } from '@focusloop/shared-types';
+import { DEFAULT_INSIGHT_RANGE, DEFAULT_LOCALE } from '@focusloop/shared-types';
 import type {
   BridgeInfo,
   Course,
   DashboardSummary,
   DispatchEventResponse,
   FocusLoopApi,
+  InsightRange,
+  InsightsSummary,
   InterventionDecision,
   LearningEvent,
   LearningState,
@@ -56,6 +58,8 @@ export class AppStateService {
   readonly busy = signal(false);
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
   readonly locale = signal<Locale>(DEFAULT_LOCALE);
+  readonly insights = signal<InsightsSummary | null>(null);
+  readonly insightRange = signal<InsightRange>(DEFAULT_INSIGHT_RANGE);
 
   readonly state = computed<LearningState>(() => this.snapshot()?.session.state ?? 'READY');
   readonly hasSession = computed(() => this.snapshot() !== null);
@@ -231,8 +235,18 @@ export class AppStateService {
     return result;
   }
 
-  /** Bridge status and pairing token, shown to the user so they can pair the extension. */
-  async loadBridgeInfo(): Promise<BridgeInfo | null> {
+  /**
+   * Re-aggregates the dashboard for a window. The main process owns the maths;
+   * the renderer only decides which range the learner asked for.
+   */
+  async loadInsights(range: InsightRange): Promise<void> {
+    this.insightRange.set(range);
+    await this.run(async () => {
+      this.insights.set(await this.api.getInsights({ range }));
+    });
+  }
+
+  /** Bridge status and pairing token, shown to the user so they can pair the extension. */ async loadBridgeInfo(): Promise<BridgeInfo | null> {
     try {
       return await this.api.getBridgeInfo();
     } catch (error) {

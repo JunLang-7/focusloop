@@ -98,6 +98,9 @@ pnpm --filter @focusloop/extension run build:zip  # → apps/extension/release/f
 7. Continue, and FocusLoop records the **resume latency** and whether the intervention helped.
 8. The **Dashboard** shows duration, task completion, interruptions, average resume latency and
    intervention outcomes.
+9. The **Insights** view above it re-aggregates on demand over this session, today, the last seven
+   days or all time: total and daily-average time, a ring of time by learning state, a daily
+   activity grid and a per-course breakdown.
 
 The interface is bilingual — English and Simplified Chinese — and the language is switchable from
 any screen. The choice is stored locally and survives a restart.
@@ -250,7 +253,7 @@ Full statement: [`docs/privacy.md`](docs/privacy.md).
 ## Testing
 
 ```bash
-pnpm test                                        # 338 unit tests
+pnpm test                                        # 394 unit tests
 pnpm --filter @focusloop/desktop-e2e run e2e     # the golden path, in the real app
 node scripts/verify-no-scaffolding.mjs           # release hygiene gate
 ```

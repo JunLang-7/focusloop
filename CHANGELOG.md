@@ -52,6 +52,12 @@ interaction and helps the learner resume.
   emits message keys and interpolation params rather than prose; the renderer owns the wording, so
   there is one bilingual implementation rather than two. A missing translation is a compile error,
   and a test asserts that both languages use the same placeholders.
+- **Insights dashboard** — the dashboard re-aggregates over this session, today, the last seven days
+  or all time: total and daily-average time, a focus ratio, a ring of time by learning state, a
+  daily activity grid, a per-course breakdown, and the share of the window that was actually on
+  task. Everything is rebuilt from the event log by replaying it through the real state machine, so
+  the charts cannot disagree with the engine; silent stretches are capped by the engine's own idle
+  threshold rather than counted as focus.
 - **Quality gates** — ESLint (flat config), TypeScript strict mode, Vitest, Playwright and GitHub
   Actions.
 

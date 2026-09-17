@@ -140,6 +140,28 @@ test('resume is offered once, by the resume card alone', async () => {
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
+test('the dashboard re-aggregates when the window changes', async () => {
+  await window.getByRole('link', { name: 'Dashboard' }).click();
+  await expect(window.getByTestId('insights-total')).toBeVisible();
+
+  // The 7-day window always renders exactly one cell per calendar day.
+  await window.getByTestId('range-week').click();
+  await expect(window.locator('.heat__day')).toHaveCount(7);
+
+  // Today, and "this session", are both a single day.
+  await window.getByTestId('range-today').click();
+  await expect(window.locator('.heat__day')).toHaveCount(1);
+  await window.getByTestId('range-session').click();
+  await expect(window.locator('.heat__day')).toHaveCount(1);
+
+  // The window was not empty: the donut drew something and the ring has a centre.
+  await window.getByTestId('range-all').click();
+  await expect(window.locator('.donut svg circle').first()).toBeVisible();
+  await expect(window.getByTestId('focus-ratio')).toContainText('%');
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
 test('the interface can be switched to Chinese, and the choice survives a restart', async () => {
   // Restarting the app mid-test takes longer than a normal assertion sequence.
   test.setTimeout(90_000);

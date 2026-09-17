@@ -1,10 +1,12 @@
 import {
+  isInsightRange,
   isLocale,
   LEARNING_EVENT_TYPES,
   SESSION_END_REASONS,
   type DispatchEventRequest,
   type EndSessionRequest,
   type ImportMaterialRequest,
+  type InsightsRequest,
   type LearningEvent,
   type ResumeDecisionRequest,
   type ResolveInterventionRequest,
@@ -130,6 +132,13 @@ export function parseSetLocale(channel: string, value: unknown): SetLocaleReques
   const locale = asString(channel, record, 'locale');
   if (!isLocale(locale)) fail(channel, `unsupported locale "${locale}"`);
   return { locale };
+}
+
+export function parseInsightsRequest(channel: string, value: unknown): InsightsRequest {
+  const record = asRecord(channel, value);
+  const range = asString(channel, record, 'range');
+  if (!isInsightRange(range)) fail(channel, `unsupported insight range "${range}"`);
+  return { range };
 }
 
 export function parseResolveIntervention(
