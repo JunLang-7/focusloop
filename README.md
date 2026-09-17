@@ -24,6 +24,9 @@ and helps them get back to the exact cognitive position they left.
 8. The **Dashboard** shows duration, task completion, interruptions, average resume latency and
    intervention outcomes.
 
+The interface is bilingual — English and Simplified Chinese — and the language is switchable from
+any screen. The choice is stored locally and survives a restart.
+
 ### Deliberately not in v0.1
 
 Medical diagnosis · always-on camera/eye-tracking/microphone · mobile apps · accounts ·

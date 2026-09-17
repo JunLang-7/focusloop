@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Intervention } from '@focusloop/shared-types';
+import { DOMAIN_MESSAGE_KEYS } from '@focusloop/shared-types';
 import { createIntervention, decideIntervention, type DecideInterventionInput } from './policy';
 import { resolvePolicyConfig, type InterventionPolicyConfig } from './config';
 import { at, engineWith, eventWith, interventionWith, T0, taskWith } from './fixtures';
@@ -37,7 +38,7 @@ describe('intervention policy — quiet by default', () => {
       now: at(1_000),
     });
     expect(decision.action).toBe('NO_ACTION');
-    expect(decision.reason).toContain('not crossed the threshold');
+    expect(decision.reason.key).toBe('reason.distracted');
   });
 
   it('does nothing while resuming', () => {
@@ -57,7 +58,7 @@ describe('intervention policy — quiet by default', () => {
     ] as const;
     for (const state of states) {
       const decision = decide({ engineState: engineWith({ state }) });
-      expect(decision.reason.length).toBeGreaterThan(0);
+      expect(DOMAIN_MESSAGE_KEYS).toContain(decision.reason.key);
       expect(decision.confidence).toBeGreaterThanOrEqual(0);
       expect(decision.confidence).toBeLessThanOrEqual(1);
     }
@@ -113,7 +114,7 @@ describe('intervention policy — state driven actions', () => {
       now: at(15 * 60_000),
     });
     expect(decision.action).toBe('SIMPLIFY');
-    expect(decision.reason).toContain('past its estimate');
+    expect(decision.reason.key).toBe('reason.simplify');
   });
 
   it('does not SIMPLIFY inside the estimate', () => {
@@ -134,7 +135,7 @@ describe('intervention policy — anti-nagging', () => {
       now: at(30_000),
     });
     expect(decision.action).toBe('NO_ACTION');
-    expect(decision.reason).toContain('cooldown');
+    expect(decision.reason.key).toBe('reason.cooldown');
   });
 
   it('acts again once the cooldown has passed', () => {
@@ -165,7 +166,7 @@ describe('intervention policy — anti-nagging', () => {
       now: at(12 * 200_000),
     });
     expect(decision.action).toBe('NO_ACTION');
-    expect(decision.reason).toContain('budget');
+    expect(decision.reason.key).toBe('reason.budget');
   });
 
   it('backs off after a dismissed resume', () => {
@@ -175,7 +176,7 @@ describe('intervention policy — anti-nagging', () => {
       now: at(30_000),
     });
     expect(decision.action).toBe('NO_ACTION');
-    expect(decision.reason).toContain('dismissed');
+    expect(decision.reason.key).toBe('reason.resume.dismissed');
   });
 
   it('re-offers resume even if an earlier card was dismissed', () => {
@@ -234,7 +235,7 @@ describe('createIntervention', () => {
       {
         action: 'HINT',
         state: 'CONFUSED',
-        reason: 'because',
+        reason: { key: 'reason.confused.hint', params: {} },
         confidence: 0.7,
         estimatedMinutes: 2,
       },
@@ -245,7 +246,7 @@ describe('createIntervention', () => {
       at: T0,
       state: 'CONFUSED',
       action: 'HINT',
-      reason: 'because',
+      reason: { key: 'reason.confused.hint', params: {} },
       shownAt: T0,
     });
   });

@@ -150,6 +150,73 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0002-localized-messages',
+    sql: `
+      -- The two domain-generated strings the learner reads become message
+      -- descriptors: an identity plus the values to interpolate. The renderer
+      -- owns the wording, so there is exactly one implementation per language
+      -- instead of a translated copy of the domain.
+      --
+      -- SQLite cannot drop a NOT NULL column, so both tables are rebuilt.
+      -- Existing rows are migrated to a plausible key rather than losing data.
+      CREATE TABLE checkpoints_v2 (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        concept_id TEXT NOT NULL,
+        concept_title TEXT NOT NULL,
+        goal TEXT NOT NULL,
+        mastered TEXT NOT NULL,
+        unresolved TEXT NOT NULL,
+        current_task_id TEXT NOT NULL,
+        current_task_title TEXT NOT NULL,
+        current_step INTEGER NOT NULL,
+        friction_state TEXT NOT NULL,
+        next_action_key TEXT NOT NULL,
+        next_action_params TEXT NOT NULL,
+        created_at TEXT NOT NULL
+      );
+
+      INSERT INTO checkpoints_v2
+        (id, session_id, concept_id, concept_title, goal, mastered, unresolved,
+         current_task_id, current_task_title, current_step, friction_state,
+         next_action_key, next_action_params, created_at)
+      SELECT
+         id, session_id, concept_id, concept_title, goal, mastered, unresolved,
+         current_task_id, current_task_title, current_step, friction_state,
+         'action.start.next', '{}', created_at
+      FROM checkpoints;
+
+      DROP TABLE checkpoints;
+      ALTER TABLE checkpoints_v2 RENAME TO checkpoints;
+      CREATE INDEX IF NOT EXISTS idx_checkpoints_session
+        ON checkpoints(session_id, created_at DESC);
+
+      CREATE TABLE interventions_v2 (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        at TEXT NOT NULL,
+        state TEXT NOT NULL,
+        action TEXT NOT NULL,
+        reason_key TEXT NOT NULL,
+        reason_params TEXT NOT NULL,
+        shown_at TEXT NOT NULL
+      );
+
+      INSERT INTO interventions_v2
+        (id, session_id, at, state, action, reason_key, reason_params, shown_at)
+      SELECT id, session_id, at, state, action, 'reason.none', '{}', shown_at
+      FROM interventions;
+
+      DROP TABLE interventions;
+      ALTER TABLE interventions_v2 RENAME TO interventions;
+      CREATE INDEX IF NOT EXISTS idx_interventions_session
+        ON interventions(session_id, at);
+
+      INSERT INTO app_meta (key, value) VALUES ('locale', 'en')
+        ON CONFLICT(key) DO NOTHING;
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

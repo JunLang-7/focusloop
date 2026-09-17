@@ -1,5 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
+import type { ResumeCardView } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
+import { I18nService } from '../core/i18n/i18n.service';
 
 /**
  * Screen 4 of 5. This is the product: it restores the learner's cognitive
@@ -10,19 +12,19 @@ import { AppStateService } from '../core/app-state.service';
   standalone: true,
   template: `
     @if (card(); as view) {
-      <div class="overlay" role="dialog" aria-modal="true" aria-label="Resume where you left off">
+      <div class="overlay" role="dialog" aria-modal="true" [attr.aria-label]="t('resume.aria')">
         <div class="resume">
           <header class="resume__header">
-            <p class="eyebrow">Welcome back</p>
-            <h2>{{ view.card.title }}</h2>
-            <p class="muted">{{ view.card.lastContext }}</p>
+            <p class="eyebrow">{{ t('resume.welcome') }}</p>
+            <h2>{{ title(view) }}</h2>
+            <p class="muted">{{ context(view) }}</p>
           </header>
 
           <div class="resume__grid">
             <section>
-              <h3>Done</h3>
+              <h3>{{ t('resume.done') }}</h3>
               @if (view.card.completed.length === 0) {
-                <p class="muted">Nothing completed yet — that is fine.</p>
+                <p class="muted">{{ t('resume.nothingDone') }}</p>
               } @else {
                 <ul>
                   @for (item of view.card.completed; track item) {
@@ -33,9 +35,9 @@ import { AppStateService } from '../core/app-state.service';
             </section>
 
             <section>
-              <h3>Still open</h3>
+              <h3>{{ t('resume.open') }}</h3>
               @if (view.card.unresolved.length === 0) {
-                <p class="muted">Nothing flagged.</p>
+                <p class="muted">{{ t('resume.nothingOpen') }}</p>
               } @else {
                 <ul>
                   @for (item of view.card.unresolved; track item) {
@@ -47,8 +49,8 @@ import { AppStateService } from '../core/app-state.service';
           </div>
 
           <p class="resume__next">
-            <strong>Next step:</strong> {{ view.card.nextAction }}
-            <span class="pill">{{ view.card.estimatedMinutes }} min</span>
+            <strong>{{ t('resume.nextStep') }}</strong> {{ nextAction(view) }}
+            <span class="pill">{{ minutes(view.card.estimatedMinutes) }}</span>
           </p>
 
           <footer class="resume__actions">
@@ -58,16 +60,18 @@ import { AppStateService } from '../core/app-state.service';
               data-testid="resume-continue"
               (click)="continue()"
             >
-              Continue
+              {{ t('resume.continue') }}
             </button>
-            <button type="button" class="btn" (click)="toggleContext()">Show context</button>
+            <button type="button" class="btn" (click)="toggleContext()">
+              {{ t('resume.showContext') }}
+            </button>
             <button
               type="button"
               class="btn btn--ghost"
               data-testid="resume-dismiss"
               (click)="dismiss()"
             >
-              Dismiss
+              {{ t('resume.dismiss') }}
             </button>
           </footer>
 
@@ -81,8 +85,28 @@ import { AppStateService } from '../core/app-state.service';
 })
 export class ResumeCardComponent {
   private readonly state = inject(AppStateService);
+  private readonly i18n = inject(I18nService);
+
+  protected readonly t = this.i18n.t;
   protected readonly card = this.state.resumeCard;
   protected readonly showContext = signal(false);
+
+  protected title(view: ResumeCardView): string {
+    return this.i18n.translate(view.card.title);
+  }
+
+  protected context(view: ResumeCardView): string {
+    return this.i18n.translate(view.card.lastContext);
+  }
+
+  protected nextAction(view: ResumeCardView): string {
+    return this.i18n.translate(view.card.nextAction);
+  }
+
+  /** Templates cannot reach the global `String`, so the conversion lives here. */
+  protected minutes(value: number): string {
+    return this.t('resume.minutes', { minutes: `${value}` });
+  }
 
   protected continue(): void {
     void this.state.acceptResume();
@@ -96,15 +120,24 @@ export class ResumeCardComponent {
     this.showContext.update((value) => !value);
   }
 
+  /**
+   * The groundwork the card was built from. Diagnostic, not prose — the labels
+   * are translated so it stays readable, but the values are shown raw.
+   */
   protected contextText(): string {
     const view = this.card();
     if (view === null) return '';
+    const empty = this.t('resume.context.empty');
     return [
-      `checkpoint: ${view.timing.checkpointId}`,
-      `shown at: ${view.timing.shownAt}`,
-      `completed: ${view.card.completed.join(', ') || '—'}`,
-      `unresolved: ${view.card.unresolved.join(', ') || '—'}`,
-      `next: ${view.card.nextAction}`,
+      this.t('resume.context.checkpoint', { id: view.timing.checkpointId }),
+      this.t('resume.context.shownAt', { at: view.timing.shownAt }),
+      this.t('resume.context.completed', {
+        items: view.card.completed.join(', ') || empty,
+      }),
+      this.t('resume.context.unresolved', {
+        items: view.card.unresolved.join(', ') || empty,
+      }),
+      this.t('resume.context.next', { action: this.nextAction(view) }),
     ].join('\n');
   }
 }

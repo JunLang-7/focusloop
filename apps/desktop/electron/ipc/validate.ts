@@ -1,4 +1,5 @@
 import {
+  isLocale,
   LEARNING_EVENT_TYPES,
   SESSION_END_REASONS,
   type DispatchEventRequest,
@@ -8,6 +9,7 @@ import {
   type ResumeDecisionRequest,
   type ResolveInterventionRequest,
   type SessionEndReason,
+  type SetLocaleRequest,
   type SimulatorCommand,
   type StartSessionRequest,
 } from '@focusloop/shared-types';
@@ -121,6 +123,13 @@ export function parseSessionId(channel: string, value: unknown): string {
 
 export function parseCourseId(channel: string, value: unknown): string {
   return asString(channel, asRecord(channel, value), 'courseId');
+}
+
+export function parseSetLocale(channel: string, value: unknown): SetLocaleRequest {
+  const record = asRecord(channel, value);
+  const locale = asString(channel, record, 'locale');
+  if (!isLocale(locale)) fail(channel, `unsupported locale "${locale}"`);
+  return { locale };
 }
 
 export function parseResolveIntervention(

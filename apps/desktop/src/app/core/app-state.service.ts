@@ -1,4 +1,5 @@
 import { Injectable, signal, computed } from '@angular/core';
+import { DEFAULT_LOCALE } from '@focusloop/shared-types';
 import type {
   BridgeInfo,
   Course,
@@ -8,6 +9,7 @@ import type {
   InterventionDecision,
   LearningEvent,
   LearningState,
+  Locale,
   ResumeCardView,
   RuntimeInfo,
   SessionSnapshot,
@@ -17,6 +19,12 @@ declare global {
   interface Window {
     focusloop: FocusLoopApi;
   }
+}
+
+export interface MaterialImportResult {
+  readonly title: string;
+  readonly conceptsCreated: number;
+  readonly microTasksCreated: number;
 }
 
 export function focusLoopApi(): FocusLoopApi {
@@ -47,6 +55,7 @@ export class AppStateService {
   readonly lastError = signal<string | null>(null);
   readonly busy = signal(false);
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
+  readonly locale = signal<Locale>(DEFAULT_LOCALE);
 
   readonly state = computed<LearningState>(() => this.snapshot()?.session.state ?? 'READY');
   readonly hasSession = computed(() => this.snapshot() !== null);
@@ -78,6 +87,28 @@ export class AppStateService {
       this.resumeCard.set(
         snapshot === null ? null : await this.api.getResumeCard(snapshot.session.id),
       );
+    });
+  }
+
+  /**
+   * Restores the interface language. Called once at startup, before the first
+   * paint that shows any chrome, so the window never flashes the wrong language.
+   */
+  async loadSettings(): Promise<Locale> {
+    try {
+      const settings = await this.api.getSettings();
+      return settings.locale;
+    } catch (error) {
+      this.lastError.set(error instanceof Error ? error.message : String(error));
+      return DEFAULT_LOCALE;
+    }
+  }
+
+  async setLocale(locale: Locale): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setLocale({ locale });
+      // The store is the authority; reflect what it actually kept.
+      this.locale.set(settings.locale);
     });
   }
 
@@ -182,14 +213,22 @@ export class AppStateService {
     });
   }
 
-  async importMaterial(fileName: string, content: string): Promise<string | null> {
-    let summary: string | null = null;
+  /**
+   * Returns the counts, not a sentence: the renderer owns the wording, and the
+   * store has no idea what language the learner reads.
+   */
+  async importMaterial(fileName: string, content: string): Promise<MaterialImportResult | null> {
+    let result: MaterialImportResult | null = null;
     await this.run(async () => {
-      const result = await this.api.importMaterial({ fileName, content });
-      summary = `${result.title}: ${result.conceptsCreated} concepts, ${result.microTasksCreated} micro tasks`;
+      const imported = await this.api.importMaterial({ fileName, content });
+      result = {
+        title: imported.title,
+        conceptsCreated: imported.conceptsCreated,
+        microTasksCreated: imported.microTasksCreated,
+      };
       this.courses.set(await this.api.listCourses());
     });
-    return summary;
+    return result;
   }
 
   /** Bridge status and pairing token, shown to the user so they can pair the extension. */

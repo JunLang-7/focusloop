@@ -2,8 +2,10 @@ import type {
   Course,
   LearningCheckpoint,
   LearningSession,
+  LocalizedMessage,
   MicroTask,
 } from '@focusloop/shared-types';
+import { message } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 
 export interface BuildCheckpointInput {
@@ -132,20 +134,21 @@ export function deriveNextBestAction(
   task: MicroTask | null,
   state: StateEngineState['state'],
   allTasksCompleted = false,
-): string {
+): LocalizedMessage {
   if (allTasksCompleted) {
-    return 'End the session and review what you finished.';
+    return message('action.session.finish');
   }
   if (task === null) {
-    return state === 'READY' ? 'Start the first micro task.' : 'Pick the next micro task.';
+    return message(state === 'READY' ? 'action.start.first' : 'action.start.next');
   }
+  const params = { title: task.title };
   switch (task.kind) {
     case 'quiz':
-      return `Answer the check question: ${task.title}`;
+      return message('action.quiz.answer', params);
     case 'practice':
-      return `Practise with a concrete example: ${task.title}`;
+      return message('action.practice.example', params);
     case 'read':
     default:
-      return `Read and summarise in one sentence: ${task.title}`;
+      return message('action.read.summarise', params);
   }
 }

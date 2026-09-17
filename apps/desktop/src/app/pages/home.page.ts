@@ -1,6 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppStateService } from '../core/app-state.service';
+import { I18nService } from '../core/i18n/i18n.service';
+import { STATE_KEYS } from '../core/i18n/labels';
 import { formatDuration } from '../core/format';
 
 /** Screen 1 of 5: continue, browse courses, import material. */
@@ -10,50 +12,46 @@ import { formatDuration } from '../core/format';
   template: `
     <header class="page-head">
       <div>
-        <p class="eyebrow">Home</p>
-        <h1>Keep your learning continuous</h1>
-        <p class="muted">
-          FocusLoop helps you resume where you stopped thinking — not just where you stopped
-          scrolling.
-        </p>
+        <p class="eyebrow">{{ t('home.eyebrow') }}</p>
+        <h1>{{ t('home.title') }}</h1>
+        <p class="muted">{{ t('home.subtitle') }}</p>
       </div>
     </header>
 
     @if (snapshot(); as current) {
       <section class="card card--accent">
         <div>
-          <p class="eyebrow">Current session</p>
-          <h2>{{ current.courseTitle ?? 'Untitled course' }}</h2>
+          <p class="eyebrow">{{ t('home.current.title') }}</p>
+          <h2>{{ current.courseTitle ?? t('home.current.untitled') }}</h2>
           <p class="muted small">
-            {{ current.progress.completedTasks }} / {{ current.progress.totalTasks }} micro tasks ·
-            {{ elapsed() }} · state {{ current.session.state }}
+            {{ currentMeta(current.progress.completedTasks, current.progress.totalTasks) }}
           </p>
         </div>
         <div class="row">
           <button type="button" class="btn btn--primary" (click)="goToFocus()">
-            Continue session
+            {{ t('home.current.continue') }}
           </button>
         </div>
       </section>
     } @else {
       <section class="card">
-        <p class="muted">No session running. Pick a course below to begin.</p>
+        <p class="muted">{{ t('home.empty') }}</p>
       </section>
     }
 
     <section>
-      <h2 class="section-title">Courses</h2>
+      <h2 class="section-title">{{ t('home.courses.title') }}</h2>
       <div class="grid">
         @for (course of courses(); track course.id) {
           <article class="card course" data-testid="course-card">
             <h3>{{ course.title }}</h3>
             <p class="muted small">{{ course.description }}</p>
             <p class="muted small">
-              {{ course.concepts.length }} concepts · {{ course.microTasks.length }} micro tasks
+              {{ courseMeta(course.concepts.length, course.microTasks.length) }}
             </p>
             <div class="row">
               <button type="button" class="btn btn--small" (click)="openCourse(course.id)">
-                View course
+                {{ t('home.courses.view') }}
               </button>
               <button
                 type="button"
@@ -61,35 +59,37 @@ import { formatDuration } from '../core/format';
                 data-testid="start-session"
                 (click)="start(course.id)"
               >
-                Start session
+                {{ t('home.courses.start') }}
               </button>
             </div>
           </article>
         } @empty {
-          <p class="muted">No courses yet.</p>
+          <p class="muted">{{ t('home.courses.none') }}</p>
         }
       </div>
     </section>
 
     <section>
-      <h2 class="section-title">Import material</h2>
+      <h2 class="section-title">{{ t('home.import.title') }}</h2>
       <div class="card">
-        <p class="muted small">Plain text and Markdown only. Everything stays on this machine.</p>
+        <p class="muted small">{{ t('home.import.hint') }}</p>
         <label class="field">
-          <span>File name</span>
+          <span>{{ t('home.import.fileName') }}</span>
           <input
             type="text"
-            placeholder="notes.md"
+            [placeholder]="t('home.import.placeholder')"
             [value]="fileName()"
             (input)="onFileName($event)"
           />
         </label>
         <label class="field">
-          <span>Content</span>
+          <span>{{ t('home.import.content') }}</span>
           <textarea rows="6" [value]="content()" (input)="onContent($event)"></textarea>
         </label>
         <div class="row">
-          <button type="button" class="btn" (click)="importMaterial()">Import</button>
+          <button type="button" class="btn" (click)="importMaterial()">
+            {{ t('home.import.action') }}
+          </button>
           @if (importSummary(); as summary) {
             <span class="muted small">{{ summary }}</span>
           }
@@ -101,7 +101,9 @@ import { formatDuration } from '../core/format';
 export class HomePage {
   private readonly state = inject(AppStateService);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
 
+  protected readonly t = this.i18n.t;
   protected readonly courses = this.state.courses;
   protected readonly snapshot = this.state.snapshot;
   protected readonly importSummary = signal<string | null>(null);
@@ -109,6 +111,19 @@ export class HomePage {
   protected readonly content = signal(
     '# Rotations\n\nA rotation restructures three nodes while preserving the in-order sequence.\n\n## Left rotation\n\nA left rotation moves the pivot down and to the right.\n',
   );
+
+  protected currentMeta(completed: number, total: number): string {
+    return this.t('home.current.meta', {
+      completed: String(completed),
+      total: String(total),
+      elapsed: this.elapsed(),
+      state: this.t(STATE_KEYS[this.state.state()]),
+    });
+  }
+
+  protected courseMeta(concepts: number, tasks: number): string {
+    return this.t('home.courses.meta', { concepts: String(concepts), tasks: String(tasks) });
+  }
 
   protected elapsed(): string {
     return formatDuration(this.snapshot()?.progress.elapsedMs ?? 0);
@@ -135,8 +150,16 @@ export class HomePage {
   }
 
   protected importMaterial(): void {
-    void this.state.importMaterial(this.fileName(), this.content()).then((summary) => {
-      this.importSummary.set(summary);
+    void this.state.importMaterial(this.fileName(), this.content()).then((result) => {
+      this.importSummary.set(
+        result === null
+          ? null
+          : this.t('home.import.result', {
+              title: result.title,
+              concepts: String(result.conceptsCreated),
+              tasks: String(result.microTasksCreated),
+            }),
+      );
     });
   }
 }

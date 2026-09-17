@@ -1,3 +1,4 @@
+import type { LocalizedMessage } from './messages';
 import type { LearningState } from './state';
 
 export const INTERVENTION_ACTIONS = [
@@ -17,7 +18,7 @@ export type InterventionAction = (typeof INTERVENTION_ACTIONS)[number];
 export interface InterventionDecision {
   readonly action: InterventionAction;
   readonly state: LearningState;
-  readonly reason: string;
+  readonly reason: LocalizedMessage;
   /** 0..1 — how strongly the rule matched. Never presented as a diagnosis. */
   readonly confidence: number;
   /** Minutes the suggested action is expected to take. */
@@ -30,7 +31,7 @@ export interface Intervention {
   readonly at: string;
   readonly state: LearningState;
   readonly action: InterventionAction;
-  readonly reason: string;
+  readonly reason: LocalizedMessage;
   readonly shownAt: string;
 }
 

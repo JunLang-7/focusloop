@@ -1,6 +1,7 @@
 import type {
   Concept,
   Course,
+  DomainMessageKey,
   Intervention,
   InterventionOutcome,
   LearningCheckpoint,
@@ -107,7 +108,8 @@ interface CheckpointRow {
   current_task_title: string;
   current_step: number;
   friction_state: string;
-  next_best_action: string;
+  next_action_key: string;
+  next_action_params: string;
   created_at: string;
 }
 
@@ -117,7 +119,8 @@ interface InterventionRow {
   at: string;
   state: string;
   action: string;
-  reason: string;
+  reason_key: string;
+  reason_params: string;
   shown_at: string;
 }
 
@@ -487,8 +490,8 @@ export class FocusLoopStore {
         `INSERT INTO checkpoints
            (id, session_id, concept_id, concept_title, goal, mastered, unresolved,
             current_task_id, current_task_title, current_step, friction_state,
-            next_best_action, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            next_action_key, next_action_params, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO NOTHING;`,
       )
       .run(
@@ -503,7 +506,8 @@ export class FocusLoopStore {
         checkpoint.currentTaskTitle,
         checkpoint.currentStep,
         checkpoint.frictionState,
-        checkpoint.nextBestAction,
+        checkpoint.nextBestAction.key,
+        JSON.stringify(checkpoint.nextBestAction.params),
         checkpoint.createdAt,
       );
   }
@@ -535,8 +539,9 @@ export class FocusLoopStore {
   saveIntervention(intervention: Intervention): void {
     this.db
       .prepare(
-        `INSERT INTO interventions (id, session_id, at, state, action, reason, shown_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)
+        `INSERT INTO interventions
+           (id, session_id, at, state, action, reason_key, reason_params, shown_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO NOTHING;`,
       )
       .run(
@@ -545,7 +550,8 @@ export class FocusLoopStore {
         intervention.at,
         intervention.state,
         intervention.action,
-        intervention.reason,
+        intervention.reason.key,
+        JSON.stringify(intervention.reason.params),
         intervention.shownAt,
       );
   }
@@ -560,7 +566,10 @@ export class FocusLoopStore {
       at: row.at,
       state: row.state as LearningState,
       action: row.action as Intervention['action'],
-      reason: row.reason,
+      reason: {
+        key: row.reason_key as DomainMessageKey,
+        params: parseJson<Record<string, string>>(row.reason_params, {}),
+      },
       shownAt: row.shown_at,
     };
   }
@@ -575,7 +584,10 @@ export class FocusLoopStore {
       at: row.at,
       state: row.state as LearningState,
       action: row.action as Intervention['action'],
-      reason: row.reason,
+      reason: {
+        key: row.reason_key as DomainMessageKey,
+        params: parseJson<Record<string, string>>(row.reason_params, {}),
+      },
       shownAt: row.shown_at,
     }));
   }
@@ -748,7 +760,10 @@ function mapCheckpoint(row: CheckpointRow): LearningCheckpoint {
     currentTaskTitle: row.current_task_title,
     currentStep: row.current_step,
     frictionState: row.friction_state as LearningState,
-    nextBestAction: row.next_best_action,
+    nextBestAction: {
+      key: row.next_action_key as DomainMessageKey,
+      params: parseJson<Record<string, string>>(row.next_action_params, {}),
+    },
     createdAt: row.created_at,
   };
 }

@@ -1,6 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppStateService } from '../core/app-state.service';
+import { I18nService } from '../core/i18n/i18n.service';
+import { STATE_KEYS, kindLabel } from '../core/i18n/labels';
 import { formatClock, formatDuration, percent } from '../core/format';
 
 /** Screen 3 of 5: the focus workspace. */
@@ -11,26 +13,32 @@ import { formatClock, formatDuration, percent } from '../core/format';
     @if (snapshot(); as current) {
       <header class="page-head">
         <div>
-          <p class="eyebrow">Focus session</p>
-          <h1>{{ current.courseTitle ?? 'Session' }}</h1>
+          <p class="eyebrow">{{ t('focus.eyebrow') }}</p>
+          <h1>{{ current.courseTitle ?? t('focus.untitled') }}</h1>
         </div>
         <div class="row">
-          <button type="button" class="btn btn--ghost" (click)="end()">End session</button>
+          <button type="button" class="btn btn--ghost" (click)="end()">{{ t('focus.end') }}</button>
         </div>
       </header>
 
       <section class="card">
         <div class="stats">
           <div class="stat">
-            <span class="stat__label">State</span>
-            <strong data-testid="state">{{ current.session.state }}</strong>
+            <span class="stat__label">{{ t('focus.state') }}</span>
+            <!--
+              The visible text is translated, so the raw state is exposed as a
+              data attribute. Tests assert the domain value, not the wording.
+            -->
+            <strong data-testid="state" [attr.data-state]="current.session.state">
+              {{ stateLabel() }}
+            </strong>
           </div>
           <div class="stat">
-            <span class="stat__label">Elapsed</span>
+            <span class="stat__label">{{ t('focus.elapsed') }}</span>
             <strong data-testid="elapsed">{{ elapsed() }}</strong>
           </div>
           <div class="stat">
-            <span class="stat__label">Progress</span>
+            <span class="stat__label">{{ t('focus.progress') }}</span>
             <strong data-testid="tasks-completed">
               {{ current.progress.completedTasks }} / {{ current.progress.totalTasks }} ({{
                 ratio()
@@ -38,7 +46,7 @@ import { formatClock, formatDuration, percent } from '../core/format';
             </strong>
           </div>
           <div class="stat">
-            <span class="stat__label">Started</span>
+            <span class="stat__label">{{ t('focus.started') }}</span>
             <strong>{{ startedAt() }}</strong>
           </div>
         </div>
@@ -53,11 +61,11 @@ import { formatClock, formatDuration, percent } from '../core/format';
 
       @if (task(); as currentTask) {
         <section class="card card--accent">
-          <p class="eyebrow">Current micro task</p>
+          <p class="eyebrow">{{ t('focus.currentTask') }}</p>
           <h2 data-testid="task-title">{{ currentTask.title }}</h2>
           <p class="muted">{{ currentTask.instructions }}</p>
           <p class="muted small">
-            {{ currentTask.kind }} · about {{ currentTask.estimatedMinutes }} min
+            {{ taskMeta(currentTask.kind, currentTask.estimatedMinutes) }}
           </p>
           <div class="row">
             <button
@@ -66,19 +74,21 @@ import { formatClock, formatDuration, percent } from '../core/format';
               data-testid="complete-task"
               (click)="complete(currentTask.id)"
             >
-              Complete task
+              {{ t('focus.complete') }}
             </button>
-            <button type="button" class="btn" (click)="needHelp(currentTask.id)">Need help</button>
+            <button type="button" class="btn" (click)="needHelp(currentTask.id)">
+              {{ t('focus.needHelp') }}
+            </button>
           </div>
         </section>
       } @else {
         <section class="card">
-          <p class="muted">No task in progress.</p>
+          <p class="muted">{{ t('focus.noTask') }}</p>
         </section>
       }
 
       <section>
-        <h2 class="section-title">Up next</h2>
+        <h2 class="section-title">{{ t('focus.upNext') }}</h2>
         <ul class="task-list">
           @for (item of openTasks(); track item.id) {
             <li>
@@ -89,19 +99,21 @@ import { formatClock, formatDuration, percent } from '../core/format';
                 data-testid="start-task"
                 (click)="start(item.id)"
               >
-                Start
+                {{ t('focus.startTask') }}
               </button>
             </li>
           } @empty {
-            <li class="muted">Everything in this course is complete.</li>
+            <li class="muted">{{ t('focus.allDone') }}</li>
           }
         </ul>
       </section>
     } @else {
       <div class="card">
-        <h1>No session running</h1>
-        <p class="muted">Start a session from a course to enter the focus workspace.</p>
-        <button type="button" class="btn btn--primary" (click)="back()">Browse courses</button>
+        <h1>{{ t('focus.none.title') }}</h1>
+        <p class="muted">{{ t('focus.none.body') }}</p>
+        <button type="button" class="btn btn--primary" (click)="back()">
+          {{ t('focus.none.browse') }}
+        </button>
       </div>
     }
   `,
@@ -109,9 +121,22 @@ import { formatClock, formatDuration, percent } from '../core/format';
 export class FocusPage {
   private readonly state = inject(AppStateService);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
 
+  protected readonly t = this.i18n.t;
   protected readonly snapshot = this.state.snapshot;
   protected readonly task = this.state.currentTask;
+
+  protected stateLabel(): string {
+    return this.t(STATE_KEYS[this.state.state()]);
+  }
+
+  protected taskMeta(kind: string, minutes: number): string {
+    return this.t('focus.taskMeta', {
+      kind: kindLabel(kind, this.t),
+      minutes: String(minutes),
+    });
+  }
 
   protected openTasks() {
     const course = this.state.currentCourse();

@@ -15,20 +15,37 @@ let app: ElectronApplication;
 let window: Page;
 let userDataDir: string;
 
-test.beforeAll(async () => {
-  userDataDir = mkdtempSync(join(tmpdir(), 'focusloop-e2e-'));
-  app = await electron.launch({
+/**
+ * Starts the packaged main process against a given profile directory.
+ *
+ * Called more than once because "the choice survives a restart" can only be
+ * shown by actually restarting. The renderer is served over `file://`, where
+ * `page.reload()` fails outright, so a relaunch is also the only option.
+ */
+async function launch(): Promise<{ app: ElectronApplication; window: Page }> {
+  const launched = await electron.launch({
     args: [DESKTOP_MAIN, `--user-data-dir=${userDataDir}`],
     env: { ...process.env, FOCUSLOOP_DEV: '1' },
   });
-  window = await app.firstWindow();
-  await window.waitForLoadState('domcontentloaded');
+  const firstWindow = await launched.firstWindow();
+  await firstWindow.waitForLoadState('domcontentloaded');
+  return { app: launched, window: firstWindow };
+}
+
+test.beforeAll(async () => {
+  userDataDir = mkdtempSync(join(tmpdir(), 'focusloop-e2e-'));
+  ({ app, window } = await launch());
 });
 
 test.afterAll(async () => {
   await app?.close();
   if (userDataDir !== undefined) rmSync(userDataDir, { recursive: true, force: true });
 });
+
+/** The state chip's visible text is translated; the raw state is a data attribute. */
+function stateIs(expected: string) {
+  return expect(window.getByTestId('state')).toHaveAttribute('data-state', expected);
+}
 
 test('golden path: learn, get interrupted, resume, see the outcome', async () => {
   // 1. The app boots into Home with the built-in demo course.
@@ -40,11 +57,11 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
 
   // 2. Start a session from the demo course.
   await courseCard.getByTestId('start-session').click();
-  await expect(window.getByTestId('state')).toHaveText('READY');
+  await stateIs('READY');
 
   // 3. Begin the first micro task.
   await window.getByTestId('start-task').first().click();
-  await expect(window.getByTestId('state')).toHaveText('FOCUSED');
+  await stateIs('FOCUSED');
   const firstTaskTitle = await window.getByTestId('task-title').innerText();
 
   // 4. Complete it.
@@ -53,11 +70,11 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
 
   // 5. Simulate a distraction.
   await window.getByTestId('sim-distraction').click();
-  await expect(window.getByTestId('state')).toHaveText('DISTRACTED');
+  await stateIs('DISTRACTED');
 
   // 6. ...and a late return: the state engine must mark the interruption.
   await window.getByTestId('sim-return').click();
-  await expect(window.getByTestId('state')).toHaveText('INTERRUPTED');
+  await stateIs('INTERRUPTED');
 
   // 7. The resume card appears and restores the cognitive position.
   const resume = window.getByRole('dialog', { name: 'Resume where you left off' });
@@ -71,7 +88,7 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
   // 8. Continue.
   await window.getByTestId('resume-continue').click();
   await expect(resume).toBeHidden();
-  await expect(window.getByTestId('state')).toHaveText('RESUMING');
+  await stateIs('RESUMING');
 
   // 9. The dashboard reflects the interruption and a measured resume latency.
   await window.getByRole('link', { name: 'Dashboard' }).click();
@@ -99,7 +116,7 @@ test('the app keeps working when the agent has nothing to say', async () => {
   await window.getByTestId('sim-overload').click();
   const agent = window.locator('.agent');
   await expect(agent).toBeVisible();
-  await expect(agent).toContainText('BREAK');
+  await expect(agent).toHaveAttribute('data-action', 'BREAK');
   await agent.getByRole('button', { name: 'Not now' }).click();
   await expect(agent).toBeHidden();
 
@@ -120,5 +137,48 @@ test('resume is offered once, by the resume card alone', async () => {
 
   await window.getByTestId('resume-continue').click();
   await expect(window.getByRole('dialog', { name: 'Resume where you left off' })).toBeHidden();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
+test('the interface can be switched to Chinese, and the choice survives a restart', async () => {
+  // Restarting the app mid-test takes longer than a normal assertion sequence.
+  test.setTimeout(90_000);
+
+  await window.getByRole('link', { name: 'Home' }).click();
+  await expect(
+    window.getByRole('heading', { name: 'Keep your learning continuous' }),
+  ).toBeVisible();
+
+  // 1. Switch to Chinese.
+  await window.getByTestId('locale-zh').click();
+  await expect(window.getByRole('heading', { name: '让你的学习一直连得上' })).toBeVisible();
+  await expect(window.getByRole('link', { name: '首页' })).toBeVisible();
+  await expect(window.getByRole('link', { name: '专注会话' })).toBeVisible();
+
+  // The whole screen must move, not just the navigation.
+  await expect(window.getByRole('button', { name: '开始会话' }).first()).toBeVisible();
+  await expect(window.getByRole('button', { name: '继续会话' })).toBeVisible();
+
+  // 2. The wording the domain emits is translated too — the learner must never
+  //    see an English sentence in the middle of a Chinese screen.
+  await window.getByRole('link', { name: '专注会话' }).click();
+  await window.getByTestId('sim-overload').click();
+  const agent = window.locator('.agent');
+  await expect(agent).toBeVisible();
+  await expect(agent).toContainText('一次塞进来的东西太多了');
+
+  // 3. A restart keeps the language: the store owns it, not the renderer.
+  await app.close();
+  ({ app, window } = await launch());
+  await expect(window.getByRole('heading', { name: '让你的学习一直连得上' })).toBeVisible();
+
+  // No IPC call may have failed in either language.
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
+  // 4. And back, so the next run starts from a known state.
+  await window.getByTestId('locale-en').click();
+  await expect(
+    window.getByRole('heading', { name: 'Keep your learning continuous' }),
+  ).toBeVisible();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });

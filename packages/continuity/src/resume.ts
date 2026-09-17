@@ -3,9 +3,11 @@ import type {
   LearningCheckpoint,
   LearningEvent,
   LearningSession,
+  LocalizedMessage,
   MicroTask,
   ResumeCard,
 } from '@focusloop/shared-types';
+import { message } from '@focusloop/shared-types';
 
 export interface BuildResumeCardInput {
   readonly checkpoint: LearningCheckpoint;
@@ -42,7 +44,10 @@ export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
       : [...checkpoint.mastered].slice(-MAX_COMPLETED_ITEMS);
 
   return {
-    title: currentTask === null ? `Continue ${course.title}` : `Continue: ${currentTask.title}`,
+    title:
+      currentTask === null
+        ? message('resume.title.course', { course: course.title })
+        : message('resume.title.task', { task: currentTask.title }),
     lastContext: describeLastContext(checkpoint, recentEvents),
     completed,
     unresolved: [...checkpoint.unresolved],
@@ -54,15 +59,15 @@ export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
 function describeLastContext(
   checkpoint: LearningCheckpoint,
   recentEvents: readonly LearningEvent[],
-): string {
+): LocalizedMessage {
+  const base = { concept: checkpoint.conceptTitle, goal: checkpoint.goal };
   const interruption = findLastInterruption(recentEvents);
-  const base = `You were on "${checkpoint.conceptTitle}" — goal: ${checkpoint.goal}.`;
-  if (interruption === null) return base;
+  if (interruption === null) return message('resume.context.plain', base);
 
   const awayMs = interruption.awayMs;
-  if (awayMs === null || awayMs <= 0) return `${base} You stepped away for a moment.`;
+  if (awayMs === null || awayMs <= 0) return message('resume.context.moment', base);
 
-  return `${base} You were away for about ${formatDuration(awayMs)}.`;
+  return message('resume.context.away', { ...base, duration: formatDuration(awayMs) });
 }
 
 function findLastInterruption(

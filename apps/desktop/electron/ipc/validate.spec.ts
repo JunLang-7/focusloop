@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { SUPPORTED_LOCALES } from '@focusloop/shared-types';
 import {
   IpcValidationError,
   parseDispatchRequest,
@@ -8,6 +9,7 @@ import {
   parseResolveIntervention,
   parseResumeDecision,
   parseSessionId,
+  parseSetLocale,
   parseSimulatorCommand,
   parseStartSession,
 } from './validate';
@@ -183,5 +185,25 @@ describe('parseNoArgs', () => {
 
   it('rejects any argument — these channels take none', () => {
     expectFailure(() => parseNoArgs(CHANNEL, { anything: true }));
+  });
+});
+
+describe('parseSetLocale', () => {
+  it('accepts each supported locale', () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(parseSetLocale(CHANNEL, { locale })).toEqual({ locale });
+    }
+  });
+
+  it('rejects a language the interface has no wording for', () => {
+    // Falls through to the English dictionary at runtime, which would look like
+    // a silent bug rather than an error.
+    expectFailure(() => parseSetLocale(CHANNEL, { locale: 'fr' }));
+  });
+
+  it('rejects a missing or non-string locale', () => {
+    expectFailure(() => parseSetLocale(CHANNEL, {}));
+    expectFailure(() => parseSetLocale(CHANNEL, { locale: 42 }));
+    expectFailure(() => parseSetLocale(CHANNEL, { locale: '' }));
   });
 });

@@ -27,6 +27,22 @@ describe('FocusLoopEngine', () => {
     ctx.close();
   });
 
+  describe('settings', () => {
+    it('defaults to English when nothing has been chosen', () => {
+      expect(ctx.engine.getSettings()).toEqual({ locale: 'en' });
+    });
+
+    it('remembers the chosen language', () => {
+      expect(ctx.engine.setLocale('zh')).toEqual({ locale: 'zh' });
+      expect(ctx.engine.getSettings()).toEqual({ locale: 'zh' });
+    });
+
+    it('ignores a language nobody wrote wording for', () => {
+      ctx.engine.setLocale('fr' as never);
+      expect(ctx.engine.getSettings().locale).toBe('en');
+    });
+  });
+
   describe('catalogue', () => {
     it('seeds the built-in demo course exactly once', () => {
       ctx.engine.seedBuiltInCourses();
@@ -201,7 +217,7 @@ describe('FocusLoopEngine', () => {
 
       expect(response.state).toBe('INTERRUPTED');
       expect(response.checkpoint).not.toBeNull();
-      expect(response.resumeCard?.card.title).toContain('Continue');
+      expect(response.resumeCard?.card.title.key).toBe('resume.title.task');
       expect(response.resumeCard?.card.completed).toEqual(['Recall the ordering invariant']);
     });
 
