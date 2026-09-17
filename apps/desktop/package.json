@@ -1,0 +1,47 @@
+{
+  "name": "@focusloop/desktop",
+  "version": "0.1.0-demo",
+  "private": true,
+  "description": "FocusLoop desktop client — Electron shell with an Angular renderer.",
+  "main": "dist/main/main.cjs",
+  "scripts": {
+    "build": "ng build --configuration production && node scripts/build-main.mjs",
+    "build:dev": "ng build --configuration development && node scripts/build-main.mjs",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.app.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "start": "pnpm run build:dev && electron dist/main/main.cjs",
+    "serve": "pnpm run start",
+    "package": "pnpm run build && electron-builder --win --config electron-builder.yml",
+    "package:dir": "pnpm run build && electron-builder --dir --config electron-builder.yml"
+  },
+  "dependencies": {
+    "@focusloop/agent-core": "workspace:*",
+    "@focusloop/continuity": "workspace:*",
+    "@focusloop/intervention-policy": "workspace:*",
+    "@focusloop/learning-state": "workspace:*",
+    "@focusloop/llm-provider": "workspace:*",
+    "@focusloop/material-parser": "workspace:*",
+    "@focusloop/persistence": "workspace:*",
+    "@focusloop/shared-types": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@angular/build": "^20.0.0",
+    "@angular/cli": "^20.0.0",
+    "@angular/common": "^20.0.0",
+    "@angular/compiler": "^20.0.0",
+    "@angular/compiler-cli": "^20.0.0",
+    "@angular/core": "^20.0.0",
+    "@angular/forms": "^20.0.0",
+    "@angular/platform-browser": "^20.0.0",
+    "@angular/router": "^20.0.0",
+    "@types/ws": "^8.5.13",
+    "electron": "^44.4.1",
+    "electron-builder": "^25.1.8",
+    "esbuild": "^0.24.0",
+    "rxjs": "^7.8.1",
+    "tslib": "^2.8.1",
+    "zone.js": "^0.15.0"
+  }
+}

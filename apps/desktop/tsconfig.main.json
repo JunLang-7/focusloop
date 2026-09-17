@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist/out-tsc/main",
+    "types": ["node"],
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "noEmit": true
+  },
+  "include": ["electron/**/*.ts", "scripts/**/*.mjs"],
+  "exclude": ["electron/**/*.spec.ts"]
+}

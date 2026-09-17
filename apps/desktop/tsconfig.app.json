@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist/out-tsc/renderer",
+    "types": [],
+    "module": "ESNext",
+    "target": "ES2022",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "experimentalDecorators": true,
+    "useDefineForClassFields": false,
+    "emitDeclarationOnly": false
+  },
+  "angularCompilerOptions": {
+    "strictTemplates": true,
+    "strictInjectionParameters": true,
+    "typeCheckHostBindings": true
+  },
+  "files": ["src/main.ts"],
+  "include": ["src/**/*.d.ts", "src/**/*.ts"]
+}
