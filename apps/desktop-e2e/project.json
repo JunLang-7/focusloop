@@ -1,0 +1,16 @@
+{
+  "name": "desktop-e2e",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "apps/desktop-e2e/tests",
+  "projectType": "application",
+  "targets": {
+    "e2e": {
+      "executor": "nx:run-script",
+      "options": { "script": "e2e" },
+      "dependsOn": ["desktop:build"]
+    },
+    "typecheck": { "executor": "nx:run-script", "options": { "script": "typecheck" } },
+    "test": { "executor": "nx:run-script", "options": { "script": "test" } },
+    "lint": { "executor": "nx:run-script", "options": { "script": "lint" } }
+  }
+}

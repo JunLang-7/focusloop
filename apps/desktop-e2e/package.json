@@ -1,0 +1,16 @@
+{
+  "name": "@focusloop/desktop-e2e",
+  "version": "0.1.0-demo",
+  "private": true,
+  "description": "Golden-path end-to-end test that drives the packaged Electron app.",
+  "scripts": {
+    "e2e": "playwright test",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "playwright test",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0",
+    "electron": "^44.4.1"
+  }
+}
