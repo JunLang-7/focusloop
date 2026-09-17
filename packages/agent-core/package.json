@@ -1,0 +1,26 @@
+{
+  "name": "@focusloop/agent-core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@focusloop/continuity": "workspace:*",
+    "@focusloop/intervention-policy": "workspace:*",
+    "@focusloop/learning-state": "workspace:*",
+    "@focusloop/llm-provider": "workspace:*",
+    "@focusloop/material-parser": "workspace:*",
+    "@focusloop/persistence": "workspace:*",
+    "@focusloop/shared-types": "workspace:*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.lib.json",
+    "typecheck": "tsc -p tsconfig.lib.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  }
+}
