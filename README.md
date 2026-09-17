@@ -47,11 +47,10 @@ pnpm lint        # eslint across every project
 pnpm typecheck   # tsc --noEmit across every project
 pnpm test        # vitest across every project
 pnpm build       # production bundles for every project
-pnpm e2e         # playwright — requires `pnpm build` first, see below
+pnpm e2e         # playwright drives the real Electron app, building it first
 ```
 
-`pnpm e2e` drives `apps/desktop/dist/main/main.cjs`, so it needs `pnpm build` (or a
-`pnpm --filter @focusloop/desktop run build`) to have run at least once.
+`pnpm e2e` builds the desktop app as a dependency before it runs, so it works on a clean checkout.
 
 ### Package a release
 
@@ -181,7 +180,7 @@ pnpm lint        # eslint across every project
 pnpm typecheck   # tsc --noEmit across every project
 pnpm test        # vitest across every project
 pnpm build       # angular + esbuild + extension bundles
-pnpm e2e         # playwright drives the real Electron app (needs `pnpm build` first)
+pnpm e2e         # playwright drives the real Electron app
 ```
 
 ### Publishing
@@ -227,7 +226,7 @@ Full statement: [`docs/privacy.md`](docs/privacy.md).
 ## Testing
 
 ```bash
-pnpm test                                        # 303 unit tests
+pnpm test                                        # 338 unit tests
 pnpm --filter @focusloop/desktop-e2e run e2e     # the golden path, in the real app
 node scripts/verify-no-scaffolding.mjs           # release hygiene gate
 ```
