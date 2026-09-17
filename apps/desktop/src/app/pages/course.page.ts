@@ -60,7 +60,9 @@ import { kindLabel } from '../core/i18n/labels';
                   <strong>{{ task.title }}</strong>
                   <span class="muted small block">{{ task.instructions }}</span>
                 </td>
-                <td>{{ kind(task.kind) }}</td>
+                <td>
+                  <span class="chip">{{ kind(task.kind) }}</span>
+                </td>
                 <td>{{ minutes(task.estimatedMinutes) }}</td>
                 <td>{{ t(isDone(task.id) ? 'course.status.done' : 'course.status.open') }}</td>
               </tr>

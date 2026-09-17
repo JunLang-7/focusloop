@@ -264,14 +264,16 @@ body:has(.simulator) .content {
   background: linear-gradient(180deg, #1a2130, var(--bg-elevated));
 }
 
+/* `auto-fit`, not `auto-fill`: with a single course, `auto-fill` keeps the empty
+   tracks and leaves two thirds of the row blank. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 12px;
 }
 
 .grid--4 {
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
 }
 
 .course {
@@ -351,11 +353,28 @@ body:has(.simulator) .content {
   gap: 6px;
 }
 
-.task-list li,
-.timeline li {
+/* A queue, not a set of cards. The current task is the only card on this page
+   that should look like one, so these rows are borderless and recede. */
+.task-list li {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
+  padding: 8px 2px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  font-size: 13px;
+}
+
+.task-list li:last-child {
+  border-bottom: 0;
+}
+
+.timeline li {
+  display: flex;
+  align-items: center;
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--border);
@@ -363,8 +382,22 @@ body:has(.simulator) .content {
   background: var(--bg-elevated);
 }
 
-.timeline li {
-  justify-content: flex-start;
+/* Small inline label for a closed vocabulary — a task kind, a state, a tag. */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* The chip and its estimate sit on one line under the task instructions. */
+.task-meta {
+  margin: 12px 0 0;
 }
 
 .timeline strong {

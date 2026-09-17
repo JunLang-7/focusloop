@@ -8,7 +8,8 @@ import { join, resolve } from 'node:path';
 import { _electron as electron } from '@playwright/test';
 
 const DESKTOP_MAIN = resolve(import.meta.dirname, '..', 'desktop', 'dist', 'main', 'main.cjs');
-const OUT = resolve(import.meta.dirname, '..', '..', 'demo-ui-review');
+// Deliberately outside the repository: screenshots are a review aid, not source.
+const OUT = resolve(import.meta.dirname, '..', '..', '..', 'demo-ui-review');
 
 mkdirSync(OUT, { recursive: true });
 const userDataDir = mkdtempSync(join(tmpdir(), 'focusloop-ui-'));
@@ -32,12 +33,22 @@ try {
   // Build up some real activity so the charts are not empty.
   await window.getByTestId('course-card').first().getByTestId('start-session').click();
   await window.getByTestId('start-task').first().click();
+  await window.getByTestId('task-title').waitFor();
+  await window.waitForTimeout(300);
+  await shot(window, '01b-focus-active-en');
+
   await window.getByTestId('complete-task').click();
   await window.getByTestId('sim-overload').click();
+  await window.locator('.agent').waitFor();
+  await window.waitForTimeout(300);
+  await shot(window, '01c-focus-agent-en');
   await window.locator('.agent').getByRole('button', { name: 'Not now' }).click();
   await window.getByTestId('sim-distraction').click();
   await window.waitForTimeout(300);
   await window.getByTestId('sim-return').click();
+  await window.getByTestId('resume-continue').waitFor();
+  await window.waitForTimeout(400);
+  await shot(window, '01d-resume-card-en');
   await window.getByTestId('resume-continue').click();
   await window.waitForTimeout(400);
 
@@ -70,8 +81,12 @@ try {
   await window.waitForTimeout(300);
   await shot(window, '06-home-zh');
 
+  await window.getByRole('link', { name: '专注会话' }).click();
+  await window.waitForTimeout(400);
+  await shot(window, '07-focus-zh');
+
   const banners = await window.locator('.banner--error').count();
-  process.stdout.write(`\nCAPTURED 7 screens, error banners: ${banners}\n`);
+  process.stdout.write(`\nCAPTURED 11 screens, error banners: ${banners}\n`);
 } finally {
   await app.close();
   rmSync(userDataDir, { recursive: true, force: true });

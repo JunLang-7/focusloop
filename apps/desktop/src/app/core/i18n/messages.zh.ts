@@ -81,7 +81,7 @@ export const zh: Record<MessageKey, string> = {
   'focus.progress': '进度',
   'focus.started': '开始时间',
   'focus.currentTask': '当前微任务',
-  'focus.taskMeta': '{kind} · 约 {minutes} 分钟',
+  'focus.taskMeta': '约 {minutes} 分钟',
   'focus.complete': '完成任务',
   'focus.needHelp': '我需要帮助',
   'focus.noTask': '当前没有进行中的任务。',
@@ -175,7 +175,7 @@ export const zh: Record<MessageKey, string> = {
   'resume.context.empty': '—',
 
   // -------------------------------------------------------- agent panel
-  'agent.suggesting': '建议中 · {action}',
+  'agent.suggesting': '建议',
   'agent.showMe': '给我看看',
   'agent.notNow': '稍后再说',
   'agent.action.MICRO_START': '从最小的一步开始',
