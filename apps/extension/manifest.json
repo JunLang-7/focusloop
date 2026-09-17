@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "FocusLoop Bridge",
+  "version": "0.1.0",
+  "description": "Sends tab-activity metadata to the local FocusLoop desktop app. No page content is ever read.",
+  "minimum_chrome_version": "116",
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "FocusLoop Bridge",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["idle", "storage", "alarms"],
+  "optional_host_permissions": ["http://127.0.0.1/*"],
+  "incognito": "not_allowed"
+}

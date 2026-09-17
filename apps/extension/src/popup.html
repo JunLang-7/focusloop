@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>FocusLoop Bridge</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        width: 320px;
+        margin: 0;
+        padding: 14px;
+        background: #0f1115;
+        color: #e8ebf0;
+        font:
+          13px 'Segoe UI',
+          system-ui,
+          sans-serif;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 14px;
+      }
+      p {
+        margin: 0 0 10px;
+        color: #9aa3b2;
+        font-size: 12px;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: #9aa3b2;
+      }
+      input {
+        width: 100%;
+        margin-top: 3px;
+        padding: 6px 8px;
+        border: 1px solid #262b35;
+        border-radius: 6px;
+        background: #161a21;
+        color: #e8ebf0;
+        font: inherit;
+      }
+      button {
+        padding: 7px 12px;
+        border: 1px solid #3d7dfa;
+        border-radius: 6px;
+        background: #3d7dfa;
+        color: #05070b;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .status {
+        margin-top: 10px;
+        padding: 8px;
+        border: 1px solid #262b35;
+        border-radius: 6px;
+        background: #161a21;
+        font-size: 12px;
+        white-space: pre-wrap;
+      }
+      .privacy {
+        margin-top: 10px;
+        font-size: 11px;
+        color: #6b7280;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>FocusLoop Bridge</h1>
+    <p>Sends tab-activity metadata to the local desktop app.</p>
+
+    <label>
+      Port
+      <input id="port" type="number" min="1024" max="65535" />
+    </label>
+
+    <label>
+      Session token (shown by FocusLoop)
+      <input id="token" type="text" spellcheck="false" autocomplete="off" />
+    </label>
+
+    <button id="save" type="button">Save and connect</button>
+    <div class="status" id="status">Loading…</div>
+    <p class="privacy">
+      This extension requests no page-content access. It cannot read URLs, page text, form input or
+      cookies.
+    </p>
+
+    <script type="module" src="popup.js"></script>
+  </body>
+</html>

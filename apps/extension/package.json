@@ -1,0 +1,21 @@
+{
+  "name": "@focusloop/extension",
+  "version": "0.1.0-demo",
+  "private": true,
+  "description": "FocusLoop browser bridge — Manifest V3, metadata only.",
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build:zip": "node scripts/build.mjs --zip",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@focusloop/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "esbuild": "^0.24.0"
+  }
+}
