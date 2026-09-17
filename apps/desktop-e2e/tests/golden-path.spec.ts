@@ -65,6 +65,9 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
   await expect(resume).toContainText('Continue');
   await expect(resume).toContainText('Next step:');
 
+  // No IPC call may have failed while the card came up.
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
   // 8. Continue.
   await window.getByTestId('resume-continue').click();
   await expect(resume).toBeHidden();
@@ -80,6 +83,9 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
   // The task the learner was on is still the task they resume into.
   await window.getByRole('link', { name: 'Focus Session' }).click();
   expect(firstTaskTitle.length).toBeGreaterThan(0);
+
+  // Every screen the learner visited was rendered without an IPC failure.
+  await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
 test('the app keeps working when the agent has nothing to say', async () => {
@@ -96,4 +102,23 @@ test('the app keeps working when the agent has nothing to say', async () => {
   await expect(agent).toContainText('BREAK');
   await agent.getByRole('button', { name: 'Not now' }).click();
   await expect(agent).toBeHidden();
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
+test('resume is offered once, by the resume card alone', async () => {
+  await window.getByRole('link', { name: 'Home' }).click();
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  await window.getByTestId('sim-distraction').click();
+  await window.getByTestId('sim-return').click();
+
+  // The card is the surface for RESUME; the agent panel must not repeat it.
+  await expect(window.getByRole('dialog', { name: 'Resume where you left off' })).toBeVisible();
+  await expect(window.locator('.agent')).toBeHidden();
+
+  await window.getByTestId('resume-continue').click();
+  await expect(window.getByRole('dialog', { name: 'Resume where you left off' })).toBeHidden();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
 });

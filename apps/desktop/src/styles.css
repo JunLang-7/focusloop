@@ -283,6 +283,12 @@ ol {
   color: var(--text-muted);
 }
 
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .stat-card strong {
   font-size: 20px;
 }

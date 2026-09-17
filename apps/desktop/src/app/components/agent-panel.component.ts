@@ -20,7 +20,7 @@ const ACTION_COPY: Record<string, string> = {
   standalone: true,
   template: `
     @if (decision(); as value) {
-      @if (value.action !== 'NO_ACTION') {
+      @if (visible(value.action)) {
         <aside class="agent" role="status">
           <p class="eyebrow">Suggesting · {{ value.action }}</p>
           <h3>{{ copy(value.action) }}</h3>
@@ -41,6 +41,14 @@ const ACTION_COPY: Record<string, string> = {
 export class AgentPanelComponent {
   private readonly state = inject(AppStateService);
   protected readonly decision = computed(() => this.state.decision());
+
+  /**
+   * RESUME has its own surface — the resume card. Showing it here as well would
+   * ask the learner the same question twice.
+   */
+  protected visible(action: string): boolean {
+    return action !== 'NO_ACTION' && action !== 'RESUME';
+  }
 
   protected copy(action: string): string {
     return ACTION_COPY[action] ?? action;
