@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type {
   Course,
+  Intervention,
   InterventionOutcome,
   LearningCheckpoint,
   LearningEvent,
@@ -271,7 +272,7 @@ describe('FocusLoopStore', () => {
       currentTaskTitle: 'Recall the invariant',
       currentStep: 2,
       frictionState: 'INTERRUPTED',
-      nextBestAction: 'Re-read the invariant',
+      nextBestAction: { key: 'action.read.summarise', params: { title: 'Recall the invariant' } },
       createdAt,
     });
 
@@ -292,6 +293,50 @@ describe('FocusLoopStore', () => {
 
     it('returns null when there is no checkpoint', () => {
       expect(store.getLatestCheckpoint('session-1')).toBeNull();
+    });
+  });
+
+  describe('interventions', () => {
+    const intervention = (id: string, at: string): Intervention => ({
+      id,
+      sessionId: 'session-1',
+      at,
+      state: 'CONFUSED',
+      action: 'HINT',
+      reason: { key: 'reason.confused.hint', params: {} },
+      shownAt: at,
+    });
+
+    it('round-trips an intervention with its message descriptor', () => {
+      store.saveIntervention(intervention('i1', T0));
+      expect(store.getIntervention('i1')).toEqual(intervention('i1', T0));
+    });
+
+    it('preserves interpolation params', () => {
+      store.saveIntervention({
+        ...intervention('i2', T0),
+        reason: { key: 'reason.overloaded', params: { count: '3' } },
+      });
+      expect(store.getIntervention('i2')?.reason).toEqual({
+        key: 'reason.overloaded',
+        params: { count: '3' },
+      });
+    });
+
+    it('lists interventions for a session in order', () => {
+      store.saveIntervention(intervention('i2', '2026-01-01T00:00:02.000Z'));
+      store.saveIntervention(intervention('i1', '2026-01-01T00:00:01.000Z'));
+      expect(store.listInterventions('session-1').map((item) => item.id)).toEqual(['i1', 'i2']);
+    });
+
+    it('is idempotent by intervention id', () => {
+      store.saveIntervention(intervention('i1', T0));
+      store.saveIntervention(intervention('i1', T0));
+      expect(store.listInterventions('session-1')).toHaveLength(1);
+    });
+
+    it('returns null for an unknown intervention', () => {
+      expect(store.getIntervention('missing')).toBeNull();
     });
   });
 
@@ -382,12 +427,16 @@ describe('FocusLoopStore', () => {
         const firstStore = new FocusLoopStore(first);
         firstStore.initialize();
         firstStore.saveCourse(courseFixture());
+        firstStore.setMeta('locale', 'zh');
         firstStore.close();
 
         const second = openDatabase(file);
         const secondStore = new FocusLoopStore(second);
         secondStore.initialize();
         expect(secondStore.getCourse('course-1')).toEqual(courseFixture());
+        // The interface language is stored here, which is why switching it
+        // survives a restart.
+        expect(secondStore.getMeta('locale')).toBe('zh');
         secondStore.close();
       } finally {
         rmSync(file, { force: true });

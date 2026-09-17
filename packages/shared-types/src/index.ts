@@ -10,3 +10,5 @@ export * from './dashboard';
 export * from './provider';
 export * from './ipc';
 export * from './bridge';
+export * from './messages';
+export * from './settings';

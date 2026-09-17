@@ -21,6 +21,8 @@ import type {
   SimulatorCommand,
   StartSessionResponse,
 } from '@focusloop/shared-types';
+import { message } from '@focusloop/shared-types';
+import { coerceLocale, type AppSettings, type Locale } from '@focusloop/shared-types';
 import {
   DEFAULT_STATE_ENGINE_CONFIG,
   computeSessionProgress,
@@ -48,6 +50,9 @@ import {
 import { buildDashboardSummary } from './dashboard';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
+
+/** The `app_meta` key the interface language is stored under. */
+export const LOCALE_KEY = 'locale';
 
 export class EngineError extends Error {
   readonly code:
@@ -381,7 +386,7 @@ export class FocusLoopEngine {
         {
           action: 'RESUME',
           state: engineState.state,
-          reason: 'learner returned after an interruption',
+          reason: message('reason.resume.interruption'),
           confidence: 1,
           estimatedMinutes: 5,
         },
@@ -654,6 +659,17 @@ export class FocusLoopEngine {
       state: { ...DEFAULT_STATE_ENGINE_CONFIG, ...this.stateConfig },
       policy: { ...DEFAULT_POLICY_CONFIG, ...this.policyConfig },
     };
+  }
+
+  // ---------------------------------------------------------------- settings
+
+  getSettings(): AppSettings {
+    return { locale: coerceLocale(this.store.getMeta(LOCALE_KEY)) };
+  }
+
+  setLocale(locale: Locale): AppSettings {
+    this.store.setMeta(LOCALE_KEY, locale);
+    return this.getSettings();
   }
 }
 

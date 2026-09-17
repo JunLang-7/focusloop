@@ -1,6 +1,8 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppStateService } from '../core/app-state.service';
+import { I18nService } from '../core/i18n/i18n.service';
+import { kindLabel } from '../core/i18n/labels';
 
 /** Screen 2 of 5: concepts, micro tasks, and the entry point into a session. */
 @Component({
@@ -10,15 +12,17 @@ import { AppStateService } from '../core/app-state.service';
     @if (course(); as value) {
       <header class="page-head">
         <div>
-          <p class="eyebrow">Course</p>
+          <p class="eyebrow">{{ t('course.eyebrow') }}</p>
           <h1>{{ value.title }}</h1>
           <p class="muted">{{ value.description }}</p>
         </div>
-        <button type="button" class="btn btn--primary" (click)="start()">Start session</button>
+        <button type="button" class="btn btn--primary" (click)="start()">
+          {{ t('course.start') }}
+        </button>
       </header>
 
       <section>
-        <h2 class="section-title">Concepts</h2>
+        <h2 class="section-title">{{ t('course.concepts') }}</h2>
         <ol class="concepts">
           @for (concept of value.concepts; track concept.id) {
             <li class="card">
@@ -37,15 +41,15 @@ import { AppStateService } from '../core/app-state.service';
       </section>
 
       <section>
-        <h2 class="section-title">Micro tasks</h2>
+        <h2 class="section-title">{{ t('course.tasks') }}</h2>
         <table class="table">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Task</th>
-              <th>Kind</th>
-              <th>Estimate</th>
-              <th>Status</th>
+              <th>{{ t('course.col.order') }}</th>
+              <th>{{ t('course.col.task') }}</th>
+              <th>{{ t('course.col.kind') }}</th>
+              <th>{{ t('course.col.estimate') }}</th>
+              <th>{{ t('course.col.status') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -56,9 +60,9 @@ import { AppStateService } from '../core/app-state.service';
                   <strong>{{ task.title }}</strong>
                   <span class="muted small block">{{ task.instructions }}</span>
                 </td>
-                <td>{{ task.kind }}</td>
-                <td>{{ task.estimatedMinutes }} min</td>
-                <td>{{ isDone(task.id) ? 'done' : 'open' }}</td>
+                <td>{{ kind(task.kind) }}</td>
+                <td>{{ minutes(task.estimatedMinutes) }}</td>
+                <td>{{ t(isDone(task.id) ? 'course.status.done' : 'course.status.open') }}</td>
               </tr>
             }
           </tbody>
@@ -66,8 +70,8 @@ import { AppStateService } from '../core/app-state.service';
       </section>
     } @else {
       <div class="card">
-        <p class="muted">Course not found.</p>
-        <button type="button" class="btn" (click)="back()">Back to home</button>
+        <p class="muted">{{ t('course.notFound') }}</p>
+        <button type="button" class="btn" (click)="back()">{{ t('course.back') }}</button>
       </div>
     }
   `,
@@ -75,6 +79,9 @@ import { AppStateService } from '../core/app-state.service';
 export class CoursePage {
   private readonly state = inject(AppStateService);
   private readonly router = inject(Router);
+  private readonly i18n = inject(I18nService);
+
+  protected readonly t = this.i18n.t;
 
   readonly courseId = input.required<string>();
 
@@ -82,6 +89,15 @@ export class CoursePage {
     const id = this.courseId();
     return this.state.courses().find((item) => item.id === id) ?? null;
   });
+
+  protected kind(value: string): string {
+    return kindLabel(value, this.t);
+  }
+
+  /** Templates cannot reach the global `String`, so the conversion lives here. */
+  protected minutes(value: number): string {
+    return this.t('course.minutes', { minutes: `${value}` });
+  }
 
   protected isDone(taskId: string): boolean {
     return this.state.snapshot()?.session.completedTaskIds.includes(taskId) ?? false;

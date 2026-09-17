@@ -191,6 +191,42 @@ ol {
   background: var(--danger);
 }
 
+/* Language switcher. Sits in the sidebar footer with the rest of the chrome. */
+.locale {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/*
+ * The simulator bar is fixed to the bottom and spans the full width, so it sits
+ * on top of whatever is at the bottom of the page. Reserve room for it instead of
+ * letting it swallow the sidebar footer and the end of the content.
+ */
+body:has(.simulator) .sidebar,
+body:has(.simulator) .content {
+  padding-bottom: 56px;
+}
+
+.locale__options {
+  display: flex;
+  gap: 4px;
+}
+
+.locale__btn {
+  flex: 1;
+  justify-content: center;
+}
+
+.locale__btn.is-active {
+  border-color: var(--accent);
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
 .content {
   overflow-y: auto;
   padding: 24px 28px 96px;

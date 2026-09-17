@@ -36,7 +36,7 @@ export function interventionWith(
     at: shownAt,
     state: 'CONFUSED',
     action,
-    reason: 'fixture',
+    reason: { key: 'reason.confused.hint', params: {} },
     shownAt,
   };
 }

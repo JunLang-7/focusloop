@@ -2,10 +2,13 @@ import type {
   Intervention,
   InterventionAction,
   InterventionDecision,
+  InterventionReasonCode,
   LearningEvent,
   LearningState,
+  MessageParams,
   MicroTask,
 } from '@focusloop/shared-types';
+import { message } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 import type { InterventionPolicyConfig } from './config';
 import { resolvePolicyConfig } from './config';
@@ -47,13 +50,14 @@ export const ACTION_PRIORITY: Record<InterventionAction, number> = {
 };
 
 function decision(
+  reasonCode: InterventionReasonCode,
   action: InterventionAction,
   state: LearningState,
-  reason: string,
-  confidence: number,
+  params: MessageParams = {},
+  confidence = 1,
   estimatedMinutes = ACTION_MINUTES[action],
 ): InterventionDecision {
-  return { action, state, reason, confidence, estimatedMinutes };
+  return { action, state, reason: message(reasonCode, params), confidence, estimatedMinutes };
 }
 
 function msSince(iso: string | undefined, now: string): number | null {
@@ -83,37 +87,43 @@ function candidateFor(
   const state = engineState.state;
 
   if (state === 'OVERLOADED') {
-    return decision('BREAK', state, 'repeated help requests in a short window', 0.9);
+    return decision('reason.overloaded', 'BREAK', state, {}, 0.9);
   }
 
   if (state === 'CONFUSED') {
     if (engineState.consecutiveIncorrect >= 2) {
-      return decision('EXAMPLE', state, 'two consecutive incorrect answers', 0.85);
+      return decision(
+        'reason.confused.example',
+        'EXAMPLE',
+        state,
+        { count: String(engineState.consecutiveIncorrect) },
+        0.85,
+      );
     }
-    return decision('HINT', state, 'help requested on the current task', 0.7);
+    return decision('reason.confused.hint', 'HINT', state, {}, 0.7);
   }
 
   if (state === 'INITIATION_FRICTION') {
-    return decision('MICRO_START', state, 'no task started within the initiation window', 0.8);
+    return decision('reason.initiation', 'MICRO_START', state, {}, 0.8);
   }
 
   if (state === 'FOCUSED' && currentTask !== null) {
     const elapsed = msSince(engineState.taskStartedAt ?? undefined, now);
     const estimateMs = currentTask.estimatedMinutes * 60_000;
     if (elapsed !== null && estimateMs > 0 && elapsed > estimateMs * config.simplifyAfterRatio) {
-      return decision('SIMPLIFY', state, 'task is running well past its estimate', 0.75);
+      return decision('reason.simplify', 'SIMPLIFY', state, {}, 0.75);
     }
   }
 
   if (state === 'FOCUSED' && engineState.consecutiveIncorrect === 1) {
-    return decision('QUESTION', state, 'one incorrect answer so far', 0.6);
+    return decision('reason.question', 'QUESTION', state, {}, 0.6);
   }
 
   if (state === 'DISTRACTED') {
-    return decision('NO_ACTION', state, 'learner is away but has not crossed the threshold', 1);
+    return decision('reason.distracted', 'NO_ACTION', state);
   }
 
-  return decision('NO_ACTION', state, 'no rule matched — staying out of the way', 1);
+  return decision('reason.none', 'NO_ACTION', state);
 }
 
 /**
@@ -132,7 +142,7 @@ export function decideIntervention(
 
   // 1. Never become the distraction.
   if (shownInterventions.length >= config.maxInterventionsPerSession) {
-    return decision('NO_ACTION', state, 'session intervention budget exhausted', 1);
+    return decision('reason.budget', 'NO_ACTION', state);
   }
 
   // 2. A dismissed resume means the learner wants to be left alone.
@@ -144,12 +154,12 @@ export function decideIntervention(
     sinceDismissed < config.dismissedResumeCooldownMs &&
     !resumeIsPending
   ) {
-    return decision('NO_ACTION', state, 'resume was dismissed recently', 1);
+    return decision('reason.resume.dismissed', 'NO_ACTION', state);
   }
 
   // 3. The one interruption that always matters, and is never rate limited.
   if (resumeIsPending) {
-    return decision('RESUME', state, 'learner returned after an interruption', 1);
+    return decision('reason.resume.interruption', 'RESUME', state);
   }
 
   const candidate = candidateFor(engineState, input.currentTask, now, config);
@@ -161,7 +171,7 @@ export function decideIntervention(
   if (sinceLastShown !== null && sinceLastShown < config.cooldownMs && lastShown !== undefined) {
     const escalated = ACTION_PRIORITY[candidate.action] > ACTION_PRIORITY[lastShown.action];
     if (!escalated) {
-      return decision('NO_ACTION', state, 'inside the cooldown window', 1);
+      return decision('reason.cooldown', 'NO_ACTION', state);
     }
   }
 

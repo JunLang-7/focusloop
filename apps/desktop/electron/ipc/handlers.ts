@@ -14,6 +14,7 @@ import {
   parseResolveIntervention,
   parseResumeDecision,
   parseSessionId,
+  parseSetLocale,
   parseSimulatorCommand,
   parseStartSession,
 } from './validate';
@@ -178,6 +179,16 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.getBridgeInfo,
       parse: parseNoArgs,
       handle: () => bridgeInfo(),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.getSettings,
+      parse: parseNoArgs,
+      handle: () => engine.getSettings(),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.setLocale,
+      parse: parseSetLocale,
+      handle: (request) => engine.setLocale(request.locale),
     }),
   ] as const;
 }

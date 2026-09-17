@@ -48,6 +48,10 @@ interaction and helps the learner resume.
 - **Provider abstraction** — `MockAIProvider` (default, offline, deterministic) and an optional
   DeepSeek adapter behind the same interface.
 - **Windows packaging** — NSIS installer, extension zip and checksums.
+- **Bilingual interface** — English and Simplified Chinese, switchable from the sidebar. The domain
+  emits message keys and interpolation params rather than prose; the renderer owns the wording, so
+  there is one bilingual implementation rather than two. A missing translation is a compile error,
+  and a test asserts that both languages use the same placeholders.
 - **Quality gates** — ESLint (flat config), TypeScript strict mode, Vitest, Playwright and GitHub
   Actions.
 
@@ -57,3 +61,5 @@ interaction and helps the learner resume.
 - The state engine's thresholds are configurable in code, not yet in the UI.
 - The packaged installer is unsigned, so Windows SmartScreen will warn on first run.
 - The extension currently reports tab changes only; it does not yet send an origin.
+- Two interface languages ship (English, Simplified Chinese). Adding a third means adding one
+  dictionary file — but the wording itself is not yet user-editable or community-translated.

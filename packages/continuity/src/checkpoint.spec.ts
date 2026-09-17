@@ -81,7 +81,10 @@ describe('buildCheckpoint', () => {
     });
     expect(checkpoint.currentTaskId).toBe('t2');
     expect(checkpoint.currentStep).toBe(2);
-    expect(checkpoint.nextBestAction).toContain('Practise');
+    expect(checkpoint.nextBestAction).toEqual({
+      key: 'action.practice.example',
+      params: { title: 'Practise one' },
+    });
   });
 
   it('preserves the friction state so resume knows why we stopped', () => {
@@ -101,7 +104,10 @@ describe('buildCheckpoint', () => {
       engineState: engineWith({ completedTaskIds: ['t1', 't2'], currentTaskId: 't3' }),
       now: T1,
     });
-    expect(checkpoint.nextBestAction).toContain('Answer the check question');
+    expect(checkpoint.nextBestAction).toEqual({
+      key: 'action.quiz.answer',
+      params: { title: 'Quiz two' },
+    });
   });
 
   it('suggests finishing the session when every task is done', () => {
@@ -111,7 +117,7 @@ describe('buildCheckpoint', () => {
       engineState: engineWith({ completedTaskIds: ['t1', 't2', 't3'], currentTaskId: null }),
       now: T1,
     });
-    expect(checkpoint.nextBestAction).toBe('End the session and review what you finished.');
+    expect(checkpoint.nextBestAction).toEqual({ key: 'action.session.finish', params: {} });
   });
 
   it('is deterministic and derives a stable id', () => {

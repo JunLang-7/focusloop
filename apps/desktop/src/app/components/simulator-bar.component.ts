@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { AppStateService } from '../core/app-state.service';
+import { I18nService } from '../core/i18n/i18n.service';
 
 /**
  * Demo Event Simulator (#22).
@@ -13,15 +14,15 @@ import { AppStateService } from '../core/app-state.service';
   template: `
     @if (enabled()) {
       @if (hasSession()) {
-        <div class="simulator" role="group" aria-label="Demo event simulator">
-          <span class="eyebrow">Simulator</span>
+        <div class="simulator" role="group" [attr.aria-label]="t('sim.aria')">
+          <span class="eyebrow">{{ t('sim.label') }}</span>
           <button
             type="button"
             class="btn btn--small"
             data-testid="sim-distraction"
             (click)="run('distraction')"
           >
-            Distraction
+            {{ t('sim.distraction') }}
           </button>
           <button
             type="button"
@@ -29,7 +30,7 @@ import { AppStateService } from '../core/app-state.service';
             data-testid="sim-return"
             (click)="run('return')"
           >
-            Return
+            {{ t('sim.return') }}
           </button>
           <button
             type="button"
@@ -37,7 +38,7 @@ import { AppStateService } from '../core/app-state.service';
             data-testid="sim-confusion"
             (click)="run('confusion')"
           >
-            Confusion
+            {{ t('sim.confusion') }}
           </button>
           <button
             type="button"
@@ -45,7 +46,7 @@ import { AppStateService } from '../core/app-state.service';
             data-testid="sim-overload"
             (click)="run('overload')"
           >
-            Overload
+            {{ t('sim.overload') }}
           </button>
           <button
             type="button"
@@ -53,7 +54,7 @@ import { AppStateService } from '../core/app-state.service';
             data-testid="sim-success"
             (click)="run('success')"
           >
-            Success
+            {{ t('sim.success') }}
           </button>
         </div>
       }
@@ -62,6 +63,9 @@ import { AppStateService } from '../core/app-state.service';
 })
 export class SimulatorBarComponent {
   private readonly state = inject(AppStateService);
+  private readonly i18n = inject(I18nService);
+
+  protected readonly t = this.i18n.t;
   protected readonly hasSession = this.state.hasSession;
   protected readonly enabled = () => this.state.runtime()?.simulatorEnabled ?? false;
 

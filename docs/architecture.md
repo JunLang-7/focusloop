@@ -62,6 +62,43 @@ Two rules keep this honest:
 - **Nothing in `learning-state` or `continuity` imports `persistence`.** Tests construct them with
   plain values.
 
+## Language: the domain emits keys, the renderer owns the wording
+
+FocusLoop ships an English and a Simplified Chinese interface. The rule that makes this work is that
+**no domain package ever produces a sentence.**
+
+Instead of returning `"Here is a hint"`, the policy returns a descriptor:
+
+```ts
+{ key: 'reason.confused.hint', params: {} }        // LocalizedMessage
+{ key: 'reason.confused.example', params: { count: '2' } }
+```
+
+`shared-types` closes the vocabulary: `NEXT_ACTION_KEYS`, `RESUME_MESSAGE_KEYS` and
+`INTERVENTION_REASON_CODES` are `as const` tuples, and `DomainMessageKey` is their union. Nothing
+else can be emitted, so nothing else has to be translated.
+
+Three consequences, and all three are enforced rather than encouraged:
+
+1. **There is one bilingual implementation, not two.** The rule engine never branches on locale.
+2. **A missing translation is a compile error.** `messages.en.ts` defines the key set; `messages.zh.ts`
+   is typed `Record<MessageKey, string>`, so leaving a key out fails `pnpm typecheck` in CI.
+3. **Placeholders cannot silently diverge.** A test compares the `{name}` tokens in both languages,
+   because `{minutes}` in English and `{count}` in Chinese would render a visible `{count}` to one
+   set of users — a bug the type checker cannot see.
+
+Wording lives in the renderer (`apps/desktop/src/app/core/i18n/`), which is also where the mapping
+from closed vocabularies to keys lives (`labels.ts`), so adding a learning state or an intervention
+action forces someone to decide how it reads in both languages.
+
+Interpolated values that are _content_ rather than _chrome_ — a concept title, a task title, a
+learner's own note — are never translated, because they are the learner's material and not ours.
+
+The locale itself is persisted by the store (`app_meta.locale`), not by the renderer, and the store
+is reached through the same validated IPC bridge as everything else (`settings:get`,
+`settings:set-locale`). The renderer holds no durable state, so switching language survives a
+restart.
+
 ## The state engine
 
 `learning-state` is the heart of the project and the reason FocusLoop is an agent rather than a

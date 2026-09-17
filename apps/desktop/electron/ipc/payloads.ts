@@ -2,8 +2,10 @@ import type {
   DispatchEventRequest,
   EndSessionRequest,
   ImportMaterialRequest,
+  Locale,
   ResumeDecisionRequest,
   ResolveInterventionRequest,
+  SetLocaleRequest,
   SimulatorCommand,
   StartSessionRequest,
 } from '@focusloop/shared-types';
@@ -37,6 +39,7 @@ export const payload = {
     command,
     sessionId,
   }),
+  setLocale: (locale: Locale): SetLocaleRequest => ({ locale }),
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,
 } as const;
 

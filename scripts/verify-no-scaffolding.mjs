@@ -64,10 +64,12 @@ const FORBIDDEN = [
 ];
 
 /**
- * `placeholder` is legitimate as an attribute or a YAML field name, so it is only
- * flagged when it is being used as a description of content.
+ * `placeholder` is legitimate as an HTML attribute (including Angular's
+ * `[placeholder]="..."` binding) or as a YAML/JSON field name, so it is only
+ * flagged when it is being used to describe content.
  */
-const PLACEHOLDER_AS_FIELD = /placeholder\s*[:=]/;
+const PLACEHOLDER_AS_ATTRIBUTE =
+  /\bplaceholder\b\s*\]?\s*[:=]|\[\s*placeholder\s*\]|\[attr\.placeholder\s*\]/;
 
 const CODE_EXTENSIONS = new Set(['.ts', '.js', '.mjs', '.cjs', '.mts', '.cts', '.html', '.css']);
 
@@ -118,7 +120,7 @@ function scanFile(absolutePath) {
       }
     }
 
-    if (!PLACEHOLDER_AS_FIELD.test(searchable) && /\bplaceholder\b/i.test(searchable)) {
+    if (!PLACEHOLDER_AS_ATTRIBUTE.test(searchable) && /\bplaceholder\b/i.test(searchable)) {
       findings.push({
         file: relativePath,
         line: lineNumber,

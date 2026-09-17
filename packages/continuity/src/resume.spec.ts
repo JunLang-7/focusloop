@@ -47,13 +47,20 @@ describe('buildResumeCard', () => {
       now: T1,
     });
 
-    expect(card.title).toBe('Continue: Practise one');
+    expect(card.title).toEqual({ key: 'resume.title.task', params: { task: 'Practise one' } });
     expect(card.completed).toEqual(['Read one']);
     expect(card.unresolved).toEqual(['Concept one']);
-    expect(card.nextAction).toContain('Practise');
+    expect(card.nextAction).toEqual({
+      key: 'action.practice.example',
+      params: { title: 'Practise one' },
+    });
     expect(card.estimatedMinutes).toBe(6);
-    expect(card.lastContext).toContain('Concept one');
-    expect(card.lastContext).toContain('30s');
+    expect(card.lastContext.key).toBe('resume.context.away');
+    expect(card.lastContext.params).toMatchObject({
+      concept: 'Concept one',
+      goal: 'Practise one',
+      duration: '30s',
+    });
   });
 
   it('reports idle-based interruptions too', () => {
@@ -79,7 +86,7 @@ describe('buildResumeCard', () => {
       ],
       now: T1,
     });
-    expect(card.lastContext).toContain('3 min');
+    expect(card.lastContext.params['duration']).toBe('3 min');
   });
 
   it('works when no interruption event is present', () => {
@@ -90,7 +97,8 @@ describe('buildResumeCard', () => {
       recentEvents: [],
       now: T1,
     });
-    expect(card.lastContext).toContain('goal:');
+    expect(card.lastContext.key).toBe('resume.context.plain');
+    expect(card.lastContext.params['goal']).toBeDefined();
     expect(card.completed).toEqual([]);
   });
 

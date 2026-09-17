@@ -1,3 +1,4 @@
+import type { LocalizedMessage } from './messages';
 import type { LearningState } from './state';
 
 /**
@@ -17,6 +18,6 @@ export interface LearningCheckpoint {
   readonly currentTaskTitle: string;
   readonly currentStep: number;
   readonly frictionState: LearningState;
-  readonly nextBestAction: string;
+  readonly nextBestAction: LocalizedMessage;
   readonly createdAt: string;
 }

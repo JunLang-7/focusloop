@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { IPC_CHANNELS } from '@focusloop/shared-types';
+import { IPC_CHANNELS, SUPPORTED_LOCALES } from '@focusloop/shared-types';
 import { payload } from './payloads';
 import {
   parseCourseId,
@@ -10,6 +10,7 @@ import {
   parseResolveIntervention,
   parseResumeDecision,
   parseSessionId,
+  parseSetLocale,
   parseSimulatorCommand,
   parseStartSession,
 } from './validate';
@@ -33,6 +34,7 @@ describe('the preload and the main process agree on every payload', () => {
       IPC_CHANNELS.getDashboard,
       IPC_CHANNELS.getSimulatorAvailability,
       IPC_CHANNELS.getBridgeInfo,
+      IPC_CHANNELS.getSettings,
     ];
     for (const channel of channels) {
       expect(() => parseNoArgs(channel, payload.none())).not.toThrow();
@@ -68,6 +70,12 @@ describe('the preload and the main process agree on every payload', () => {
     expect(parseResumeDecision(IPC_CHANNELS.dismissResume, request)).toEqual({
       checkpointId: 'cp-1',
     });
+  });
+
+  it('the locale channel accepts what the preload sends', () => {
+    for (const locale of SUPPORTED_LOCALES) {
+      expect(parseSetLocale(IPC_CHANNELS.setLocale, payload.setLocale(locale))).toEqual({ locale });
+    }
   });
 
   it('a bare string is rejected — the regression that caused the error banner', () => {

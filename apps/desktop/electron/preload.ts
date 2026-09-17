@@ -70,6 +70,10 @@ const api: FocusLoopApi = {
     ),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getBridgeInfo, payload.none()),
 
+  getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings, payload.none()),
+  setLocale: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setLocale, payload.setLocale(request.locale)),
+
   onEvent: (listener: (event: LearningEvent) => void) => {
     const handler = (_event: unknown, response: DispatchEventResponse): void => {
       listener(response.event);
