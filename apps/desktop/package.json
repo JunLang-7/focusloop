@@ -3,6 +3,7 @@
   "version": "0.1.0-demo",
   "private": true,
   "description": "FocusLoop desktop client — Electron shell with an Angular renderer.",
+  "author": "FocusLoop contributors",
   "main": "dist/main/main.cjs",
   "scripts": {
     "build": "ng build --configuration production && node scripts/build-main.mjs",

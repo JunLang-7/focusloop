@@ -1,18 +1,31 @@
-{
-  'name': 'FocusLoop',
-  'appId': 'dev.focusloop.desktop',
-  'productName': 'FocusLoop',
-  'copyright': 'FocusLoop contributors',
-  'directories': { 'output': 'release', 'buildResources': 'build' },
-  'files': ['dist/**/*', 'package.json'],
-  'extraMetadata': { 'main': 'dist/main/main.cjs' },
-  'win':
-    { 'target': [{ 'target': 'nsis', 'arch': ['x64'] }], 'artifactName': 'FocusLoop-Setup.${ext}' },
-  'nsis':
-    {
-      'oneClick': false,
-      'perMachine': false,
-      'allowToChangeInstallationDirectory': true,
-      'deleteAppDataOnUninstall': false,
-    },
-}
+appId: dev.focusloop.desktop
+productName: FocusLoop
+copyright: FocusLoop contributors
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - package.json
+
+extraMetadata:
+  main: dist/main/main.cjs
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+  artifactName: FocusLoop-Setup.${ext}
+  # The v0.1 demo installer is unsigned, so the signing toolchain is not needed.
+  # Without this, electron-builder downloads winCodeSign, which requires
+  # administrator rights (it extracts symlinks) even when nothing is signed.
+  signAndEditExecutable: false
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false

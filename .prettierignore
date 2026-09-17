@@ -9,3 +9,7 @@ coverage
 pnpm-lock.yaml
 playwright-report
 test-results
+
+# YAML is authored by hand; Prettier folds it into an unreadable flow style.
+**/*.yml
+**/*.yaml
