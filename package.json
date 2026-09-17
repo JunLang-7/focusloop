@@ -1,0 +1,36 @@
+{
+  "name": "focusloop",
+  "version": "0.1.0-demo",
+  "private": true,
+  "description": "Local-first cross-platform desktop learning-continuity agent.",
+  "license": "MIT",
+  "packageManager": "pnpm@11.4.0",
+  "engines": {
+    "node": ">=22.13.0",
+    "pnpm": ">=9.0.0"
+  },
+  "scripts": {
+    "lint": "nx run-many -t lint",
+    "typecheck": "nx run-many -t typecheck",
+    "test": "nx run-many -t test",
+    "build": "nx run-many -t build",
+    "e2e": "nx run desktop-e2e:e2e",
+    "format": "prettier --write \"**/*.{ts,js,mjs,json,md,yml,yaml,html,css}\"",
+    "format:check": "prettier --check \"**/*.{ts,js,mjs,json,md,yml,yaml,html,css}\"",
+    "verify:scaffolding": "node scripts/verify-no-scaffolding.mjs",
+    "desktop": "nx run desktop:serve",
+    "package:windows": "nx run desktop:package"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "@types/node": "^22.7.5",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "globals": "^15.11.0",
+    "nx": "^20.1.0",
+    "prettier": "^3.3.3",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.12.0",
+    "vitest": "^2.1.4"
+  }
+}

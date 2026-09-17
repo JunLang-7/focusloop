@@ -1,0 +1,39 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "baseUrl": ".",
+    "sourceMap": true,
+    "declaration": true,
+    "moduleResolution": "bundler",
+    "emitDeclarationOnly": false,
+    "importHelpers": false,
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "forceConsistentCasingInFileNames": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": false,
+    "types": ["node"],
+    "paths": {
+      "@focusloop/shared-types": ["packages/shared-types/src/index.ts"],
+      "@focusloop/learning-state": ["packages/learning-state/src/index.ts"],
+      "@focusloop/continuity": ["packages/continuity/src/index.ts"],
+      "@focusloop/intervention-policy": ["packages/intervention-policy/src/index.ts"],
+      "@focusloop/material-parser": ["packages/material-parser/src/index.ts"],
+      "@focusloop/agent-core": ["packages/agent-core/src/index.ts"],
+      "@focusloop/persistence": ["packages/persistence/src/index.ts"],
+      "@focusloop/llm-provider": ["packages/llm-provider/src/index.ts"]
+    }
+  },
+  "exclude": ["node_modules", "tmp", "dist"]
+}

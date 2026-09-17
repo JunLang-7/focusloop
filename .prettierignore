@@ -1,0 +1,11 @@
+node_modules
+dist
+build
+out
+release
+coverage
+.nx
+.nx-cache
+pnpm-lock.yaml
+playwright-report
+test-results
