@@ -1,0 +1,2 @@
+﻿94f5ffc1bb679790f8e30f8ebc623bffe80c6c2d92a33fc900de48ebbdbfe8eb  FocusLoop-Setup.exe
+a2c952a369106b2701ee06c41063f63de36febf576d930d94c3954860c32af65  focusloop-extension.zip
