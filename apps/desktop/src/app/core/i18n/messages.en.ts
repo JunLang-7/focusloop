@@ -84,7 +84,7 @@ const en = {
   'focus.progress': 'Progress',
   'focus.started': 'Started',
   'focus.currentTask': 'Current micro task',
-  'focus.taskMeta': '{kind} · about {minutes} min',
+  'focus.taskMeta': 'about {minutes} min',
   'focus.complete': 'Complete task',
   'focus.needHelp': 'Need help',
   'focus.noTask': 'No task in progress.',
@@ -180,7 +180,7 @@ const en = {
   'resume.context.empty': '—',
 
   // -------------------------------------------------------- agent panel
-  'agent.suggesting': 'Suggesting · {action}',
+  'agent.suggesting': 'Suggestion',
   'agent.showMe': 'Show me',
   'agent.notNow': 'Not now',
   'agent.action.MICRO_START': 'Start with the smallest possible step',

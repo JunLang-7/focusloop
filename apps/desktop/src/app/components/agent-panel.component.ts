@@ -16,7 +16,9 @@ import { ACTION_KEYS } from '../core/i18n/labels';
       @if (visible(value.action)) {
         <!-- The visible copy is translated; the raw action stays available. -->
         <aside class="agent" role="status" [attr.data-action]="value.action">
-          <p class="eyebrow">{{ t('agent.suggesting', { action: copy(value.action) }) }}</p>
+          <!-- The heading carries the suggestion; the label above it must not
+               repeat the same words. -->
+          <p class="eyebrow">{{ t('agent.suggesting') }}</p>
           <h3>{{ copy(value.action) }}</h3>
           <p class="muted small">{{ reason(value) }} · {{ minutes(value.estimatedMinutes) }}</p>
           <div class="agent__actions">

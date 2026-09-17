@@ -64,8 +64,9 @@ import { formatClock, formatDuration, percent } from '../core/format';
           <p class="eyebrow">{{ t('focus.currentTask') }}</p>
           <h2 data-testid="task-title">{{ currentTask.title }}</h2>
           <p class="muted">{{ currentTask.instructions }}</p>
-          <p class="muted small">
-            {{ taskMeta(currentTask.kind, currentTask.estimatedMinutes) }}
+          <p class="row task-meta">
+            <span class="chip" data-testid="task-kind">{{ kind(currentTask.kind) }}</span>
+            <span class="muted small">{{ estimate(currentTask.estimatedMinutes) }}</span>
           </p>
           <div class="row">
             <button
@@ -131,11 +132,13 @@ export class FocusPage {
     return this.t(STATE_KEYS[this.state.state()]);
   }
 
-  protected taskMeta(kind: string, minutes: number): string {
-    return this.t('focus.taskMeta', {
-      kind: kindLabel(kind, this.t),
-      minutes: String(minutes),
-    });
+  protected kind(value: string): string {
+    return kindLabel(value, this.t);
+  }
+
+  /** Templates cannot reach the global `String`, so the conversion lives here. */
+  protected estimate(minutes: number): string {
+    return this.t('focus.taskMeta', { minutes: `${minutes}` });
   }
 
   protected openTasks() {

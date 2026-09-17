@@ -56,11 +56,12 @@ const STATE_KEYS: Record<LearningState, MessageKey> = {
             <span class="state-chip__dot"></span>{{ stateLabel() }}
           </div>
           @if (runtime(); as info) {
-            <p class="muted small">{{ info.providerModel }}</p>
-            <p class="muted small">
-              {{ t(info.providerOffline ? 'app.mode.offline' : 'app.mode.network') }}
+            <p class="muted small footer__meta">
+              {{ info.providerModel }} ·
+              {{ t(info.providerOffline ? 'app.mode.offline' : 'app.mode.network') }} · v{{
+                info.appVersion
+              }}
             </p>
-            <p class="muted small">v{{ info.appVersion }}</p>
           } @else {
             <p class="muted small">{{ t('app.connecting') }}</p>
           }

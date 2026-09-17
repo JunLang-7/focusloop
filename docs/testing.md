@@ -10,7 +10,8 @@ node scripts/verify-no-scaffolding.mjs          # release hygiene gate
 ```
 
 For UI work there is a capture helper that drives the real app through the golden path and writes a
-PNG per screen to `../demo-ui-review/` — outside the repository, because screenshots are not source:
+PNG per screen to `demo-ui-review/` **beside** the repository — screenshots are a review aid, not
+source, so they are not committed:
 
 ```bash
 pnpm --filter @focusloop/desktop run build
