@@ -2,6 +2,8 @@ import type {
   DispatchEventRequest,
   EndSessionRequest,
   ImportMaterialRequest,
+  InsightRange,
+  InsightsRequest,
   Locale,
   ResumeDecisionRequest,
   ResolveInterventionRequest,
@@ -40,6 +42,7 @@ export const payload = {
     sessionId,
   }),
   setLocale: (locale: Locale): SetLocaleRequest => ({ locale }),
+  insights: (range: InsightRange): InsightsRequest => ({ range }),
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,
 } as const;
 

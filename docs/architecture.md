@@ -211,6 +211,33 @@ Order of evaluation:
 `NO_ACTION` is a first-class answer. An agent that cannot stay quiet is not usable by the people
 this is built for.
 
+## Insights: the dashboard is derived, never stored
+
+The dashboard's aggregates are **not** a second source of truth. `agent-core/src/insights.ts` rebuilds
+them from the event log every time the window changes, and two rules make that safe:
+
+**1. The timeline is replayed through the real reducer.** `buildStateTimeline` runs the session's
+events through `reduceState` — the same function the live engine uses — and records when each state
+was entered and left. The dashboard therefore cannot drift away from the state machine, and adding a
+state or a transition needs no dashboard change at all.
+
+**2. Silence is not focus.** A learner who walks away emits no events, so a naive reconstruction
+counts the whole gap as `FOCUSED`. The engine would not have: its idle threshold would have moved
+them to `DISTRACTED`. The same rule is applied here — at most `idleThresholdMs` of a silent stretch is
+credited to the state it was in, and the overflow is attributed to `DISTRACTED`. The consequence is
+that a window's `totalMs` equals the time its sessions were open, and the ring shows how that time was
+actually spent.
+
+Two further details are easy to get wrong and are pinned by tests:
+
+- **A window ends _at_ now, inclusive.** Treating `now` as an exclusive bound silently hides the most
+  recent event and the checkpoint it produced — exactly the ones a learner just caused.
+- **Day buckets are local, not UTC.** A session that crosses local midnight is split across both days,
+  because that is the boundary the learner perceives.
+
+Nothing here is scoped to "the current session": a calendar window has to consider every session in
+the store, and let the window decide which ones contribute.
+
 ## Persistence
 
 `persistence` owns all SQL. Nothing else in the repository writes a query.

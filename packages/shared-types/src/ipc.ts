@@ -3,6 +3,7 @@ import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
 import type { LearningEvent, SessionEndReason } from './events';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
+import type { InsightsRequest, InsightsSummary } from './insights';
 import type { AppSettings, Locale } from './settings';
 import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
@@ -31,6 +32,7 @@ export const IPC_CHANNELS = {
   acceptResume: 'focusloop:resume:accept',
   dismissResume: 'focusloop:resume:dismiss',
   getDashboard: 'focusloop:dashboard:get',
+  getInsights: 'focusloop:insights:get',
   listOutcomes: 'focusloop:outcome:list',
   resolveIntervention: 'focusloop:intervention:resolve',
   simulateEvent: 'focusloop:simulator:dispatch',
@@ -194,6 +196,8 @@ export interface FocusLoopApi {
 
   getSettings(): Promise<AppSettings>;
   setLocale(request: SetLocaleRequest): Promise<AppSettings>;
+
+  getInsights(request: InsightsRequest): Promise<InsightsSummary>;
 
   /** Returns an unsubscribe function. */
   onEvent(listener: (event: LearningEvent) => void): () => void;

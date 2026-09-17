@@ -100,6 +100,45 @@ const en = {
   'dashboard.noSession': 'No session yet',
   'dashboard.subtitle': 'Only the numbers that tell you whether continuation worked.',
   'dashboard.refresh': 'Refresh',
+
+  // The window switcher.
+  'dashboard.range.label': 'Time window',
+  'dashboard.range.session': 'This session',
+  'dashboard.range.today': 'Today',
+  'dashboard.range.week': 'Last 7 days',
+  'dashboard.range.all': 'All time',
+
+  'dashboard.hero.total': 'Total time',
+  'dashboard.hero.daily': 'Daily average',
+  'dashboard.hero.over.one': 'across 1 active day',
+  'dashboard.hero.over.other': 'across {days} active days',
+  'dashboard.focusRatio': 'Focused',
+  'dashboard.session.title': 'This session',
+  'dashboard.states.title': 'Time by state',
+  'dashboard.activity.title': 'Daily activity',
+  'dashboard.activity.hint': 'Darker means more time that day.',
+  'dashboard.activity.empty': 'Nothing recorded in this window yet.',
+  'dashboard.activity.busiest': 'Busiest: {date} · {time}',
+  'dashboard.window.tasks': 'Tasks done',
+  'dashboard.window.interruptions': 'Interruptions',
+  'dashboard.window.sessions': 'Sessions',
+  'dashboard.outcomes.none': 'No intervention has been shown yet.',
+  'dashboard.courses.title': 'Time by course',
+
+  // Short unit labels for the chart legends.
+  'unit.s': '{s}s',
+  'unit.hm': '{h}h {m}m',
+  'unit.m': '{m}m',
+
+  // Index 0 is Sunday, to match `Date.getDay()`.
+  'weekday.0': 'Sun',
+  'weekday.1': 'Mon',
+  'weekday.2': 'Tue',
+  'weekday.3': 'Wed',
+  'weekday.4': 'Thu',
+  'weekday.5': 'Fri',
+  'weekday.6': 'Sat',
+
   'dashboard.duration': 'Session duration',
   'dashboard.tasks': 'Micro tasks',
   'dashboard.interruptions': 'Interruptions',

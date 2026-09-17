@@ -10,6 +10,7 @@ import {
   parseDispatchRequest,
   parseEndSession,
   parseImportMaterial,
+  parseInsightsRequest,
   parseNoArgs,
   parseResolveIntervention,
   parseResumeDecision,
@@ -189,6 +190,11 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.setLocale,
       parse: parseSetLocale,
       handle: (request) => engine.setLocale(request.locale),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.getInsights,
+      parse: parseInsightsRequest,
+      handle: (request) => engine.getInsights(request.range),
     }),
   ] as const;
 }

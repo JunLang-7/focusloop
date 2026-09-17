@@ -74,6 +74,9 @@ const api: FocusLoopApi = {
   setLocale: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.setLocale, payload.setLocale(request.locale)),
 
+  getInsights: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getInsights, payload.insights(request.range)),
+
   onEvent: (listener: (event: LearningEvent) => void) => {
     const handler = (_event: unknown, response: DispatchEventResponse): void => {
       listener(response.event);

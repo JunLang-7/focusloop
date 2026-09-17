@@ -7,6 +7,7 @@ export * from './checkpoint';
 export * from './resume';
 export * from './intervention';
 export * from './dashboard';
+export * from './insights';
 export * from './provider';
 export * from './ipc';
 export * from './bridge';

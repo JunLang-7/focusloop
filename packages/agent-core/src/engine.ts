@@ -6,6 +6,8 @@ import type {
   DispatchEventResponse,
   EndSessionRequest,
   ImportMaterialResponse,
+  InsightRange,
+  InsightsSummary,
   Intervention,
   InterventionOutcome,
   LearningCheckpoint,
@@ -22,7 +24,8 @@ import type {
   StartSessionResponse,
 } from '@focusloop/shared-types';
 import { message } from '@focusloop/shared-types';
-import { coerceLocale, type AppSettings, type Locale } from '@focusloop/shared-types';
+import { DEFAULT_INSIGHT_RANGE, coerceLocale } from '@focusloop/shared-types';
+import type { AppSettings, Locale } from '@focusloop/shared-types';
 import {
   DEFAULT_STATE_ENGINE_CONFIG,
   computeSessionProgress,
@@ -48,6 +51,7 @@ import {
   type ProviderSelection,
 } from '@focusloop/llm-provider';
 import { buildDashboardSummary } from './dashboard';
+import { buildInsightsSummary, type InsightsSessionSource } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 
@@ -569,6 +573,38 @@ export class FocusLoopEngine {
       outcomes: this.store.listOutcomes(record.session.id),
       checkpointCount: this.store.listCheckpoints(record.session.id).length,
       now: this.clock(),
+    });
+  }
+
+  // ----------------------------------------------------------------- insights
+
+  /**
+   * Rebuilds the dashboard's aggregates from the stored event log.
+   *
+   * Every session in the store is replayed, because the calendar windows (today,
+   * last 7 days, all time) are not scoped to the session on screen. The window then
+   * decides which of them contribute.
+   */
+  getInsights(range: InsightRange = DEFAULT_INSIGHT_RANGE): InsightsSummary {
+    const sources: InsightsSessionSource[] = this.store.listSessions().map((record) => ({
+      session: record.session,
+      events: this.store.listEvents(record.session.id),
+      // One checkpoint == one moment the learner had to be helped back in.
+      interruptionAt: this.store
+        .listCheckpoints(record.session.id)
+        .map((checkpoint) => checkpoint.createdAt),
+      outcomes: this.store.listOutcomes(record.session.id),
+    }));
+
+    const onScreen = this.store.getActiveSession() ?? this.store.getLatestSession();
+
+    return buildInsightsSummary({
+      range,
+      now: this.clock(),
+      sources,
+      courses: this.store.listCourses(),
+      currentSessionId: onScreen?.session.id ?? null,
+      config: this.stateConfig,
     });
   }
 

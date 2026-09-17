@@ -43,6 +43,67 @@ describe('FocusLoopEngine', () => {
     });
   });
 
+  describe('insights', () => {
+    it('returns an empty window before anything has been recorded', () => {
+      const summary = ctx.engine.getInsights('week');
+      expect(summary.range).toBe('week');
+      expect(summary.totalMs).toBe(0);
+      expect(summary.sessionCount).toBe(0);
+      expect(summary.daily).toHaveLength(7);
+    });
+
+    it('aggregates a real session out of the stored event log', () => {
+      const session = ctx.engine.startSession(DEMO_COURSE_ID).session;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      ctx.clock.advance(30_000);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_COMPLETED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+
+      const summary = ctx.engine.getInsights('session');
+      expect(summary.sessionCount).toBe(1);
+      expect(summary.totalMs).toBe(30_000);
+      expect(summary.tasksCompleted).toBe(1);
+      expect(summary.stateShares.reduce((sum, s) => sum + s.durationMs, 0)).toBe(summary.totalMs);
+      expect(summary.courseShares[0]?.title).toBe('Red-black trees: the basics');
+    });
+
+    it('counts an interruption from the checkpoint it produced', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_COMPLETED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      ctx.engine.simulate({ command: 'distraction', sessionId: session.id });
+      ctx.clock.advance(30_000);
+      ctx.engine.simulate({ command: 'return', sessionId: session.id });
+
+      const summary = ctx.engine.getInsights('session');
+      expect(summary.interruptions).toBe(1);
+      expect(summary.daily.find((day) => day.interruptions > 0)?.interruptions).toBe(1);
+    });
+
+    it('defaults to the week window', () => {
+      expect(ctx.engine.getInsights().range).toBe('week');
+    });
+  });
+
   describe('catalogue', () => {
     it('seeds the built-in demo course exactly once', () => {
       ctx.engine.seedBuiltInCourses();
