@@ -9,19 +9,21 @@ pnpm --filter @focusloop/desktop-e2e run e2e    # the golden path, in the real a
 node scripts/verify-no-scaffolding.mjs          # release hygiene gate
 ```
 
-`pnpm test` is the fast loop and must stay under a few seconds per package. `pnpm e2e` is the slow
-loop: it launches Electron and drives the real UI.
+`pnpm test` is the fast loop and must stay under a few seconds per package. It deliberately does
+**not** run Playwright: `apps/desktop-e2e` has only an `e2e` target, so the E2E suite cannot be
+pulled into the unit run by accident. `pnpm e2e` is the slow loop — it builds the desktop app as a
+dependency, launches Electron and drives the real UI.
 
 ## The pyramid, and why it is shaped this way
 
 ```text
-        ▲  E2E (Playwright, 2 tests)
+        ▲  E2E (Playwright, 4 tests)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
-     ╱     ╲  Integration (agent-core, 68 tests)
+     ╱     ╲  Integration (agent-core, 71 tests)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
-  ╱___________╲ Unit (domain packages, 235 tests)
+  ╱___________╲ Unit (domain packages, 267 tests)
                 the rules, with no IO at all
 ```
 
@@ -58,7 +60,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Outcome recording, per-action aggregation, average latency that ignores non-finite values, and an
   acceptance rate that excludes `NO_ACTION`.
 
-### `persistence` — 26 tests
+### `persistence` — 31 tests
 
 - Migrations are idempotent.
 - Course, concept, task and quiz round-trips; `saveCourse` replaces children rather than duplicating.
@@ -70,7 +72,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - A file-backed database survives close and reopen.
 - Sessions are isolated from one another.
 
-### `agent-core` — 68 tests
+### `agent-core` — 71 tests
 
 - The demo course has the shape the golden path needs.
 - Material import is idempotent per content hash.
@@ -82,13 +84,17 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Simulator availability, including the production-disabled path.
 - Deterministic micro-task generation: same material in, same course out.
 
-### `apps/desktop` — 42 tests
+### `apps/desktop` — 69 tests
 
 - IPC validation rejects non-objects, unknown event types, unknown sources, oversize payloads,
-  unknown session-end reasons, unknown simulator commands, and unexpected arguments.
+  unknown session-end reasons, unknown simulator commands, unsupported locales, and unexpected
+  arguments.
 - The bridge binds to loopback, rejects a wrong or malformed token, rejects malformed JSON,
   rejects a schema violation, rejects a mismatched protocol version, applies an event id once,
   strips a full URL down to its origin, and reports an error when no session is active.
+- The preload and the main process agree on every payload, driven through the shared builders.
+- Both language dictionaries define the same key set, cover every key the domain can emit, and use
+  the same `{name}` placeholders.
 
 ### `apps/extension` — 21 tests
 
@@ -98,7 +104,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   closed payload shape, reconnects after a close, bounds the offline queue, and survives a socket
   factory that throws.
 
-### `apps/desktop-e2e` — 2 tests
+### `apps/desktop-e2e` — 4 tests
 
 The golden path, in the real application:
 
@@ -109,7 +115,13 @@ launch → demo course → start session → start task → complete task
       → dashboard shows 1 interruption and a measured resume latency
 ```
 
-Plus: the agent offers a break on overload, and the learner can decline it.
+Plus: the agent offers a break on overload and the learner can decline it, the resume card is the
+only surface that offers `RESUME`, and the interface can be switched to Chinese with the choice
+surviving a real restart of the app.
+
+There is no `test` target for this project on purpose. When there was one it ran Playwright under
+`pnpm test`, which meant the unit run tried to launch Electron without a build — CI could never go
+green.
 
 ## Conventions
 

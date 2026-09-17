@@ -6,7 +6,6 @@
   "scripts": {
     "e2e": "playwright test",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "playwright test",
     "lint": "eslint ."
   },
   "devDependencies": {
