@@ -43,6 +43,12 @@
   --heat-4: 92%;
   --radius: 12px;
   --radius-sm: 8px;
+  /*
+   * The widest the content column grows before it stops and centres. Not a colour,
+   * so it is not duplicated in the light block. A card stretched across a 2560px
+   * window is harder to read than one capped at a comfortable measure.
+   */
+  --measure: 1120px;
   color-scheme: dark;
 }
 
@@ -215,8 +221,65 @@ ol {
   box-shadow: inset 2px 0 0 var(--accent);
 }
 
-.sidebar__footer {
+/*
+ * The sidebar's ambient summary.
+ *
+ * `--bg-sunken` rather than `--bg-soft`: the sidebar is already the raised surface,
+ * and `--bg-soft` is lighter than it in dark but darker in light, so the same block
+ * would read as raised in one theme and recessed in the other.
+ *
+ * `margin-top: auto` puts the slack above this block instead of below it, so the
+ * bottom of the sidebar is one cluster: today, then the live state, then the
+ * settings. The block is always rendered, so the first summary arriving cannot move
+ * anything.
+ */
+.today {
   margin-top: auto;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+
+.today__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.today__total {
+  font-size: 16px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * One band per state, in the same colours the dashboard's donut uses, so the two
+ * views of the same day cannot disagree. Always full, so it needs no track.
+ */
+.today__ribbon {
+  display: flex;
+  height: 6px;
+  margin: 8px 0;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.today__band {
+  flex: 0 0 auto;
+  height: 100%;
+}
+
+.today__empty,
+.today__meta {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.today__meta {
+  text-wrap: balance;
+}
+.sidebar__footer {
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -300,6 +363,17 @@ body:has(.simulator) .content {
   display: flex;
   flex-direction: column;
   gap: 22px;
+}
+
+/*
+ * The children, not the scroller: capping the scroller itself would move the scrollbar
+ * away from the window edge. `margin-inline: auto` centres without a wrapper element,
+ * and it also catches the error banner, which should line up with the cards.
+ */
+.content > * {
+  width: 100%;
+  max-width: var(--measure);
+  margin-inline: auto;
 }
 
 /* ----------------------------------------------------------------- blocks */
@@ -790,6 +864,12 @@ textarea:focus {
 /* Donut + legend ------------------------------------------------------- */
 .donut-row {
   display: flex;
+  /*
+   * Wraps rather than squeezes. At the 960px minimum window the panel is ~320px, and
+   * a 132px donut plus a 20px gap leaves the legend too little room: every state name
+   * ellipsised to `In…`, `Ov…`, which is worse than a taller panel.
+   */
+  flex-wrap: wrap;
   align-items: center;
   gap: 20px;
 }
@@ -831,7 +911,8 @@ textarea:focus {
 
 .legend {
   display: flex;
-  flex: 1 1 auto;
+  /* The 200px basis is what decides the wrap: beside the ring, or on its own line. */
+  flex: 1 1 200px;
   flex-direction: column;
   gap: 5px;
   margin: 0;

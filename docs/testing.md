@@ -28,13 +28,13 @@ dependency, launches Electron and drives the real UI.
 ## The pyramid, and why it is shaped this way
 
 ```text
-        ▲  E2E (Playwright, 6 tests)
+        ▲  E2E (Playwright, 7 tests)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
      ╱     ╲  Integration (agent-core, 100 tests)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
-  ╱___________╲ Unit (domain packages, 304 tests)
+  ╱___________╲ Unit (domain packages, 312 tests)
                 the rules, with no IO at all
 ```
 
@@ -95,7 +95,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Simulator availability, including the production-disabled path.
 - Deterministic micro-task generation: same material in, same course out.
 
-### `apps/desktop` — 106 tests
+### `apps/desktop` — 114 tests
 
 - IPC validation rejects non-objects, unknown event types, unknown sources, oversize payloads,
   unknown session-end reasons, unknown simulator commands, unsupported locales, and unexpected
@@ -106,6 +106,8 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - The preload and the main process agree on every payload, driven through the shared builders.
 - Both language dictionaries define the same key set, cover every key the domain can emit, and use
   the same `{name}` placeholders.
+- The chart helpers the dashboard and the sidebar share: the donut arcs, the heat scale, the span
+  formatter, which states count as focus, and which shares are worth drawing at all.
 
 ### `apps/extension` — 21 tests
 
@@ -115,7 +117,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   closed payload shape, reconnects after a close, bounds the offline queue, and survives a socket
   factory that throws.
 
-### `apps/desktop-e2e` — 6 tests
+### `apps/desktop-e2e` — 7 tests
 
 The golden path, in the real application:
 
@@ -127,8 +129,9 @@ launch → demo course → start session → start task → complete task
 ```
 
 Plus: the agent offers a break on overload and the learner can decline it, the resume card is the
-only surface that offers `RESUME`, and the interface can be switched to Chinese with the choice
-surviving a real restart of the app.
+only surface that offers `RESUME`, the sidebar's ambient summary refreshes on a new event without
+changing the window the dashboard is showing, and the interface can be switched to Chinese with the
+choice surviving a real restart of the app.
 
 There is no `test` target for this project on purpose. When there was one it ran Playwright under
 `pnpm test`, which meant the unit run tried to launch Electron without a build — CI could never go

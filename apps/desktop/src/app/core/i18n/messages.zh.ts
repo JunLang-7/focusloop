@@ -21,6 +21,15 @@ export const zh: Record<MessageKey, string> = {
   'app.theme': '主题',
   'app.theme.switch': '切换主题',
 
+  // 侧边栏的常驻摘要。英文要分单复数，中文不分，所以两种形式填一样的措辞。
+  'app.today': '今日',
+  'app.today.empty': '今天还没有记录。',
+  'app.today.ribbon': '今日状态分布',
+  'app.today.tasks.one': '完成 {n} 个任务',
+  'app.today.tasks.other': '完成 {n} 个任务',
+  'app.today.interruptions.one': '{n} 次打断',
+  'app.today.interruptions.other': '{n} 次打断',
+
   // The theme preference, not the resolved theme.
   'theme.system': '自动',
   'theme.light': '亮',

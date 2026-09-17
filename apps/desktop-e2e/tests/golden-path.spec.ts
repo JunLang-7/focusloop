@@ -162,6 +162,27 @@ test('the dashboard re-aggregates when the window changes', async () => {
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
+test('the sidebar summary refreshes without hijacking the dashboard window', async () => {
+  await window.getByRole('link', { name: 'Dashboard' }).click();
+  await window.getByTestId('range-week').click();
+  await expect(window.getByTestId('range-week')).toHaveAttribute('aria-pressed', 'true');
+
+  // The sidebar is always the "today" window, whatever the dashboard is showing, and
+  // it is populated from its own request rather than from the dashboard's summary.
+  await expect(window.getByTestId('today-total')).not.toHaveText('—');
+
+  // An event refreshes the ambient summary...
+  await window.getByTestId('sim-confusion').click();
+  await expect(window.getByTestId('today-meta')).toBeVisible();
+
+  // ...and must not drag the dashboard's window back to "today". One cell per calendar
+  // day is the proof: the sidebar asking for "today" would leave exactly one.
+  await expect(window.getByTestId('range-week')).toHaveAttribute('aria-pressed', 'true');
+  await expect(window.locator('.heat__day')).toHaveCount(7);
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
 test('the theme can be switched and the choice survives a restart', async () => {
   // Restarting the app mid-test takes longer than a normal assertion sequence.
   test.setTimeout(90_000);

@@ -63,6 +63,12 @@ export class AppStateService {
   readonly theme = signal<ThemePreference>(DEFAULT_THEME);
   readonly insights = signal<InsightsSummary | null>(null);
   readonly insightRange = signal<InsightRange>(DEFAULT_INSIGHT_RANGE);
+  /**
+   * The sidebar's ambient summary. Kept apart from `insights` on purpose: that one
+   * belongs to whichever window the dashboard has selected, and a sidebar that
+   * silently reset it to "today" every time an event arrived would be a bug.
+   */
+  readonly todayInsights = signal<InsightsSummary | null>(null);
 
   readonly state = computed<LearningState>(() => this.snapshot()?.session.state ?? 'READY');
   readonly hasSession = computed(() => this.snapshot() !== null);
@@ -95,6 +101,23 @@ export class AppStateService {
         snapshot === null ? null : await this.api.getResumeCard(snapshot.session.id),
       );
     });
+    await this.refreshToday();
+  }
+
+  /**
+   * Re-reads the sidebar summary.
+   *
+   * Deliberately not routed through `run()`: that would clear `lastError` and flip
+   * `busy` on every event, and a decoration failing to load must not raise a banner
+   * over the page the learner is actually using. A stale summary is the right
+   * failure mode.
+   */
+  private async refreshToday(): Promise<void> {
+    try {
+      this.todayInsights.set(await this.api.getInsights({ range: 'today' }));
+    } catch {
+      // Intentionally swallowed. See above.
+    }
   }
 
   /**
@@ -286,6 +309,7 @@ export class AppStateService {
       this.resumeCard.set(await this.api.getResumeCard(snapshot.session.id));
       this.recentEvents.set(await this.api.listEvents(snapshot.session.id));
     }
+    await this.refreshToday();
   }
 
   private async refreshDerived(): Promise<void> {

@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import {
@@ -6,29 +6,17 @@ import {
   THEME_PREFERENCES,
   type LearningState,
   type Locale,
+  type StateShare,
   type ThemePreference,
 } from '@focusloop/shared-types';
 import { AppStateService } from './core/app-state.service';
 import { I18nService, LOCALE_LABELS, type MessageKey } from './core/i18n/i18n.service';
+import { STATE_KEYS } from './core/i18n/labels';
+import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
 import { applyTheme, resolveTheme } from './core/theme';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
 import { SimulatorBarComponent } from './components/simulator-bar.component';
-
-/**
- * Learning states are a closed vocabulary, so their labels are translation keys
- * rather than strings. Adding a state without wording is a type error.
- */
-const STATE_KEYS: Record<LearningState, MessageKey> = {
-  READY: 'state.READY',
-  INITIATION_FRICTION: 'state.INITIATION_FRICTION',
-  FOCUSED: 'state.FOCUSED',
-  CONFUSED: 'state.CONFUSED',
-  OVERLOADED: 'state.OVERLOADED',
-  DISTRACTED: 'state.DISTRACTED',
-  INTERRUPTED: 'state.INTERRUPTED',
-  RESUMING: 'state.RESUMING',
-};
 
 /** The theme preference is a closed vocabulary too. */
 const THEME_KEYS: Record<ThemePreference, MessageKey> = {
@@ -64,6 +52,46 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
           <a routerLink="/focus" routerLinkActive="is-active">{{ t('app.nav.focus') }}</a>
           <a routerLink="/dashboard" routerLinkActive="is-active">{{ t('app.nav.dashboard') }}</a>
         </nav>
+
+        <!--
+          Three nav links cannot fill 500px, and a hole in the middle of the chrome
+          reads as unfinished. This is the one number that earns permanent space: how
+          today is going. It is always the "today" window, independently of whichever
+          window the dashboard has selected, and it is pinned above the state chip so
+          the bottom of the sidebar is a cluster rather than one lonely pill.
+        -->
+        <section class="today">
+          <div class="today__head">
+            <span class="muted small">{{ t('app.today') }}</span>
+            <strong class="today__total" data-testid="today-total">{{ totalLabel() }}</strong>
+          </div>
+
+          @if (today(); as data) {
+            @if (ribbon().length === 0) {
+              <p class="muted small today__empty">{{ t('app.today.empty') }}</p>
+            } @else {
+              <!--
+                One band per state that actually has time. The dashboard's donut answers
+                the same question in detail; this answers it at a glance.
+              -->
+              <div class="today__ribbon" role="img" [attr.aria-label]="t('app.today.ribbon')">
+                @for (band of ribbon(); track band.state) {
+                  <span
+                    class="today__band"
+                    [style.width.%]="band.share * 100"
+                    [style.background]="color(band.state)"
+                    [title]="bandTitle(band)"
+                  ></span>
+                }
+              </div>
+
+              <p class="muted small today__meta" data-testid="today-meta">
+                {{ tasksLabel(data.tasksCompleted) }} ·
+                {{ interruptionsLabel(data.interruptions) }}
+              </p>
+            }
+          }
+        </section>
 
         <div class="sidebar__footer">
           <div class="state-chip" [attr.data-state]="state()">
@@ -144,6 +172,10 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly theme = this.stateService.theme;
   protected readonly themes = THEME_PREFERENCES;
   protected readonly themeKeys = THEME_KEYS;
+  protected readonly today = this.stateService.todayInsights;
+
+  /** Only the states today actually contains, largest first. */
+  protected readonly ribbon = computed(() => visibleShares(this.today()?.stateShares ?? []));
 
   /** The OS preference, re-read whenever it changes, used only for `system`. */
   private readonly prefersLight = signal(false);
@@ -202,5 +234,44 @@ export class AppComponent implements OnInit, OnDestroy {
 
   protected chooseTheme(theme: ThemePreference): void {
     void this.stateService.setTheme(theme);
+  }
+
+  protected span(ms: number): string {
+    return formatSpan(ms, this.t);
+  }
+
+  /**
+   * An em dash, not wording.
+   *
+   * It covers two cases with one glyph: the block is always rendered so the sidebar
+   * cannot jump when the first summary lands, and a day with no time in it is already
+   * explained by the sentence underneath — `Today 0s` above `Nothing recorded today.`
+   * says the same thing twice.
+   */
+  protected totalLabel(): string {
+    const data = this.today();
+    if (data === null || data.totalMs === 0) return '—';
+    return this.span(data.totalMs);
+  }
+
+  protected color(state: LearningState): string {
+    return STATE_COLORS[state];
+  }
+
+  /** A tooltip is the only place the band's exact state and share can be read. */
+  protected bandTitle(share: StateShare): string {
+    return `${this.t(STATE_KEYS[share.state])} · ${percentLabel(share.share)}`;
+  }
+
+  protected tasksLabel(count: number): string {
+    return count === 1
+      ? this.t('app.today.tasks.one', { n: `${count}` })
+      : this.t('app.today.tasks.other', { n: `${count}` });
+  }
+
+  protected interruptionsLabel(count: number): string {
+    return count === 1
+      ? this.t('app.today.interruptions.one', { n: `${count}` })
+      : this.t('app.today.interruptions.other', { n: `${count}` });
   }
 }

@@ -23,6 +23,16 @@ const en = {
   'app.theme': 'Theme',
   'app.theme.switch': 'Switch theme',
 
+  // The persistent sidebar summary. Deliberately not the dashboard's wording:
+  // this one has to read at 11px in a 232px column.
+  'app.today': 'Today',
+  'app.today.empty': 'Nothing recorded today.',
+  'app.today.ribbon': 'Today by state',
+  'app.today.tasks.one': '{n} task done',
+  'app.today.tasks.other': '{n} tasks done',
+  'app.today.interruptions.one': '{n} interruption',
+  'app.today.interruptions.other': '{n} interruptions',
+
   // The theme preference, not the resolved theme.
   'theme.system': 'Auto',
   'theme.light': 'Light',

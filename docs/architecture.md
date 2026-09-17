@@ -261,6 +261,34 @@ The window's native background colour cannot be reached by CSS, so the main proc
 `nativeTheme.shouldUseDarkColors`. That covers the common case and stops a dark flash before the
 renderer paints; an in-app override is not reflected there.
 
+## The shell: space is a budget, and something has to spend it
+
+The shell is a two-column grid: a 232px sidebar and a scrolling content column. Two decisions there
+are worth recording, because both are easy to undo by accident.
+
+**The sidebar carries a summary, and the summary owns its window.** The nav is three links; the
+sidebar is a full window tall. The gap between them used to be several hundred pixels of nothing. It
+now holds an ambient _today_ summary — total time, a ribbon of the time by state, and the day's task
+and interruption counts — pinned above the state chip with `margin-top: auto`, so the slack sits
+under the nav and the bottom of the sidebar reads as one cluster. The block is always rendered, so
+the first summary arriving cannot move anything.
+
+The part that matters is that it reports **today** unconditionally. The dashboard has its own window
+switcher and the two are independent: `AppStateService` keeps `todayInsights` apart from `insights`
+for exactly this reason. A sidebar fed from the dashboard's window would either show the wrong thing
+or reset the dashboard's selection on every event. That is also why its fetch does not go through
+`run()`: a decoration that fails to load must not raise an error banner over the page the learner is
+actually using, and a stale summary is the right failure mode.
+
+**The content column is capped.** `.content > *` carries `--measure` (1120px) plus
+`margin-inline: auto`. Putting it on the children rather than on the scroller keeps the scrollbar on
+the window edge, and it catches the error banner too, which should line up with the cards. Below the
+measure nothing changes, which is why the cap only shows on a window wider than the demo uses.
+
+**Widths are budgets, so the components have to bend.** The donut and its legend were the first thing
+to break at the 960px minimum window: the legend squeezed every state name down to `In…`, `Ov…`. It
+now wraps under the ring when it cannot get 200px beside it — a taller panel, and a readable one.
+
 ## Persistence
 
 `persistence` owns all SQL. Nothing else in the repository writes a query.
