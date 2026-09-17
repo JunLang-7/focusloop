@@ -1,0 +1,71 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  NODE_VERSION: '22.13.0'
+  PNPM_VERSION: '11.4.0'
+
+jobs:
+  release:
+    name: package windows + extension
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify before packaging
+        run: |
+          pnpm lint
+          pnpm typecheck
+          pnpm test
+          pnpm verify:scaffolding
+
+      - name: Package the desktop installer
+        run: pnpm --filter @focusloop/desktop run package
+
+      - name: Package the extension
+        run: pnpm --filter @focusloop/extension run build:zip
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $files = @(
+            'apps/desktop/release/FocusLoop-Setup.exe',
+            'apps/extension/release/focusloop-extension.zip'
+          )
+          $lines = foreach ($file in $files) {
+            $hash = (Get-FileHash -Algorithm SHA256 $file).Hash.ToLower()
+            "$hash  $(Split-Path -Leaf $file)"
+          }
+          $lines | Set-Content -Encoding utf8 SHA256SUMS.txt
+          Get-Content SHA256SUMS.txt
+
+      - name: Publish the release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          body_path: CHANGELOG.md
+          files: |
+            apps/desktop/release/FocusLoop-Setup.exe
+            apps/extension/release/focusloop-extension.zip
+            SHA256SUMS.txt
