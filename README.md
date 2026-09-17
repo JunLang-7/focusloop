@@ -10,6 +10,58 @@ and helps them get back to the exact cognitive position they left.
 
 ---
 
+## Quick start
+
+**Prerequisites:** [Node.js](https://nodejs.org) ≥ 22.13 (`.nvmrc` pins the exact version) and
+pnpm ≥ 9.
+
+```bash
+corepack enable   # provides pnpm at the version pinned in package.json
+pnpm install
+```
+
+If `corepack` is unavailable, `npm install -g pnpm` works too.
+
+### Run the desktop app
+
+```bash
+pnpm --filter @focusloop/desktop run start
+```
+
+That compiles the Angular renderer and the Electron main process, then opens the window. There is
+no hot reload — after changing source, stop the app and run the command again.
+
+Because you are running from source, the **Demo Event Simulator** appears along the bottom of the
+window whenever a focus session is active. It is the supported stand-in for the browser extension,
+so the whole demo works without installing anything else.
+
+### Try it
+
+**Home** → _Start session_ on “Red-black trees: the basics” → _Start_ on the first micro task →
+_Complete task_ → simulator **Distraction** → simulator **Return** → the Resume Card appears.
+
+### Run the checks
+
+```bash
+pnpm lint        # eslint across every project
+pnpm typecheck   # tsc --noEmit across every project
+pnpm test        # vitest across every project
+pnpm build       # production bundles for every project
+pnpm e2e         # playwright — requires `pnpm build` first, see below
+```
+
+`pnpm e2e` drives `apps/desktop/dist/main/main.cjs`, so it needs `pnpm build` (or a
+`pnpm --filter @focusloop/desktop run build`) to have run at least once.
+
+### Package a release
+
+```bash
+pnpm --filter @focusloop/desktop run package      # → apps/desktop/release/FocusLoop-Setup.exe
+pnpm --filter @focusloop/extension run build:zip  # → apps/extension/release/focusloop-extension.zip
+```
+
+---
+
 ## What it does
 
 1. Open the built-in demo course (or import your own `.txt` / `.md` notes).
@@ -119,30 +171,14 @@ Verify your download against `SHA256SUMS.txt`.
 
 ## Development
 
-Requirements: **Node.js ≥ 22.13** (`.nvmrc` pins the version) and **pnpm ≥ 9**.
+[Quick start](#quick-start) covers installation, running the app and packaging.
 
 ```bash
-corepack enable
-pnpm install
-
 pnpm lint        # eslint across every project
 pnpm typecheck   # tsc --noEmit across every project
 pnpm test        # vitest across every project
 pnpm build       # angular + esbuild + extension bundles
-pnpm e2e         # playwright drives the real Electron app
-```
-
-Run the desktop app from source:
-
-```bash
-pnpm --filter @focusloop/desktop run start
-```
-
-Build installers and the extension zip:
-
-```bash
-pnpm --filter @focusloop/desktop run package     # → apps/desktop/release/FocusLoop-Setup.exe
-pnpm --filter @focusloop/extension run build:zip # → apps/extension/release/focusloop-extension.zip
+pnpm e2e         # playwright drives the real Electron app (needs `pnpm build` first)
 ```
 
 ### Optional: a real model provider
@@ -152,6 +188,12 @@ To use a real provider instead, supply a key at runtime:
 
 ```bash
 FOCUSLOOP_DEEPSEEK_API_KEY=... pnpm --filter @focusloop/desktop run start
+```
+
+On PowerShell the same thing is:
+
+```powershell
+$env:FOCUSLOOP_DEEPSEEK_API_KEY="..."; pnpm --filter @focusloop/desktop run start
 ```
 
 Keys are read from the environment only. They are never written to the repository, never persisted
