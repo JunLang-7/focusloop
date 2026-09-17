@@ -1,0 +1,74 @@
+name: Feature
+description: A change to behaviour, architecture or developer experience.
+title: '[feat] '
+labels: ['feature']
+body:
+  - type: textarea
+    id: context
+    attributes:
+      label: Context
+      description: What exists today, and why it is not enough.
+    validations:
+      required: true
+
+  - type: textarea
+    id: goal
+    attributes:
+      label: Goal
+      description: One paragraph. What will be true when this is done?
+    validations:
+      required: true
+
+  - type: textarea
+    id: non-goals
+    attributes:
+      label: Non-goals
+      description: What is explicitly out of scope. This is how scope creep gets caught in review.
+      value: |
+        -
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance Criteria
+      description: Testable statements. Each one becomes a test.
+      value: |
+        - [ ]
+    validations:
+      required: true
+
+  - type: textarea
+    id: test-plan
+    attributes:
+      label: Test Plan
+      description: Which tests prove the criteria, and which command runs them.
+      value: |
+        RED: `<command>` → `<expected failure>`
+        GREEN: `<command>` → `<expected result>`
+    validations:
+      required: true
+
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies
+      description: Issues that must land first, or "none".
+      value: none
+    validations:
+      required: true
+
+  - type: dropdown
+    id: milestone
+    attributes:
+      label: Milestone
+      options:
+        - M0 — Repository & Quality Baseline
+        - M1 — Desktop Shell & Persistence
+        - M2 — Learning Session Core
+        - M3 — Learning Continuity
+        - M4 — Intervention & Browser Bridge
+        - M5 — Demo, Release & Cleanup
+    validations:
+      required: true
