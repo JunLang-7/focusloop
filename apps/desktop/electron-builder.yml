@@ -1,0 +1,18 @@
+{
+  'name': 'FocusLoop',
+  'appId': 'dev.focusloop.desktop',
+  'productName': 'FocusLoop',
+  'copyright': 'FocusLoop contributors',
+  'directories': { 'output': 'release', 'buildResources': 'build' },
+  'files': ['dist/**/*', 'package.json'],
+  'extraMetadata': { 'main': 'dist/main/main.cjs' },
+  'win':
+    { 'target': [{ 'target': 'nsis', 'arch': ['x64'] }], 'artifactName': 'FocusLoop-Setup.${ext}' },
+  'nsis':
+    {
+      'oneClick': false,
+      'perMachine': false,
+      'allowToChangeInstallationDirectory': true,
+      'deleteAppDataOnUninstall': false,
+    },
+}
