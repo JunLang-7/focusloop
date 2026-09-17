@@ -162,10 +162,13 @@ More detail: [`docs/architecture.md`](docs/architecture.md) · [`docs/privacy.md
 
 ## Install
 
-Download the latest `FocusLoop-Setup.exe` from the releases page and run it. No Node.js or pnpm is
-required on the target machine.
+Download the latest `FocusLoop-Setup.exe` from the
+[releases page](https://github.com/nianpingy-cpu/focusloop/releases) and run it. No Node.js or pnpm
+is required on the target machine.
 
 Verify your download against `SHA256SUMS.txt`.
+
+To build it yourself instead, see [Quick start](#quick-start).
 
 ---
 
@@ -180,6 +183,12 @@ pnpm test        # vitest across every project
 pnpm build       # angular + esbuild + extension bundles
 pnpm e2e         # playwright drives the real Electron app (needs `pnpm build` first)
 ```
+
+### Publishing
+
+This repository is local only — there is no remote configured and nothing has been pushed. See
+[`docs/publishing.md`](docs/publishing.md) for the create-and-push steps, the links to update
+afterwards, and the commit-identity caveat.
 
 ### Optional: a real model provider
 
