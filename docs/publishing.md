@@ -1,44 +1,40 @@
-# Publishing this repository
+# Repository and releases
 
-This repository is **local only**. `git remote -v` is empty and nothing has been pushed anywhere.
-The steps below are what it takes to put it on GitHub.
+The project lives in a **private** GitHub repository:
 
-## Create and push
-
-With the `gh` CLI (already authenticated in this environment):
-
-```bash
-gh repo create focusloop --private --source=. --remote=origin --push
+```text
+https://github.com/nianpingy-cpu/focusloop
 ```
 
-- `--source=.` uses the current directory
-- `--remote=origin` wires up the remote
-- `--push` pushes `main` and the `v0.1.0-demo` tag
+`origin` is wired to it over SSH, `main` tracks `origin/main`, and the release tag `v0.1.0-demo` is
+pushed. Only the default branch is on the remote — the feature branches were merged into `main` and
+kept local.
 
-Swap `--private` for `--public` if you want it world-readable. Prefer `--private` first: nothing
-here is a secret, but a public repository cannot be un-indexed once it has been crawled.
-
-Without `gh`:
+## Day-to-day
 
 ```bash
-git remote add origin git@github.com:<owner>/focusloop.git
+git push                  # main already tracks origin/main
+git push origin --tags    # after re-tagging a release commit
+```
+
+If the remote is ever lost:
+
+```bash
+git remote add origin git@github.com:nianpingy-cpu/focusloop.git
 git push -u origin main
 git push origin v0.1.0-demo
 ```
 
-## Update the links afterwards
+## Renaming the repository
 
-Three places assume an owner/repo that only becomes real once you run the command above. They are
-currently set to `nianpingy-cpu/focusloop` as a best guess — fix them if you chose a different name:
+`url:` fields must be absolute, so the owner/repo path is hardcoded in three places. Renaming the
+repository breaks all of them:
 
-| File                                | What to change                                 |
-| ----------------------------------- | ---------------------------------------------- |
-| `.github/ISSUE_TEMPLATE/config.yml` | the `owner/repo` segment of both `url:` values |
-| `README.md`                         | the releases link under **Install**            |
-| `docs/publishing.md`                | this table                                     |
-
-`url:` in the issue-template config must be absolute, so it cannot be relative and will 404 on a
-rename.
+| File                                | What to change                                  |
+| ----------------------------------- | ----------------------------------------------- |
+| `.github/ISSUE_TEMPLATE/config.yml` | the `owner/repo` segment of both `url:` values  |
+| `README.md`                         | the links under **Install** and **Development** |
+| `docs/publishing.md`                | this table and the URL above                    |
 
 ## Commit identity
 
@@ -57,10 +53,10 @@ Changing the author of _existing_ commits needs a history rewrite (for example `
 with a mailmap). That changes every commit hash, so `v0.1.0-demo` has to be recreated and anything
 already pushed needs a force-push. For a demo tag that is rarely worth it.
 
-## What actually gets pushed
+## Distributing the installer
 
 `dist/` and `release/` are gitignored, so the ~114 MB installer and the built bundles stay out of
-the repository. To distribute the installer, attach it to a release rather than committing it:
+the repository. Attach the installer to a release rather than committing it:
 
 ```bash
 gh release create v0.1.0-demo \
@@ -71,9 +67,10 @@ gh release create v0.1.0-demo \
   --notes-file CHANGELOG.md
 ```
 
-That also makes the **Install** link in the README resolve.
+Until that runs, the **Install** link in the README leads to an empty releases page. The repository
+is private, so the release is visible to collaborators only.
 
-## Before the first push
+## Before pushing
 
 ```bash
 pnpm lint

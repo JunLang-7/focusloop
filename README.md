@@ -186,9 +186,10 @@ pnpm e2e         # playwright drives the real Electron app (needs `pnpm build` f
 
 ### Publishing
 
-This repository is local only — there is no remote configured and nothing has been pushed. See
-[`docs/publishing.md`](docs/publishing.md) for the create-and-push steps, the links to update
-afterwards, and the commit-identity caveat.
+The project is hosted in a **private** repository:
+[`nianpingy-cpu/focusloop`](https://github.com/nianpingy-cpu/focusloop). See
+[`docs/publishing.md`](docs/publishing.md) for how the installer is distributed, the commit-identity
+caveat, and what a rename would break.
 
 ### Optional: a real model provider
 
