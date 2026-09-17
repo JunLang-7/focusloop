@@ -6,6 +6,7 @@ import {
 } from '@focusloop/shared-types';
 import type { FocusLoopService } from '../service';
 import {
+  parseCourseId,
   parseDispatchRequest,
   parseEndSession,
   parseImportMaterial,
@@ -80,7 +81,7 @@ export function createHandlers(service: FocusLoopService) {
     }),
     defineHandler({
       channel: IPC_CHANNELS.getCourse,
-      parse: (channel, value) => String(value),
+      parse: parseCourseId,
       handle: (courseId) => engine.getCourse(courseId),
     }),
     defineHandler({

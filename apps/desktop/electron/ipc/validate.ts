@@ -119,6 +119,10 @@ export function parseSessionId(channel: string, value: unknown): string {
   return asString(channel, asRecord(channel, value), 'sessionId');
 }
 
+export function parseCourseId(channel: string, value: unknown): string {
+  return asString(channel, asRecord(channel, value), 'courseId');
+}
+
 export function parseResolveIntervention(
   channel: string,
   value: unknown,
