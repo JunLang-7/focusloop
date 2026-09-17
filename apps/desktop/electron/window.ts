@@ -1,4 +1,4 @@
-import { BrowserWindow, app, shell } from 'electron';
+import { BrowserWindow, app, nativeTheme, shell } from 'electron';
 import { join } from 'node:path';
 
 export interface CreateWindowOptions {
@@ -19,7 +19,9 @@ export async function createMainWindow(options: CreateWindowOptions): Promise<Br
     minWidth: 960,
     minHeight: 640,
     show: false,
-    backgroundColor: '#0f1115',
+    // Follows the OS so the window does not flash the wrong colour before the
+    // renderer has painted. An in-app override cannot reach this layer.
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f1115' : '#f5f6f8',
     title: 'FocusLoop',
     autoHideMenuBar: true,
     webPreferences: {

@@ -85,8 +85,28 @@ try {
   await window.waitForTimeout(400);
   await shot(window, '07-focus-zh');
 
+  // ---- Light theme -------------------------------------------------------
+  await window.getByTestId('theme-light').click();
+  await window.getByRole('link', { name: '数据面板' }).click();
+  await window.getByTestId('range-week').click();
+  await window.waitForTimeout(500);
+  await shot(window, '08-dashboard-light-zh');
+
+  await window.getByTestId('locale-en').click();
+  await window.waitForTimeout(400);
+  await shot(window, '09-dashboard-light-en');
+
+  await window.getByRole('link', { name: 'Home' }).click();
+  await window.waitForTimeout(400);
+  await shot(window, '10-home-light-en');
+
+  await window.getByRole('link', { name: 'Focus Session' }).click();
+  await window.waitForTimeout(400);
+  await shot(window, '11-focus-light-en');
+
   const banners = await window.locator('.banner--error').count();
-  process.stdout.write(`\nCAPTURED 11 screens, error banners: ${banners}\n`);
+  const theme = await window.evaluate(() => document.documentElement.dataset.theme);
+  process.stdout.write(`\nCAPTURED 15 screens, theme=${theme}, error banners: ${banners}\n`);
 } finally {
   await app.close();
   rmSync(userDataDir, { recursive: true, force: true });

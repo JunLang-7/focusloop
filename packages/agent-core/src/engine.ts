@@ -22,9 +22,10 @@ import type {
   SimulatorAvailability,
   SimulatorCommand,
   StartSessionResponse,
+  ThemePreference,
 } from '@focusloop/shared-types';
 import { message } from '@focusloop/shared-types';
-import { DEFAULT_INSIGHT_RANGE, coerceLocale } from '@focusloop/shared-types';
+import { DEFAULT_INSIGHT_RANGE, coerceLocale, coerceTheme } from '@focusloop/shared-types';
 import type { AppSettings, Locale } from '@focusloop/shared-types';
 import {
   DEFAULT_STATE_ENGINE_CONFIG,
@@ -57,6 +58,9 @@ import { generateCourse } from './micro-task-generator';
 
 /** The `app_meta` key the interface language is stored under. */
 export const LOCALE_KEY = 'locale';
+
+/** The `app_meta` key the theme preference is stored under. */
+export const THEME_KEY = 'theme';
 
 export class EngineError extends Error {
   readonly code:
@@ -700,11 +704,19 @@ export class FocusLoopEngine {
   // ---------------------------------------------------------------- settings
 
   getSettings(): AppSettings {
-    return { locale: coerceLocale(this.store.getMeta(LOCALE_KEY)) };
+    return {
+      locale: coerceLocale(this.store.getMeta(LOCALE_KEY)),
+      theme: coerceTheme(this.store.getMeta(THEME_KEY)),
+    };
   }
 
   setLocale(locale: Locale): AppSettings {
     this.store.setMeta(LOCALE_KEY, locale);
+    return this.getSettings();
+  }
+
+  setTheme(theme: ThemePreference): AppSettings {
+    this.store.setMeta(THEME_KEY, theme);
     return this.getSettings();
   }
 }

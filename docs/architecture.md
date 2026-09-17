@@ -238,6 +238,29 @@ Two further details are easy to get wrong and are pinned by tests:
 Nothing here is scoped to "the current session": a calendar window has to consider every session in
 the store, and let the window decide which ones contribute.
 
+## Theming: a preference is not a theme
+
+The stored setting is a **preference** (`system` / `light` / `dark`); what the document gets is a
+**resolved** theme (`light` / `dark`). Keeping them apart is what lets `system` keep following the OS
+after the app is already open — `resolveTheme` is a pure function, and the shell re-runs it whenever
+either the preference or the OS answer changes.
+
+Two consequences shape the rest:
+
+- **Every colour is a token.** `styles.css` defines the dark values on `:root` and the light values
+  on `:root[data-theme='light']`; nothing below that line names a colour directly. A theme is one
+  block of overrides, and `rg '#[0-9a-f]'` outside those blocks returning nothing is the invariant.
+- **Depth has to mean the same thing in both themes.** An earlier revision had panels lighter than the
+  page in dark mode and darker in light mode, which silently inverted the reading of every surface.
+
+Data-visualisation colour is the deliberate exception: the donut's state palette is one mid-tone set
+rather than one per theme, because a ring segment has to hold up on both a near-black and a white
+panel, and two palettes would drift apart.
+
+The window's native background colour cannot be reached by CSS, so the main process sets it from
+`nativeTheme.shouldUseDarkColors`. That covers the common case and stops a dark flash before the
+renderer paints; an in-app override is not reflected there.
+
 ## Persistence
 
 `persistence` owns all SQL. Nothing else in the repository writes a query.

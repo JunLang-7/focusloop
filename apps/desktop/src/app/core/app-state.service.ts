@@ -1,6 +1,7 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { DEFAULT_INSIGHT_RANGE, DEFAULT_LOCALE } from '@focusloop/shared-types';
+import { DEFAULT_INSIGHT_RANGE, DEFAULT_LOCALE, DEFAULT_THEME } from '@focusloop/shared-types';
 import type {
+  AppSettings,
   BridgeInfo,
   Course,
   DashboardSummary,
@@ -15,6 +16,7 @@ import type {
   ResumeCardView,
   RuntimeInfo,
   SessionSnapshot,
+  ThemePreference,
 } from '@focusloop/shared-types';
 
 declare global {
@@ -58,6 +60,7 @@ export class AppStateService {
   readonly busy = signal(false);
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
   readonly locale = signal<Locale>(DEFAULT_LOCALE);
+  readonly theme = signal<ThemePreference>(DEFAULT_THEME);
   readonly insights = signal<InsightsSummary | null>(null);
   readonly insightRange = signal<InsightRange>(DEFAULT_INSIGHT_RANGE);
 
@@ -95,16 +98,16 @@ export class AppStateService {
   }
 
   /**
-   * Restores the interface language. Called once at startup, before the first
-   * paint that shows any chrome, so the window never flashes the wrong language.
+   * Restores the interface language and theme. Called once at startup, before the
+   * first paint that shows any chrome, so the window never flashes the wrong
+   * language or the wrong theme.
    */
-  async loadSettings(): Promise<Locale> {
+  async loadSettings(): Promise<AppSettings> {
     try {
-      const settings = await this.api.getSettings();
-      return settings.locale;
+      return await this.api.getSettings();
     } catch (error) {
       this.lastError.set(error instanceof Error ? error.message : String(error));
-      return DEFAULT_LOCALE;
+      return { locale: DEFAULT_LOCALE, theme: DEFAULT_THEME };
     }
   }
 
@@ -113,6 +116,13 @@ export class AppStateService {
       const settings = await this.api.setLocale({ locale });
       // The store is the authority; reflect what it actually kept.
       this.locale.set(settings.locale);
+    });
+  }
+
+  async setTheme(theme: ThemePreference): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setTheme({ theme });
+      this.theme.set(settings.theme);
     });
   }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { INSIGHT_RANGES, SUPPORTED_LOCALES } from '@focusloop/shared-types';
+import { INSIGHT_RANGES, SUPPORTED_LOCALES, THEME_PREFERENCES } from '@focusloop/shared-types';
 import {
   IpcValidationError,
   parseDispatchRequest,
@@ -11,6 +11,7 @@ import {
   parseResumeDecision,
   parseSessionId,
   parseSetLocale,
+  parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
 } from './validate';
@@ -186,6 +187,23 @@ describe('parseNoArgs', () => {
 
   it('rejects any argument — these channels take none', () => {
     expectFailure(() => parseNoArgs(CHANNEL, { anything: true }));
+  });
+});
+
+describe('parseSetTheme', () => {
+  it('accepts each preference the settings offer', () => {
+    for (const theme of THEME_PREFERENCES) {
+      expect(parseSetTheme(CHANNEL, { theme })).toEqual({ theme });
+    }
+  });
+
+  it('rejects a theme the stylesheet has no tokens for', () => {
+    expectFailure(() => parseSetTheme(CHANNEL, { theme: 'sepia' }));
+  });
+
+  it('rejects a missing or non-string theme', () => {
+    expectFailure(() => parseSetTheme(CHANNEL, {}));
+    expectFailure(() => parseSetTheme(CHANNEL, { theme: true }));
   });
 });
 

@@ -1,9 +1,16 @@
-import { Component, effect, inject } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
-import { SUPPORTED_LOCALES, type LearningState, type Locale } from '@focusloop/shared-types';
+import {
+  SUPPORTED_LOCALES,
+  THEME_PREFERENCES,
+  type LearningState,
+  type Locale,
+  type ThemePreference,
+} from '@focusloop/shared-types';
 import { AppStateService } from './core/app-state.service';
 import { I18nService, LOCALE_LABELS, type MessageKey } from './core/i18n/i18n.service';
+import { applyTheme, resolveTheme } from './core/theme';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
 import { SimulatorBarComponent } from './components/simulator-bar.component';
@@ -21,6 +28,13 @@ const STATE_KEYS: Record<LearningState, MessageKey> = {
   DISTRACTED: 'state.DISTRACTED',
   INTERRUPTED: 'state.INTERRUPTED',
   RESUMING: 'state.RESUMING',
+};
+
+/** The theme preference is a closed vocabulary too. */
+const THEME_KEYS: Record<ThemePreference, MessageKey> = {
+  system: 'theme.system',
+  light: 'theme.light',
+  dark: 'theme.dark',
 };
 
 @Component({
@@ -83,6 +97,24 @@ const STATE_KEYS: Record<LearningState, MessageKey> = {
               }
             </div>
           </div>
+
+          <div class="locale" role="group" [attr.aria-label]="t('app.theme.switch')">
+            <span class="muted small">{{ t('app.theme') }}</span>
+            <div class="locale__options">
+              @for (option of themes; track option) {
+                <button
+                  type="button"
+                  class="btn btn--small locale__btn"
+                  [class.is-active]="option === theme()"
+                  [attr.aria-pressed]="option === theme()"
+                  [attr.data-testid]="'theme-' + option"
+                  (click)="chooseTheme(option)"
+                >
+                  {{ t(themeKeys[option]) }}
+                </button>
+              }
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -109,6 +141,12 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly lastError = this.stateService.lastError;
   protected readonly locale = this.stateService.locale;
   protected readonly locales = SUPPORTED_LOCALES;
+  protected readonly theme = this.stateService.theme;
+  protected readonly themes = THEME_PREFERENCES;
+  protected readonly themeKeys = THEME_KEYS;
+
+  /** The OS preference, re-read whenever it changes, used only for `system`. */
+  private readonly prefersLight = signal(false);
 
   protected readonly t = this.i18n.t;
 
@@ -119,8 +157,26 @@ export class AppComponent implements OnInit, OnDestroy {
    */
   private readonly syncLocale = effect(() => this.i18n.set(this.locale()));
 
+  /**
+   * One place resolves the preference into a concrete theme and writes it to the
+   * document. Components never touch theming, and `system` keeps following the OS
+   * because `prefersLight` is a signal rather than a one-off read.
+   */
+  private readonly syncTheme = effect(() =>
+    applyTheme(document.documentElement, resolveTheme(this.theme(), this.prefersLight())),
+  );
+
+  constructor() {
+    const query = window.matchMedia('(prefers-color-scheme: light)');
+    this.prefersLight.set(query.matches);
+    query.addEventListener('change', (event) => this.prefersLight.set(event.matches));
+  }
+
   ngOnInit(): void {
-    void this.stateService.loadSettings().then((locale) => this.stateService.locale.set(locale));
+    void this.stateService.loadSettings().then((settings) => {
+      this.stateService.locale.set(settings.locale);
+      this.stateService.theme.set(settings.theme);
+    });
     void this.stateService.refresh();
     this.unsubscribe = this.stateService.subscribeToEvents();
   }
@@ -128,6 +184,7 @@ export class AppComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.unsubscribe?.();
     this.syncLocale.destroy();
+    this.syncTheme.destroy();
   }
 
   protected stateLabel(): string {
@@ -141,5 +198,9 @@ export class AppComponent implements OnInit, OnDestroy {
 
   protected choose(locale: Locale): void {
     void this.stateService.setLocale(locale);
+  }
+
+  protected chooseTheme(theme: ThemePreference): void {
+    void this.stateService.setTheme(theme);
   }
 }

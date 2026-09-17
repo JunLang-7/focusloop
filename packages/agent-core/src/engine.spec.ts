@@ -28,18 +28,29 @@ describe('FocusLoopEngine', () => {
   });
 
   describe('settings', () => {
-    it('defaults to English when nothing has been chosen', () => {
-      expect(ctx.engine.getSettings()).toEqual({ locale: 'en' });
+    it('defaults to English and the system theme when nothing has been chosen', () => {
+      expect(ctx.engine.getSettings()).toEqual({ locale: 'en', theme: 'system' });
     });
 
     it('remembers the chosen language', () => {
-      expect(ctx.engine.setLocale('zh')).toEqual({ locale: 'zh' });
-      expect(ctx.engine.getSettings()).toEqual({ locale: 'zh' });
+      expect(ctx.engine.setLocale('zh')).toEqual({ locale: 'zh', theme: 'system' });
+      expect(ctx.engine.getSettings().locale).toBe('zh');
+    });
+
+    it('remembers the chosen theme without disturbing the language', () => {
+      ctx.engine.setLocale('zh');
+      expect(ctx.engine.setTheme('light')).toEqual({ locale: 'zh', theme: 'light' });
+      expect(ctx.engine.getSettings()).toEqual({ locale: 'zh', theme: 'light' });
     });
 
     it('ignores a language nobody wrote wording for', () => {
       ctx.engine.setLocale('fr' as never);
       expect(ctx.engine.getSettings().locale).toBe('en');
+    });
+
+    it('ignores a theme nobody implemented', () => {
+      ctx.engine.setTheme('sepia' as never);
+      expect(ctx.engine.getSettings().theme).toBe('system');
     });
   });
 

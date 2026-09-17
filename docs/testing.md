@@ -28,13 +28,13 @@ dependency, launches Electron and drives the real UI.
 ## The pyramid, and why it is shaped this way
 
 ```text
-        ▲  E2E (Playwright, 5 tests)
+        ▲  E2E (Playwright, 6 tests)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
-     ╱     ╲  Integration (agent-core, 98 tests)
+     ╱     ╲  Integration (agent-core, 100 tests)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
-  ╱___________╲ Unit (domain packages, 296 tests)
+  ╱___________╲ Unit (domain packages, 304 tests)
                 the rules, with no IO at all
 ```
 
@@ -83,7 +83,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - A file-backed database survives close and reopen.
 - Sessions are isolated from one another.
 
-### `agent-core` — 98 tests
+### `agent-core` — 100 tests
 
 - The demo course has the shape the golden path needs.
 - Material import is idempotent per content hash.
@@ -95,7 +95,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Simulator availability, including the production-disabled path.
 - Deterministic micro-task generation: same material in, same course out.
 
-### `apps/desktop` — 96 tests
+### `apps/desktop` — 106 tests
 
 - IPC validation rejects non-objects, unknown event types, unknown sources, oversize payloads,
   unknown session-end reasons, unknown simulator commands, unsupported locales, and unexpected
@@ -115,7 +115,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   closed payload shape, reconnects after a close, bounds the offline queue, and survives a socket
   factory that throws.
 
-### `apps/desktop-e2e` — 5 tests
+### `apps/desktop-e2e` — 6 tests
 
 The golden path, in the real application:
 

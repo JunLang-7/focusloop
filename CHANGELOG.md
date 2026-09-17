@@ -58,6 +58,10 @@ interaction and helps the learner resume.
   task. Everything is rebuilt from the event log by replaying it through the real state machine, so
   the charts cannot disagree with the engine; silent stretches are capped by the engine's own idle
   threshold rather than counted as focus.
+- **Light and dark themes** — the theme preference is `system`, `light` or `dark`, switchable from
+  the sidebar. Every colour comes from a token, so a theme is one block of overrides rather than a
+  hunt for hardcoded hexes; `system` re-resolves live when the OS setting changes, and the window
+  background follows the OS so there is no flash before the renderer paints.
 - **Quality gates** — ESLint (flat config), TypeScript strict mode, Vitest, Playwright and GitHub
   Actions.
 
