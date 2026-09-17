@@ -1,0 +1,246 @@
+# Architecture
+
+## The shape of the system
+
+FocusLoop is a local-first desktop application. There is no server in v0.1, and the golden path
+never needs one.
+
+```mermaid
+flowchart TB
+  subgraph Renderer["Angular renderer (sandboxed)"]
+    PAGES[Home · Course · Focus Workspace · Dashboard]
+    STATE[AppStateService signals]
+  end
+
+  subgraph Main["Electron main process (Node)"]
+    HANDLERS[IPC handlers + validation]
+    ENGINE[FocusLoopEngine]
+    BRIDGE[Loopback WebSocket bridge]
+    TICK[Time-based tick]
+  end
+
+  subgraph Domain["Pure domain packages"]
+    LS[learning-state]
+    CO[continuity]
+    IP[intervention-policy]
+    MP[material-parser]
+    AC[agent-core]
+    LLM[llm-provider]
+  end
+
+  DB[(SQLite · node:sqlite)]
+
+  PAGES --> STATE
+  STATE -->|window.focusloop| HANDLERS
+  HANDLERS --> ENGINE
+  BRIDGE --> ENGINE
+  TICK --> ENGINE
+  ENGINE --> LS
+  ENGINE --> CO
+  ENGINE --> IP
+  ENGINE --> AC
+  AC --> MP
+  ENGINE --> LLM
+  ENGINE --> DB
+```
+
+## Layers, and what may depend on what
+
+| Layer           | Packages                            | May depend on                                     |
+| --------------- | ----------------------------------- | ------------------------------------------------- |
+| Vocabulary      | `shared-types`                      | nothing                                           |
+| Pure domain     | `learning-state`, `material-parser` | `shared-types`                                    |
+| Domain services | `continuity`, `intervention-policy` | vocabulary + pure domain                          |
+| Application     | `agent-core`                        | everything above + `persistence` + `llm-provider` |
+| Infrastructure  | `persistence`, `llm-provider`       | vocabulary                                        |
+| Shell           | `apps/desktop`, `apps/extension`    | any package                                       |
+
+Two rules keep this honest:
+
+- **The renderer imports `shared-types` only.** It never imports a domain package, so no decision is
+  ever made in the UI.
+- **Nothing in `learning-state` or `continuity` imports `persistence`.** Tests construct them with
+  plain values.
+
+## The state engine
+
+`learning-state` is the heart of the project and the reason FocusLoop is an agent rather than a
+prompt wrapper.
+
+```ts
+type LearningState =
+  | 'READY'
+  | 'INITIATION_FRICTION'
+  | 'FOCUSED'
+  | 'CONFUSED'
+  | 'OVERLOADED'
+  | 'DISTRACTED'
+  | 'INTERRUPTED'
+  | 'RESUMING';
+```
+
+```mermaid
+stateDiagram-v2
+  [*] --> READY
+  READY --> FOCUSED: TASK_STARTED
+  READY --> INITIATION_FRICTION: no task within the window
+  INITIATION_FRICTION --> FOCUSED: TASK_STARTED
+  FOCUSED --> CONFUSED: HELP_REQUESTED / 2× QUIZ_INCORRECT
+  FOCUSED --> OVERLOADED: 3× HELP_REQUESTED in the window
+  FOCUSED --> DISTRACTED: TAB_LEFT / IDLE_STARTED
+  DISTRACTED --> FOCUSED: TAB_RETURNED within threshold
+  DISTRACTED --> INTERRUPTED: threshold exceeded
+  CONFUSED --> FOCUSED: QUIZ_CORRECT
+  OVERLOADED --> FOCUSED: TASK_STARTED
+  INTERRUPTED --> RESUMING: RESUME_REQUESTED
+  INTERRUPTED --> FOCUSED: RESUME_DISMISSED
+  RESUMING --> FOCUSED: TASK_STARTED
+  FOCUSED --> READY: SESSION_ENDED
+```
+
+Properties that the tests hold us to:
+
+- **Pure.** `reduceState(previous, event, config)` never mutates, never reads the clock, never does
+  IO. The event carries its own timestamp.
+- **Deterministic.** The same inputs always produce the same state.
+- **Deduplicated.** A bounded ring of recent event ids means a replayed or racing event is ignored.
+- **Time-aware without a clock.** `evaluateTimeBasedState(state, now, config)` is a separate pure
+  function that the host calls on a tick. That is how "away for 20 seconds" becomes an interruption
+  even though no event ever arrives.
+
+## The checkpoint and the resume card
+
+A checkpoint is not "which screen was open". It is the learner's cognitive position:
+
+```ts
+interface LearningCheckpoint {
+  sessionId;
+  conceptId;
+  conceptTitle;
+  goal;
+  mastered: string[];
+  unresolved: string[];
+  currentTaskId;
+  currentTaskTitle;
+  currentStep;
+  frictionState: LearningState;
+  nextBestAction;
+  createdAt;
+}
+```
+
+`continuity` builds it from the session, the course and the engine state — purely, so it can be
+constructed in a test with no database. The checkpoint id is derived from
+`${sessionId}:${interruptedSince}`, which makes checkpoint creation idempotent: the same
+interruption can be processed repeatedly and yields one checkpoint.
+
+The resume card is then a rendering of that checkpoint plus the interruption context:
+
+```ts
+interface ResumeCard {
+  title;
+  lastContext;
+  completed: string[];
+  unresolved: string[];
+  nextAction;
+  estimatedMinutes;
+}
+```
+
+`ResumeCardTiming` records `shownAt`, `acceptedAt`, `dismissedAt` and the derived
+`resumeLatencyMs`. That latency is the single most important number in the product, because it is
+the only evidence that resume actually worked.
+
+## The intervention policy
+
+Rule-based, ordered, and explainable. Every decision carries a human-readable `reason` that the UI
+shows.
+
+```ts
+type InterventionAction =
+  'NO_ACTION' | 'MICRO_START' | 'SIMPLIFY' | 'HINT' | 'EXAMPLE' | 'QUESTION' | 'BREAK' | 'RESUME';
+```
+
+Order of evaluation:
+
+1. Session budget exhausted → `NO_ACTION`.
+2. A resume was dismissed recently → `NO_ACTION`.
+3. Interrupted and awaiting resume → `RESUME` (never rate limited; this is why the product exists).
+4. State rules: `OVERLOADED` → `BREAK`; `CONFUSED` → `HINT`/`EXAMPLE`;
+   `INITIATION_FRICTION` → `MICRO_START`; a task far past its estimate → `SIMPLIFY`; a single wrong
+   answer → `QUESTION`; `DISTRACTED` → `NO_ACTION`.
+5. Cooldown, _unless_ the candidate action is more urgent than the last one shown.
+
+`NO_ACTION` is a first-class answer. An agent that cannot stay quiet is not usable by the people
+this is built for.
+
+## Persistence
+
+`persistence` owns all SQL. Nothing else in the repository writes a query.
+
+- Driver: `node:sqlite`, loaded through `process.getBuiltinModule`. Rationale in the code: the app
+  runs in two JavaScript runtimes (Node for tests and tooling, Electron for the product), and a
+  compiled native module would need a separate binary per runtime with a rebuild step that silently
+  breaks one of them.
+- Migrations are append-only and recorded in `schema_migrations`. Applied migrations are never
+  edited.
+- Child rows (`concepts`, `micro_tasks`, `quizzes`) are keyed `(course_id, id)`, so two courses can
+  legitimately share a local id without colliding.
+- Writes that must be atomic use `SqlDatabase.transaction`, which tracks nesting explicitly because
+  `node:sqlite` has no transaction helper.
+
+## The Electron security boundary
+
+| Setting            | Value                                        | Why                                                 |
+| ------------------ | -------------------------------------------- | --------------------------------------------------- |
+| `contextIsolation` | `true`                                       | The renderer cannot reach the preload's scope       |
+| `nodeIntegration`  | `false`                                      | No `require`, no `process`, no `fs` in the renderer |
+| `sandbox`          | `true`                                       | The renderer runs in the OS sandbox                 |
+| `webSecurity`      | `true`                                       | Standard same-origin rules                          |
+| CSP                | `default-src 'self'; script-src 'self'`      | No inline script, no remote script                  |
+| Preload surface    | an explicit object literal                   | The renderer cannot name a channel                  |
+| Navigation         | blocked outside `file://` and the dev server | No navigating the shell to a website                |
+| `window.open`      | denied; `https:` opens in the OS browser     | —                                                   |
+
+Every IPC argument is validated again in the main process (`electron/ipc/validate.ts`), because a
+type annotation is not a security control. That validator has its own hostile-input test suite.
+
+## The extension bridge
+
+```mermaid
+sequenceDiagram
+  participant SW as Extension service worker
+  participant TR as ActivityTracker
+  participant BR as Bridge server (127.0.0.1)
+  participant EN as FocusLoopEngine
+
+  SW->>TR: onActivated(tabId)
+  TR->>TR: awaySince = now
+  SW->>BR: {protocol, type: TAB_LEFT, token, eventId, at}
+  BR->>BR: schema + token + duplicate check
+  BR->>EN: dispatch(TAB_LEFT, source: extension)
+  EN-->>BR: { state }
+  BR-->>SW: { type: ACK, state }
+```
+
+- Binds to `127.0.0.1` only, never a routable interface.
+- The token is generated per run and compared in constant time.
+- The message schema is closed: `{ protocol, type, token, eventId, at, payload }` where `payload`
+  may contain `origin` (sanitised to scheme + host), `awayMs`, `idleMs` and `clientVersion`.
+- The event id is remembered in a bounded ring, so a reconnect storm cannot double-count.
+- If the bridge cannot start (port taken), the app still runs and says so; the simulator covers the
+  demo.
+
+## Determinism and testability
+
+Everything that decides something is a pure function with its inputs passed in:
+
+| Input      | How it is injected                                                       |
+| ---------- | ------------------------------------------------------------------------ |
+| Time       | `clock: () => string` on the engine; `at` on every event                 |
+| Identity   | `idFactory: () => string`; deterministic ids derived from content hashes |
+| Randomness | none — there is no `Math.random()` or `Date.now()` in any domain package |
+| Database   | `openDatabase(':memory:')`                                               |
+| Provider   | `MockAIProvider`, or a failing stub for degraded-mode tests              |
+
+That is what lets the E2E test be a _product_ test: the domain is already proven underneath it.
