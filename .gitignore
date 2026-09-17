@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+release/
+*.tsbuildinfo
+
+# Nx
+.nx/
+.nx-cache/
+
+# Test / coverage
+coverage/
+test-results/
+playwright-report/
+blob-report/
+
+# Electron packaging
+apps/desktop/release/
+apps/desktop/out/
+
+# Logs & debug artifacts
+*.log
+npm-debug.log*
+pnpm-debug.log*
+debug-logs/
+logs/
+*.heapsnapshot
+*.cpuprofile
+
+# Local runtime data (local-first store must never be committed)
+*.sqlite
+*.sqlite3
+*.db
+data/
+.focusloop/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Scratch
+scratch/
+tmp/
+.tmp/

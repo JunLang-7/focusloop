@@ -1,0 +1,13 @@
+# Normalise line endings: the repository is authored with LF everywhere except
+# Windows-only script files, which Git will check out with CRLF.
+* text=auto eol=lf
+
+*.ps1 text eol=crlf
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.exe binary
+*.zip binary
