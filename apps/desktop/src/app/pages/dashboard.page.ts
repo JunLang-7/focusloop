@@ -13,6 +13,7 @@ import {
   STATE_COLORS,
   busiestDay,
   donutSegments,
+  focusRatio,
   formatSpan,
   heatLevel,
   heatmapLeadingBlanks,
@@ -353,20 +354,8 @@ export class DashboardPage {
   protected readonly stateShares = computed(() => sortedShares(this.insights()?.stateShares ?? []));
   protected readonly segments = computed(() => donutSegments(this.stateShares(), DONUT_RADIUS));
 
-  /**
-   * Share of the window spent on task. `RESUMING` counts: the learner has already
-   * accepted the way back in. `DISTRACTED` and `INTERRUPTED` are the states this
-   * product exists to shorten, so they are deliberately excluded.
-   */
-  protected readonly focusRatio = computed(() => {
-    const shares = this.insights()?.stateShares ?? [];
-    const total = shares.reduce((sum, item) => sum + item.durationMs, 0);
-    if (total === 0) return 0;
-    const engaged = shares
-      .filter((item) => item.state === 'FOCUSED' || item.state === 'RESUMING')
-      .reduce((sum, item) => sum + item.durationMs, 0);
-    return engaged / total;
-  });
+  /** Share of the window spent on task. What counts as focus lives in `focusRatio`. */
+  protected readonly focusRatio = computed(() => focusRatio(this.insights()?.stateShares ?? []));
 
   /**
    * Weekday-aligned padding is only worth it once the window is longer than a

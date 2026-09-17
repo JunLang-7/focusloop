@@ -4,6 +4,7 @@ import {
   STATE_COLORS,
   busiestDay,
   donutSegments,
+  focusRatio,
   formatSpan,
   heatLevel,
   heatmapLeadingBlanks,
@@ -11,6 +12,7 @@ import {
   ringCircumference,
   shortDate,
   sortedShares,
+  visibleShares,
   weekdayIndex,
 } from './insights-view';
 
@@ -102,6 +104,60 @@ describe('sortedShares', () => {
     const input = [share('CONFUSED', 10, 0.1), share('FOCUSED', 90, 0.9)];
     expect(sortedShares(input).map((s) => s.state)).toEqual(['FOCUSED', 'CONFUSED']);
     expect(input[0]?.state).toBe('CONFUSED');
+  });
+});
+
+describe('visibleShares', () => {
+  it('drops the states with no time and orders the rest by duration', () => {
+    const shares = [
+      share('CONFUSED', 0, 0),
+      share('FOCUSED', 100, 0.5),
+      share('DISTRACTED', 200, 0.5),
+    ];
+    expect(visibleShares(shares).map((item) => item.state)).toEqual(['DISTRACTED', 'FOCUSED']);
+  });
+
+  it('leaves the input array alone', () => {
+    const shares = [share('FOCUSED', 0, 0), share('DISTRACTED', 200, 1)];
+    visibleShares(shares);
+    expect(shares.map((item) => item.state)).toEqual(['FOCUSED', 'DISTRACTED']);
+  });
+
+  it('returns nothing for an empty window', () => {
+    expect(visibleShares([])).toEqual([]);
+  });
+});
+
+describe('focusRatio', () => {
+  it('counts FOCUSED and RESUMING as on task', () => {
+    const shares = [
+      share('FOCUSED', 30, 0.3),
+      share('RESUMING', 20, 0.2),
+      share('DISTRACTED', 50, 0.5),
+    ];
+    expect(focusRatio(shares)).toBeCloseTo(0.5, 10);
+  });
+
+  it('does not treat going idle, confused or overloaded as focus', () => {
+    const shares = [
+      share('READY', 40, 0.4),
+      share('CONFUSED', 20, 0.2),
+      share('OVERLOADED', 40, 0.4),
+    ];
+    expect(focusRatio(shares)).toBe(0);
+  });
+
+  it('weighs by duration, not by how many states were visited', () => {
+    const shares = [share('RESUMING', 10, 0.01), share('INTERRUPTED', 990, 0.99)];
+    expect(focusRatio(shares)).toBeCloseTo(0.01, 10);
+  });
+
+  it('is zero, not NaN, for a window with nothing in it', () => {
+    expect(focusRatio([])).toBe(0);
+  });
+
+  it('is zero, not NaN, when every state recorded zero time', () => {
+    expect(focusRatio([share('FOCUSED', 0, 0), share('RESUMING', 0, 0)])).toBe(0);
   });
 });
 

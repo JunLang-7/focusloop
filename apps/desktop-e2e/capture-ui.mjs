@@ -104,9 +104,29 @@ try {
   await window.waitForTimeout(400);
   await shot(window, '11-focus-light-en');
 
+  // A window wider than the demo ever uses. Proves the content column stops growing
+  // and centres instead of stretching every card across the screen.
+  await window.setViewportSize({ width: 1680, height: 1000 });
+  await window.getByRole('link', { name: 'Dashboard' }).click();
+  await window.getByTestId('range-week').click();
+  await window.waitForTimeout(500);
+  await shot(window, '12-dashboard-wide-light-en');
+
+  await window.getByRole('link', { name: 'Home' }).click();
+  await window.waitForTimeout(400);
+  await shot(window, '13-home-wide-light-en');
+
+  // The narrowest window the main process allows (minWidth 960). Four stat cards and a
+  // two-panel chart row are the tightest this layout ever gets.
+  await window.setViewportSize({ width: 960, height: 900 });
+  await window.getByRole('link', { name: 'Dashboard' }).click();
+  await window.getByTestId('range-week').click();
+  await window.waitForTimeout(500);
+  await shot(window, '14-dashboard-min-width-light-en');
+
   const banners = await window.locator('.banner--error').count();
   const theme = await window.evaluate(() => document.documentElement.dataset.theme);
-  process.stdout.write(`\nCAPTURED 15 screens, theme=${theme}, error banners: ${banners}\n`);
+  process.stdout.write(`\nCAPTURED 18 screens, theme=${theme}, error banners: ${banners}\n`);
 } finally {
   await app.close();
   rmSync(userDataDir, { recursive: true, force: true });

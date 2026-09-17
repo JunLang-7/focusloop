@@ -62,6 +62,14 @@ interaction and helps the learner resume.
   the sidebar. Every colour comes from a token, so a theme is one block of overrides rather than a
   hunt for hardcoded hexes; `system` re-resolves live when the OS setting changes, and the window
   background follows the OS so there is no flash before the renderer paints.
+- **A shell that uses the room it has** — the sidebar carries an ambient _today_ summary (total
+  time, a ribbon of the time by state, and the day's task and interruption counts) rather than
+  leaving a hole under a three-item nav, and it is pinned above the state chip so the bottom of the
+  sidebar is one cluster instead of one lonely pill. It always reports _today_, whichever window the
+  dashboard is showing, which is why it fetches its own summary rather than borrowing the
+  dashboard's. The content column is capped at a measure and centred, so a wide window gets a
+  readable column instead of cards stretched edge to edge, and the donut and its legend wrap
+  instead of ellipsising every state name at the minimum window width.
 - **Quality gates** — ESLint (flat config), TypeScript strict mode, Vitest, Playwright and GitHub
   Actions.
 

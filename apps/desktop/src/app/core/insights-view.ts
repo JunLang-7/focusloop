@@ -86,6 +86,33 @@ export function sortedShares(shares: readonly StateShare[]): StateShare[] {
   return [...shares].sort((a, b) => b.durationMs - a.durationMs);
 }
 
+/**
+ * The shares that have time in them, largest first.
+ *
+ * A ribbon or a legend drawn from `stateShares` directly would carry seven empty
+ * bands for the states the learner never entered, which pad the row out to nothing.
+ * `donutSegments` drops them too, for the same reason.
+ */
+export function visibleShares(shares: readonly StateShare[]): StateShare[] {
+  return sortedShares(shares.filter((item) => item.durationMs > 0));
+}
+
+/**
+ * Share of a window spent on task, 0..1.
+ *
+ * `RESUMING` counts: the learner has already accepted the way back in. `DISTRACTED`
+ * and `INTERRUPTED` are the states this product exists to shorten, so they are
+ * deliberately excluded — a high `READY` share is not focus either.
+ */
+export function focusRatio(shares: readonly StateShare[]): number {
+  const total = shares.reduce((sum, item) => sum + item.durationMs, 0);
+  if (total === 0) return 0;
+  const engaged = shares
+    .filter((item) => item.state === 'FOCUSED' || item.state === 'RESUMING')
+    .reduce((sum, item) => sum + item.durationMs, 0);
+  return engaged / total;
+}
+
 export function busiestDay(daily: readonly DailyActivity[]): DailyActivity | null {
   return daily.reduce<DailyActivity | null>(
     (best, day) => (best === null || day.durationMs > best.durationMs ? day : best),
