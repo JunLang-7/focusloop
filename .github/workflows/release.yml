@@ -32,12 +32,23 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Verify before packaging
-        run: |
-          pnpm lint
-          pnpm typecheck
-          pnpm test
-          pnpm verify:scaffolding
+      # These must stay separate steps. On Windows the default shell is pwsh, and a
+      # multi-line `run:` block reports only the exit code of its LAST command — so
+      # `pnpm test` could fail and the step would still go green as long as
+      # `pnpm verify:scaffolding` passed. That is how a release was once packaged from
+      # a commit whose tests were failing. Separate steps make each gate able to fail
+      # the job, and show which one did.
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Release hygiene
+        run: pnpm verify:scaffolding
 
       - name: Package the desktop installer
         run: pnpm --filter @focusloop/desktop run package
@@ -48,6 +59,7 @@ jobs:
       - name: Checksums
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $files = @(
             'apps/desktop/release/FocusLoop-Setup.exe',
             'apps/extension/release/focusloop-extension.zip'
