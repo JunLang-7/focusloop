@@ -20,6 +20,13 @@ const en = {
   'app.mode.network': 'network mode',
   'app.language': 'Language',
   'app.language.switch': 'Switch interface language',
+  'app.theme': 'Theme',
+  'app.theme.switch': 'Switch theme',
+
+  // The theme preference, not the resolved theme.
+  'theme.system': 'Auto',
+  'theme.light': 'Light',
+  'theme.dark': 'Dark',
 
   // --------------------------------------------------------- learning state
   'state.READY': 'Ready',

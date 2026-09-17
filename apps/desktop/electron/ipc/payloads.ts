@@ -8,8 +8,10 @@ import type {
   ResumeDecisionRequest,
   ResolveInterventionRequest,
   SetLocaleRequest,
+  SetThemeRequest,
   SimulatorCommand,
   StartSessionRequest,
+  ThemePreference,
 } from '@focusloop/shared-types';
 
 /**
@@ -42,6 +44,7 @@ export const payload = {
     sessionId,
   }),
   setLocale: (locale: Locale): SetLocaleRequest => ({ locale }),
+  setTheme: (theme: ThemePreference): SetThemeRequest => ({ theme }),
   insights: (range: InsightRange): InsightsRequest => ({ range }),
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,
 } as const;

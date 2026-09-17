@@ -1,6 +1,7 @@
 import {
   isInsightRange,
   isLocale,
+  isThemePreference,
   LEARNING_EVENT_TYPES,
   SESSION_END_REASONS,
   type DispatchEventRequest,
@@ -12,6 +13,7 @@ import {
   type ResolveInterventionRequest,
   type SessionEndReason,
   type SetLocaleRequest,
+  type SetThemeRequest,
   type SimulatorCommand,
   type StartSessionRequest,
 } from '@focusloop/shared-types';
@@ -132,6 +134,13 @@ export function parseSetLocale(channel: string, value: unknown): SetLocaleReques
   const locale = asString(channel, record, 'locale');
   if (!isLocale(locale)) fail(channel, `unsupported locale "${locale}"`);
   return { locale };
+}
+
+export function parseSetTheme(channel: string, value: unknown): SetThemeRequest {
+  const record = asRecord(channel, value);
+  const theme = asString(channel, record, 'theme');
+  if (!isThemePreference(theme)) fail(channel, `unsupported theme "${theme}"`);
+  return { theme };
 }
 
 export function parseInsightsRequest(channel: string, value: unknown): InsightsRequest {

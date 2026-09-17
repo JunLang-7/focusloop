@@ -18,6 +18,13 @@ export const zh: Record<MessageKey, string> = {
   'app.mode.network': '联网模式',
   'app.language': '语言',
   'app.language.switch': '切换界面语言',
+  'app.theme': '主题',
+  'app.theme.switch': '切换主题',
+
+  // The theme preference, not the resolved theme.
+  'theme.system': '自动',
+  'theme.light': '亮',
+  'theme.dark': '暗',
 
   // --------------------------------------------------------- learning state
   'state.READY': '就绪',

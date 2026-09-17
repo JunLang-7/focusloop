@@ -4,7 +4,7 @@ import type { DashboardSummary } from './dashboard';
 import type { LearningEvent, SessionEndReason } from './events';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { InsightsRequest, InsightsSummary } from './insights';
-import type { AppSettings, Locale } from './settings';
+import type { AppSettings, Locale, ThemePreference } from './settings';
 import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
 import type { LearningState } from './state';
@@ -40,6 +40,7 @@ export const IPC_CHANNELS = {
   getBridgeInfo: 'focusloop:bridge:info',
   getSettings: 'focusloop:settings:get',
   setLocale: 'focusloop:settings:set-locale',
+  setTheme: 'focusloop:settings:set-theme',
   subscribeEvents: 'focusloop:event:subscribe',
   unsubscribeEvents: 'focusloop:event:unsubscribe',
   onEvent: 'focusloop:event:push',
@@ -162,6 +163,10 @@ export interface SetLocaleRequest {
   readonly locale: Locale;
 }
 
+export interface SetThemeRequest {
+  readonly theme: ThemePreference;
+}
+
 /** Typed, promise-based API exposed as `window.focusloop`. */
 export interface FocusLoopApi {
   getAppVersion(): Promise<string>;
@@ -196,6 +201,7 @@ export interface FocusLoopApi {
 
   getSettings(): Promise<AppSettings>;
   setLocale(request: SetLocaleRequest): Promise<AppSettings>;
+  setTheme(request: SetThemeRequest): Promise<AppSettings>;
 
   getInsights(request: InsightsRequest): Promise<InsightsSummary>;
 

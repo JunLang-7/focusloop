@@ -12,18 +12,22 @@ export type Translate = (key: MessageKey, params?: Record<string, string>) => st
 
 /**
  * One colour per learning state, shared by the donut and its legend so the two
- * can never disagree. Deliberately not the same hue family as the semantic
- * `--ok` / `--warn` / `--danger` tokens: state is descriptive here, not a verdict.
+ * can never disagree.
+ *
+ * Deliberately a single mid-tone palette rather than one per theme: every colour
+ * has to hold up as a ring segment on both a near-black and a white panel, and two
+ * palettes would drift. Deliberately not the semantic `--ok` / `--warn` /
+ * `--danger` tokens either — state is descriptive here, not a verdict.
  */
 export const STATE_COLORS: Record<LearningState, string> = {
   READY: '#6b7280',
-  INITIATION_FRICTION: '#f59e0b',
-  FOCUSED: '#22c55e',
-  CONFUSED: '#eab308',
-  OVERLOADED: '#f97316',
+  INITIATION_FRICTION: '#d97706',
+  FOCUSED: '#16a34a',
+  CONFUSED: '#ca8a04',
+  OVERLOADED: '#ea580c',
   DISTRACTED: '#64748b',
-  INTERRUPTED: '#ef4444',
-  RESUMING: '#38bdf8',
+  INTERRUPTED: '#dc2626',
+  RESUMING: '#0284c7',
 };
 
 /** One arc of the donut, ready to drop into an SVG `<circle>`. */

@@ -102,8 +102,8 @@ pnpm --filter @focusloop/extension run build:zip  # → apps/extension/release/f
    days or all time: total and daily-average time, a ring of time by learning state, a daily
    activity grid and a per-course breakdown.
 
-The interface is bilingual — English and Simplified Chinese — and the language is switchable from
-any screen. The choice is stored locally and survives a restart.
+The interface is bilingual — English and Simplified Chinese — and the theme can follow the operating
+system or be pinned to light or dark. Both choices are stored locally and survive a restart.
 
 ### Deliberately not in v0.1
 
@@ -253,7 +253,7 @@ Full statement: [`docs/privacy.md`](docs/privacy.md).
 ## Testing
 
 ```bash
-pnpm test                                        # 394 unit tests
+pnpm test                                        # 404 unit tests
 pnpm --filter @focusloop/desktop-e2e run e2e     # the golden path, in the real app
 node scripts/verify-no-scaffolding.mjs           # release hygiene gate
 ```

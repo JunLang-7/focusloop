@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { IPC_CHANNELS, INSIGHT_RANGES, SUPPORTED_LOCALES } from '@focusloop/shared-types';
+import {
+  IPC_CHANNELS,
+  INSIGHT_RANGES,
+  SUPPORTED_LOCALES,
+  THEME_PREFERENCES,
+} from '@focusloop/shared-types';
 import { payload } from './payloads';
 import {
   parseCourseId,
@@ -12,6 +17,7 @@ import {
   parseResumeDecision,
   parseSessionId,
   parseSetLocale,
+  parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
 } from './validate';
@@ -76,6 +82,12 @@ describe('the preload and the main process agree on every payload', () => {
   it('the locale channel accepts what the preload sends', () => {
     for (const locale of SUPPORTED_LOCALES) {
       expect(parseSetLocale(IPC_CHANNELS.setLocale, payload.setLocale(locale))).toEqual({ locale });
+    }
+  });
+
+  it('the theme channel accepts what the preload sends', () => {
+    for (const theme of THEME_PREFERENCES) {
+      expect(parseSetTheme(IPC_CHANNELS.setTheme, payload.setTheme(theme))).toEqual({ theme });
     }
   });
 

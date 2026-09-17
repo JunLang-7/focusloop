@@ -1,17 +1,84 @@
+/*
+ * Themes.
+ *
+ * Every colour in this file comes from a token below, so a theme is one block of
+ * overrides rather than a hunt for hardcoded hexes. Dark is the default and lives
+ * on `:root`; light is applied by `<html data-theme="light">`, which the shell sets
+ * from the stored preference plus the OS answer.
+ */
 :root {
   --bg: #0f1115;
   --bg-elevated: #161a21;
   --bg-soft: #1c2029;
+  --bg-sunken: #0b0d12;
+  --bg-floating: rgb(15 17 21 / 96%);
   --border: #262b35;
   --text: #e8ebf0;
   --text-muted: #9aa3b2;
   --accent: #6ea8fe;
   --accent-strong: #3d7dfa;
+  --accent-end: #8b5cf6;
+  --accent-border: #2f4670;
+  --accent-surface: linear-gradient(180deg, #1a2130, var(--bg-elevated));
+  --on-accent: #05070b;
+  --btn-hover-bg: #222732;
+  --btn-hover-border: #39415280;
+  --banner-error-bg: #2a1417;
+  --banner-error-border: #7f1d1d;
+  --banner-error-text: #fecaca;
+  --overlay: rgb(5 7 11 / 72%);
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 40%);
+  --shadow-md: 0 16px 40px rgb(0 0 0 / 40%);
+  --shadow-lg: 0 24px 60px rgb(0 0 0 / 45%);
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #f87171;
+  /* Heatmap: an ink triplet plus four alphas, so the ramp and its floor are both
+     themeable. `--heat-floor` must stay quieter than the panel behind it. */
+  --heat-floor: rgb(255 255 255 / 4%);
+  --heat-ink: 74 222 128;
+  --heat-1: 25%;
+  --heat-2: 45%;
+  --heat-3: 68%;
+  --heat-4: 92%;
   --radius: 12px;
   --radius-sm: 8px;
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --bg: #f5f6f8;
+  --bg-elevated: #ffffff;
+  --bg-soft: #f0f2f5;
+  --bg-sunken: #f1f5f9;
+  --bg-floating: rgb(255 255 255 / 96%);
+  --border: #e2e6ec;
+  --text: #12151b;
+  --text-muted: #6b7280;
+  --accent: #3d7dfa;
+  --accent-strong: #2563eb;
+  --accent-border: #bfd4fb;
+  --accent-surface: linear-gradient(180deg, #eef4ff, var(--bg-elevated));
+  --on-accent: #ffffff;
+  --btn-hover-bg: #e8ecf2;
+  --btn-hover-border: #cbd5e1;
+  --banner-error-bg: #fef2f2;
+  --banner-error-border: #fca5a5;
+  --banner-error-text: #991b1b;
+  --overlay: rgb(15 23 42 / 32%);
+  --shadow-sm: 0 1px 2px rgb(15 23 42 / 10%);
+  --shadow-md: 0 16px 40px rgb(15 23 42 / 14%);
+  --shadow-lg: 0 24px 60px rgb(15 23 42 / 18%);
+  --ok: #16a34a;
+  --warn: #d97706;
+  --danger: #dc2626;
+  --heat-floor: rgb(15 23 42 / 7%);
+  --heat-ink: 22 163 74;
+  --heat-1: 28%;
+  --heat-2: 48%;
+  --heat-3: 70%;
+  --heat-4: 95%;
+  color-scheme: light;
 }
 
 * {
@@ -108,8 +175,8 @@ ol {
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), #8b5cf6);
-  color: #0b0d12;
+  background: linear-gradient(135deg, var(--accent), var(--accent-end));
+  color: var(--on-accent);
   font-weight: 700;
 }
 
@@ -260,8 +327,8 @@ body:has(.simulator) .content {
 }
 
 .card--accent {
-  border-color: #2f4670;
-  background: linear-gradient(180deg, #1a2130, var(--bg-elevated));
+  border-color: var(--accent-border);
+  background: var(--accent-surface);
 }
 
 /* `auto-fit`, not `auto-fill`: with a single course, `auto-fill` keeps the empty
@@ -303,7 +370,9 @@ body:has(.simulator) .content {
 
 .stats {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  /* `auto-fit` again: with `auto-fill` the four stats take four of the eight
+     tracks the row could hold, so the card is half empty on a wide window. */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 12px;
   margin-bottom: 12px;
 }
@@ -341,7 +410,7 @@ body:has(.simulator) .content {
 .meter__fill {
   display: block;
   height: 100%;
-  background: linear-gradient(90deg, var(--accent), #8b5cf6);
+  background: linear-gradient(90deg, var(--accent), var(--accent-end));
 }
 
 .task-list,
@@ -473,14 +542,14 @@ textarea:focus {
 }
 
 .btn:hover {
-  border-color: #39415280;
-  background: #222732;
+  border-color: var(--btn-hover-border);
+  background: var(--btn-hover-bg);
 }
 
 .btn--primary {
   background: var(--accent-strong);
   border-color: var(--accent-strong);
-  color: #05070b;
+  color: var(--on-accent);
   font-weight: 600;
 }
 
@@ -516,9 +585,9 @@ textarea:focus {
 }
 
 .banner--error {
-  border-color: #7f1d1d;
-  background: #2a1417;
-  color: #fecaca;
+  border-color: var(--banner-error-border);
+  background: var(--banner-error-bg);
+  color: var(--banner-error-text);
 }
 
 /* -------------------------------------------------------------- overlays */
@@ -529,7 +598,7 @@ textarea:focus {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgb(5 7 11 / 72%);
+  background: var(--overlay);
   backdrop-filter: blur(2px);
   z-index: 40;
 }
@@ -537,10 +606,10 @@ textarea:focus {
 .resume {
   width: min(620px, 100%);
   padding: 22px;
-  border: 1px solid #2f4670;
+  border: 1px solid var(--accent-border);
   border-radius: 16px;
-  background: linear-gradient(180deg, #1a2130, var(--bg-elevated));
-  box-shadow: 0 24px 60px rgb(0 0 0 / 45%);
+  background: var(--accent-surface);
+  box-shadow: var(--shadow-lg);
 }
 
 .resume__grid {
@@ -573,7 +642,7 @@ textarea:focus {
   margin-top: 14px;
   padding: 10px;
   border-radius: var(--radius-sm);
-  background: #0b0d12;
+  background: var(--bg-sunken);
   border: 1px solid var(--border);
   font-size: 12px;
   color: var(--text-muted);
@@ -588,10 +657,10 @@ textarea:focus {
   bottom: 72px;
   width: 300px;
   padding: 14px;
-  border: 1px solid #2f4670;
+  border: 1px solid var(--accent-border);
   border-radius: var(--radius);
   background: var(--bg-elevated);
-  box-shadow: 0 16px 40px rgb(0 0 0 / 40%);
+  box-shadow: var(--shadow-md);
   z-index: 30;
 }
 
@@ -611,7 +680,7 @@ textarea:focus {
   gap: 8px;
   padding: 8px 16px;
   border-top: 1px dashed var(--border);
-  background: rgb(15 17 21 / 96%);
+  background: var(--bg-floating);
   z-index: 20;
 }
 
@@ -658,7 +727,7 @@ textarea:focus {
 .segmented__btn.is-active {
   background: var(--bg-elevated);
   color: var(--text);
-  box-shadow: 0 1px 2px rgb(0 0 0 / 40%);
+  box-shadow: var(--shadow-sm);
 }
 
 /* Two headline numbers, the thing the eye should land on first. */
@@ -699,11 +768,14 @@ textarea:focus {
   margin-bottom: 16px;
 }
 
+/* Same raised surface as `.card`. The two differ by role, not by depth: making
+   panels darker than the page in light mode and lighter in dark mode gave the two
+   themes opposite depth languages. */
 .panel {
   padding: 14px 16px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  background: var(--bg-soft);
+  background: var(--bg-elevated);
 }
 
 .panel__title {
@@ -736,7 +808,7 @@ textarea:focus {
 
 .donut__track {
   fill: none;
-  stroke: var(--bg-elevated);
+  stroke: var(--bg-soft);
   stroke-width: 13;
 }
 
@@ -828,31 +900,30 @@ textarea:focus {
 }
 
 /* An empty day must recede, not stand out: a heatmap reads as "heat", so the
-   floor of the scale has to be quieter than the panel it sits on. */
+   floor of the scale has to be quieter than the panel it sits on. The base rule
+   *is* the floor — there is deliberately no `[data-level='0']` override, which is
+   how an inverted heatmap crept in the first time. */
 .heat__cell {
   display: block;
   border-radius: 4px;
-  background: rgb(255 255 255 / 4%);
+  background: var(--heat-floor);
 }
 
 .heat__cell.is-blank {
   background: transparent;
 }
 
-.heat__cell[data-level='0'] {
-  background: var(--bg-elevated);
-}
 .heat__cell[data-level='1'] {
-  background: rgb(74 222 128 / 25%);
+  background: rgb(var(--heat-ink) / var(--heat-1));
 }
 .heat__cell[data-level='2'] {
-  background: rgb(74 222 128 / 45%);
+  background: rgb(var(--heat-ink) / var(--heat-2));
 }
 .heat__cell[data-level='3'] {
-  background: rgb(74 222 128 / 68%);
+  background: rgb(var(--heat-ink) / var(--heat-3));
 }
 .heat__cell[data-level='4'] {
-  background: rgb(74 222 128 / 92%);
+  background: rgb(var(--heat-ink) / var(--heat-4));
 }
 
 .heat__scale {
@@ -913,7 +984,7 @@ textarea:focus {
 .bar__track {
   height: 6px;
   border-radius: 999px;
-  background: var(--bg-elevated);
+  background: var(--bg-soft);
   overflow: hidden;
 }
 
@@ -929,7 +1000,7 @@ textarea:focus {
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: #0b0d12;
+  background: var(--bg-sunken);
   font-size: 12px;
   color: var(--accent);
   word-break: break-all;

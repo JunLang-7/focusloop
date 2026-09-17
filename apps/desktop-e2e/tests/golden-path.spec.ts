@@ -162,6 +162,29 @@ test('the dashboard re-aggregates when the window changes', async () => {
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
+test('the theme can be switched and the choice survives a restart', async () => {
+  // Restarting the app mid-test takes longer than a normal assertion sequence.
+  test.setTimeout(90_000);
+
+  await window.getByRole('link', { name: 'Dashboard' }).click();
+
+  await window.getByTestId('theme-light').click();
+  await expect(window.locator('html')).toHaveAttribute('data-theme', 'light');
+  await window.getByTestId('theme-dark').click();
+  await expect(window.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  // The preference, not the resolved theme, is what gets stored.
+  await app.close();
+  ({ app, window } = await launch());
+  await expect(window.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  // `Auto` resolves against the OS rather than pinning a theme.
+  await window.getByTestId('theme-system').click();
+  await expect(window.locator('html')).toHaveAttribute('data-theme', /^(light|dark)$/);
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
 test('the interface can be switched to Chinese, and the choice survives a restart', async () => {
   // Restarting the app mid-test takes longer than a normal assertion sequence.
   test.setTimeout(90_000);
