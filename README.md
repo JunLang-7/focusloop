@@ -35,6 +35,30 @@ Because you are running from source, the **Demo Event Simulator** appears along 
 window whenever a focus session is active. It is the supported stand-in for the browser extension,
 so the whole demo works without installing anything else.
 
+### Start it without typing the command
+
+`scripts\start-focusloop.cmd` does the same thing as the command above. Double-click it, or run it
+from any directory — it always works from the repository root. If something fails it keeps the
+window open so the error is readable.
+
+### Start it at login (Windows)
+
+`scripts\focusloop-startup.ps1` puts a shortcut in your personal Startup folder, so FocusLoop opens
+when you sign in to Windows. It needs no administrator rights, it changes nothing until you run it,
+and it is undone with one flag:
+
+```powershell
+.\scripts\focusloop-startup.ps1            # start FocusLoop at every sign-in
+.\scripts\focusloop-startup.ps1 -Remove    # stop doing that
+```
+
+By default it auto-starts the development launcher, which rebuilds before opening. To auto-start an
+installed copy instead, point it at the executable:
+
+```powershell
+.\scripts\focusloop-startup.ps1 -Target "$env:LOCALAPPDATA\Programs\FocusLoop\FocusLoop.exe"
+```
+
 ### Try it
 
 **Home** → _Start session_ on “Red-black trees: the basics” → _Start_ on the first micro task →
