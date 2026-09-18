@@ -67,6 +67,11 @@ gh release create v0.1.0-demo \
   --notes-file CHANGELOG.md
 ```
 
+`SHA256SUMS.txt` is written by `.github/workflows/release.yml` at release time and attached to the
+release. It is deliberately **not** committed: the repository would then carry checksums for two
+binaries it does not contain, and a local release run would rewrite a tracked file. The README's
+"verify your download against `SHA256SUMS.txt`" refers to the copy attached to the release.
+
 Until that runs, the **Install** link in the README leads to an empty releases page. The repository
 is private, so the release is visible to collaborators only.
 
