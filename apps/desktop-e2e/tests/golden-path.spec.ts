@@ -221,6 +221,10 @@ test('the interface can be switched to Chinese, and the choice survives a restar
   await expect(window.getByRole('link', { name: '首页' })).toBeVisible();
   await expect(window.getByRole('link', { name: '专注会话' })).toBeVisible();
 
+  // The document language follows the interface. `<html lang>` is what a screen reader
+  // uses to choose a voice, and Chinese read by an English voice is not usable.
+  await expect(window.locator('html')).toHaveAttribute('lang', 'zh');
+
   // The whole screen must move, not just the navigation.
   await expect(window.getByRole('button', { name: '开始会话' }).first()).toBeVisible();
   await expect(window.getByRole('button', { name: '继续会话' })).toBeVisible();
@@ -246,6 +250,7 @@ test('the interface can be switched to Chinese, and the choice survives a restar
   await expect(
     window.getByRole('heading', { name: 'Keep your learning continuous' }),
   ).toBeVisible();
+  await expect(window.locator('html')).toHaveAttribute('lang', 'en');
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
