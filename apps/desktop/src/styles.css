@@ -601,10 +601,14 @@ body:has(.simulator) .content {
   left: 0;
   right: 0;
   display: flex;
-  align-items: center;
+  /*
+   * Top-aligned, not centred. A tall block means "this takes a while", and the label marks where
+   * it starts; centring the label in a 112px block made it read as an empty card instead.
+   */
+  align-items: flex-start;
   gap: 10px;
   overflow: hidden;
-  padding: 0 12px;
+  padding: 9px 12px 0;
   border: 1px solid var(--border);
   border-left: 4px solid var(--kind-read);
   border-radius: var(--radius-sm);
