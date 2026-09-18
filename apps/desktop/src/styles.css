@@ -1369,23 +1369,10 @@ code {
   text-wrap: pretty;
 }
 
-.focus-task .task-meta {
-  gap: 8px;
-  margin: 0 0 24px;
-}
-
 .focus-task .chip {
   border-color: color-mix(in srgb, var(--focus-warm) 34%, var(--border));
   background: var(--focus-warm-faint);
   color: var(--focus-warm);
-}
-
-.focus-task > .card,
-.focus-task.card,
-.focus-task.card--accent {
-  border: 0;
-  background: transparent;
-  box-shadow: none;
 }
 
 .focus-clock {
@@ -1447,7 +1434,7 @@ code {
   line-height: 1;
 }
 
-.focus-clock__caption {
+.focus-clock__status {
   position: relative;
   z-index: 1;
   display: block;
@@ -1533,15 +1520,6 @@ code {
   transition: width 240ms ease;
 }
 
-.focus-progress-strip .meter {
-  flex: 1 1 auto;
-  height: 3px;
-}
-
-.focus-progress-strip .meter__fill {
-  background: var(--focus-warm);
-}
-
 .focus-plan {
   align-self: center;
   width: min(100%, 860px);
@@ -1587,19 +1565,15 @@ code {
   background: transparent;
 }
 
-/* Focus mode deliberately quiets the shell, while leaving all controls in the
-   DOM and leaving the simulator's pointer target intact for demo/e2e flows. */
+/* Focus mode quietly narrows the shell to a rail while a commitment is running. Everything
+   stays in the DOM, so the e2e flow and the demo simulator keep their targets. */
 body:has(fl-focus .focus-workspace[data-phase='active']) .shell,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .shell,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .shell,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .shell {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .shell {
   grid-template-columns: 64px minmax(0, 1fr);
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .sidebar,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .sidebar {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar {
   align-items: center;
   gap: 0;
   overflow: hidden;
@@ -1608,33 +1582,23 @@ body:has(fl-focus .focus-workspace[data-phase='resuming']) .sidebar {
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .brand__text,
 body:has(fl-focus .focus-workspace[data-phase='paused']) .brand__text,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .brand__text,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .brand__text,
 body:has(fl-focus .focus-workspace[data-phase='active']) .today,
 body:has(fl-focus .focus-workspace[data-phase='paused']) .today,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .today,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .today,
 body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar__footer,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar__footer,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .sidebar__footer,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .sidebar__footer {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar__footer {
   display: none;
 }
 
 /* Keep a compact navigation rail available in focus mode. The labels remain
    in the accessibility tree while the rail uses a quiet glyph treatment. */
 body:has(fl-focus .focus-workspace[data-phase='active']) .nav,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav {
   display: flex;
   width: 100%;
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .nav a,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a {
   display: grid;
   place-items: center;
   flex: 0 0 36px;
@@ -1645,60 +1609,42 @@ body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a {
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .nav a::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a::before,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a::before,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a::before {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a::before {
   color: currentColor;
   font-size: 18px;
   line-height: 1;
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/home']::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/home']::before,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a[href$='/home']::before,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a[href$='/home']::before {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/home']::before {
   content: '⌂';
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/focus']::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/focus']::before,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a[href$='/focus']::before,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a[href$='/focus']::before {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/focus']::before {
   content: '◎';
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/dashboard']::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/dashboard']::before,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a[href$='/dashboard']::before,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a[href$='/dashboard']::before {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/dashboard']::before {
   content: '▦';
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .content,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .content,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .content,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .content {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .content {
   padding: 18px clamp(20px, 5vw, 68px) 96px;
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active'])
   .focus-plan:not(:has(.focus-plan__summary)),
 body:has(fl-focus .focus-workspace[data-phase='paused'])
-  .focus-plan:not(:has(.focus-plan__summary)),
-body:has(fl-focus .focus-workspace[data-phase='blocked'])
-  .focus-plan:not(:has(.focus-plan__summary)),
-body:has(fl-focus .focus-workspace[data-phase='resuming'])
   .focus-plan:not(:has(.focus-plan__summary)) {
   display: none;
 }
 
-/* If the summary button lives inside the plan drawer, keep that one escape
-   hatch reachable while the task itself remains the visual centre. The host
-   page can reveal the body with `.is-open` or `[data-open='true']`. */
+/* Focus mode keeps the plan summary reachable while the task stays the visual centre. */
 body:has(fl-focus .focus-workspace[data-phase='active']) .focus-plan:has(.focus-plan__summary),
-body:has(fl-focus .focus-workspace[data-phase='paused']) .focus-plan:has(.focus-plan__summary),
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .focus-plan:has(.focus-plan__summary),
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .focus-plan:has(.focus-plan__summary) {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .focus-plan:has(.focus-plan__summary) {
   display: block;
   align-self: start;
   min-width: 0;
@@ -1711,18 +1657,10 @@ body:has(fl-focus .focus-workspace[data-phase='active'])
   > :not(.focus-plan__summary),
 body:has(fl-focus .focus-workspace[data-phase='paused'])
   .focus-plan:has(.focus-plan__summary):not([open])
-  > :not(.focus-plan__summary),
-body:has(fl-focus .focus-workspace[data-phase='blocked'])
-  .focus-plan:has(.focus-plan__summary):not([open])
-  > :not(.focus-plan__summary),
-body:has(fl-focus .focus-workspace[data-phase='resuming'])
-  .focus-plan:has(.focus-plan__summary):not([open])
   > :not(.focus-plan__summary) {
   display: none;
 }
 
-.focus-plan.is-open,
-.focus-plan[data-open='true'],
 .focus-plan[open] {
   position: fixed;
   z-index: 12;
@@ -1737,26 +1675,20 @@ body:has(fl-focus .focus-workspace[data-phase='resuming'])
   box-shadow: var(--shadow-md);
 }
 
-.focus-plan.is-open > :not(.focus-plan__summary),
-.focus-plan[data-open='true'] > :not(.focus-plan__summary),
 .focus-plan[open] > :not(.focus-plan__summary) {
   display: block;
 }
 
 body:has(fl-focus .focus-workspace[data-phase='active']) .simulator,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .simulator,
-body:has(fl-focus .focus-workspace[data-phase='blocked']) .simulator,
-body:has(fl-focus .focus-workspace[data-phase='resuming']) .simulator {
+body:has(fl-focus .focus-workspace[data-phase='paused']) .simulator {
   opacity: 0.76;
 }
 
-.focus-workspace[data-phase='paused'] .focus-clock__progress,
-.focus-workspace[data-phase='blocked'] .focus-clock__progress {
+.focus-workspace[data-phase='paused'] .focus-clock__progress {
   stroke: var(--text-muted);
 }
 
-.focus-workspace[data-phase='paused'] .focus-clock__value,
-.focus-workspace[data-phase='blocked'] .focus-clock__value {
+.focus-workspace[data-phase='paused'] .focus-clock__value {
   color: var(--focus-ink-quiet);
 }
 
@@ -1777,7 +1709,6 @@ body:has(fl-focus .focus-workspace[data-phase='resuming']) .simulator {
     margin-inline: auto;
   }
 
-  .focus-task .task-meta,
   .focus-controls {
     justify-content: center;
   }
@@ -1820,25 +1751,19 @@ body:has(fl-focus .focus-workspace[data-phase='resuming']) .simulator {
 
 @media (max-width: 600px) {
   body:has(fl-focus .focus-workspace[data-phase='active']) .shell,
-  body:has(fl-focus .focus-workspace[data-phase='paused']) .shell,
-  body:has(fl-focus .focus-workspace[data-phase='blocked']) .shell,
-  body:has(fl-focus .focus-workspace[data-phase='resuming']) .shell {
+  body:has(fl-focus .focus-workspace[data-phase='paused']) .shell {
     grid-template-columns: 52px minmax(0, 1fr);
   }
 
   body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar,
-  body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar,
-  body:has(fl-focus .focus-workspace[data-phase='blocked']) .sidebar,
-  body:has(fl-focus .focus-workspace[data-phase='resuming']) .sidebar {
+  body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar {
     display: flex;
     align-items: center;
     padding-inline: 8px;
   }
 
   body:has(fl-focus .focus-workspace[data-phase='active']) .nav a,
-  body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a,
-  body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a,
-  body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a {
+  body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a {
     flex-basis: 36px;
     width: 36px;
     height: 36px;
