@@ -1,0 +1,64 @@
+name: Coverage
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: true
+
+# Measures and reports; it never writes to the repository.
+permissions:
+  contents: read
+
+jobs:
+  coverage:
+    name: coverage (domain packages)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      # The pnpm version comes from `packageManager` in package.json, so it is not repeated here.
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Each package declares its own floor in `vitest.config.ts`, so this fails when a package stops
+      # exercising a rule rather than when the workspace average moves. `pipefail` is set explicitly:
+      # the default shell here does not, and without it `tee` would swallow the exit code.
+      - name: Measure
+        run: |
+          set -o pipefail
+          pnpm coverage 2>&1 | tee coverage.txt
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage'
+            echo
+            echo '```text'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the HTML report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage-html
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
