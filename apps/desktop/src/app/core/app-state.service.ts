@@ -319,7 +319,12 @@ export class AppStateService {
       this.resumeCard.set(await this.api.getResumeCard(snapshot.session.id));
       this.recentEvents.set(await this.api.listEvents(snapshot.session.id));
     } else {
-      // Ending a session must not leave that session's log on screen.
+      /*
+       * Everything derived from the session goes when the session does. The card is the
+       * one that bites: it is a modal over the whole app, so a stale one does not just
+       * look wrong, it blocks the screen it is covering.
+       */
+      this.resumeCard.set(null);
       this.recentEvents.set([]);
     }
     await this.refreshToday();
