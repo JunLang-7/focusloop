@@ -238,6 +238,27 @@ Two further details are easy to get wrong and are pinned by tests:
 Nothing here is scoped to "the current session": a calendar window has to consider every session in
 the store, and let the window decide which ones contribute.
 
+### The event log is folded, and only where it can be
+
+The log is an audit tail, and left raw it is mostly noise: the demo simulator alone fires three
+`HELP_REQUESTED` events for one click, which used to draw three identical cards. `events-view.ts`
+folds a run of consecutive events sharing a type _and_ a source into one row, rendered as
+`HELP_REQUESTED ×3`.
+
+Two constraints keep that honest:
+
+- **Only adjacent repeats fold.** `HELP_REQUESTED`, `TAB_LEFT`, `HELP_REQUESTED` stays two rows,
+  because merging across an unrelated event would invent an order that never happened.
+- **The source is part of the key.** A run of one type arriving from two different sources could not
+  be labelled with either one, so it becomes two rows instead of a guess.
+
+The row's `track` key is the _oldest_ event's id, not the newest. Keying by the newest would rebuild
+the row every time one more event of the same type arrived, because that event becomes the newest.
+
+The count is shown as a loud-shorthand `×3` with a spoken `aria-label`, and it is deliberately not a
+`.chip`: that vocabulary means "a label from a closed vocabulary" — a task kind, a state — and a
+repeat count is not one. A bordered pill there also reads as a filter button.
+
 ## Theming: a preference is not a theme
 
 The stored setting is a **preference** (`system` / `light` / `dark`); what the document gets is a

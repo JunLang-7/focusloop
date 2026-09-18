@@ -169,8 +169,8 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.bridge.stopped': '桥接服务未在运行。演示事件模拟器覆盖了同一条链路。',
   'dashboard.bridge.unavailable': '暂时拿不到桥接状态。',
   'dashboard.events': '最近事件',
-  'dashboard.events.none': '还没有记录到事件。',
-
+  'dashboard.events.none': '还没有记录到事件。', // 没有单数形式：这个角标只在两条以上时才出现。
+  'dashboard.events.times': '{count} 次',
   // --------------------------------------------------------- resume card
   'resume.aria': '从你停下的地方继续',
   'resume.welcome': '欢迎回来',

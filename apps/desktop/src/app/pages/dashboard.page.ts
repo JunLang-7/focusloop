@@ -9,6 +9,7 @@ import {
 import { AppStateService } from '../core/app-state.service';
 import { I18nService, type MessageKey } from '../core/i18n/i18n.service';
 import { ACTION_KEYS, STATE_KEYS } from '../core/i18n/labels';
+import { groupEvents, type EventGroup } from '../core/events-view';
 import {
   STATE_COLORS,
   busiestDay,
@@ -316,11 +317,21 @@ const DONUT_RADIUS = 42;
     <section>
       <h2 class="section-title">{{ t('dashboard.events') }}</h2>
       <ul class="timeline">
-        @for (event of recentEvents(); track event.id) {
+        @for (group of eventGroups(); track group.id) {
           <li>
-            <span class="muted small">{{ at(event.at) }}</span>
-            <strong>{{ event.type }}</strong>
-            <span class="muted small">{{ event.source }}</span>
+            <span class="muted small timeline__at">{{ timeLabel(group) }}</span>
+            <strong>{{ group.type }}</strong>
+            @if (group.count > 1) {
+              <!--
+                The multiplication sign is the shorthand; the accessible name is the
+                spoken form. The count is the reason this row exists, so it must not be
+                visual-only.
+              -->
+              <span class="timeline__count muted" [attr.aria-label]="timesLabel(group.count)">
+                ×{{ group.count }}
+              </span>
+            }
+            <span class="muted small timeline__source">{{ group.source }}</span>
           </li>
         } @empty {
           <li class="muted">{{ t('dashboard.events.none') }}</li>
@@ -348,7 +359,13 @@ export class DashboardPage {
     (this.summary()?.interventionOutcomes ?? []).filter((row) => row.total > 0),
   );
   protected readonly range = this.state.insightRange;
-  protected readonly recentEvents = computed(() => [...this.state.recentEvents()].reverse());
+  /**
+   * Newest run first. Reversing first means the log reads top-down as most-recent-first,
+   * which is the only order an audit tail is useful in.
+   */
+  protected readonly eventGroups = computed(() =>
+    groupEvents([...this.state.recentEvents()].reverse()),
+  );
   protected readonly bridge = signal<BridgeInfo | null>(null);
 
   protected readonly stateShares = computed(() => sortedShares(this.insights()?.stateShares ?? []));
@@ -448,7 +465,24 @@ export class DashboardPage {
     return formatLatency(this.summary()?.averageResumeLatencyMs ?? null);
   }
 
-  protected at(iso: string): string {
+  /**
+   * The row's time, and a span only when the run is wider than a single instant.
+   *
+   * `00:17:06` printed twice would be noise, and the demo's three-event run happens
+   * inside one second, so the span only earns its place on a genuinely spread-out run.
+   */
+  protected timeLabel(group: EventGroup): string {
+    const newest = this.at(group.newestAt);
+    if (group.count === 1) return newest;
+    const oldest = this.at(group.oldestAt);
+    return oldest === newest ? newest : `${oldest}–${newest}`;
+  }
+
+  protected timesLabel(count: number): string {
+    return this.t('dashboard.events.times', { count: `${count}` });
+  }
+
+  private at(iso: string): string {
     const date = new Date(iso);
     return Number.isNaN(date.getTime())
       ? '—'

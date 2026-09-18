@@ -248,3 +248,39 @@ test('the interface can be switched to Chinese, and the choice survives a restar
   ).toBeVisible();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+/*
+ * Last on purpose. The "overload" command raises a suggestion, and declining it spends
+ * part of the intervention policy's session budget — enough of it that running this
+ * earlier left the Chinese test above with nothing to show. Ordering is load-bearing
+ * here, so this test runs once nothing else still needs the budget.
+ */
+test('a run of identical events is folded into one row', async () => {
+  await window.getByRole('link', { name: 'Dashboard' }).click();
+
+  /*
+   * The previous test restarted the app, so this also pins that the log is restored from
+   * the store on launch rather than only built up from events seen in this renderer.
+   */
+  await expect(window.locator('.timeline li').first()).not.toContainText('No events recorded');
+
+  // Break any run that is still open, so the row arithmetic below does not depend on what
+  // the previous test happened to leave behind.
+  await window.getByTestId('sim-success').click();
+  await expect(window.locator('.timeline li').first()).toContainText('QUIZ_CORRECT');
+  const rowsBefore = await window.locator('.timeline li').count();
+
+  // A single "overload" fires three HELP_REQUESTED events back to back. That is how one
+  // click used to add three identical cards to the log.
+  await window.getByTestId('sim-overload').click();
+
+  await expect(window.locator('.timeline li')).toHaveCount(rowsBefore + 1);
+
+  const newest = window.locator('.timeline li').first();
+  await expect(newest).toContainText('HELP_REQUESTED');
+  await expect(newest.locator('.timeline__count')).toHaveText('×3');
+  // The shorthand is not the accessible name.
+  await expect(newest.locator('.timeline__count')).toHaveAttribute('aria-label', '3 times');
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});

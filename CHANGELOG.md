@@ -69,8 +69,12 @@ interaction and helps the learner resume.
   dashboard is showing, which is why it fetches its own summary rather than borrowing the
   dashboard's. The content column is capped at a measure and centred, so a wide window gets a
   readable column instead of cards stretched edge to edge, and the donut and its legend wrap
-  instead of ellipsising every state name at the minimum window width.
-- **Quality gates** — ESLint (flat config), TypeScript strict mode, Vitest, Playwright and GitHub
+  instead of ellipsising every state name at the minimum window width.- **A folded event log** — consecutive events of the same type and source collapse into one row
+  (`HELP_REQUESTED ×3`) with a time span when the run is wider than an instant, and the rows are
+  hairline list rows rather than one bordered card per event. Only _adjacent_ repeats fold, so an
+  unrelated event in between keeps the two runs apart instead of inventing an order that never
+  happened. This also fixes two log defects found while testing: reopening the app showed "No events
+  recorded yet" for a session that had plenty, and ending a session left its log on screen.- **Quality gates** — ESLint (flat config), TypeScript strict mode, Vitest, Playwright and GitHub
   Actions.
 
 ### Known limitations
