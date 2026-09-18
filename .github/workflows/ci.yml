@@ -16,16 +16,26 @@ permissions:
   contents: read
 
 env:
-  NODE_VERSION: '22.13.0'
+  # The Node version is not repeated here: every job reads `.nvmrc`, which is the file a
+  # developer's own tooling already reads.
   PNPM_VERSION: '11.4.0'
 
 jobs:
   quality:
-    name: lint · typecheck · test · build
-    runs-on: ubuntu-latest
+    name: quality (${{ matrix.os }})
+    # The product ships on Windows, is developed on macOS and is built on Linux runners, so the
+    # gates run where each of those facts matters. `fail-fast: false` so that one platform's failure
+    # does not hide what the other two have to say.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v5
         with:
@@ -33,7 +43,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install
@@ -58,12 +68,21 @@ jobs:
         run: pnpm verify:scaffolding
 
   e2e:
-    name: golden path (windows)
-    runs-on: windows-latest
+    name: golden path (${{ matrix.os }})
+    # Two platforms, neither of which needs a display: Windows is what the project ships, macOS is
+    # where it is developed and where the design captures are taken. Linux would need xvfb and
+    # `--no-sandbox`, and it is not a platform the product is delivered on.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     needs: quality
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v5
         with:
@@ -71,7 +90,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install
@@ -99,6 +118,8 @@ jobs:
     timeout-minutes: 25
     steps:
       - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v5
         with:
@@ -106,7 +127,7 @@ jobs:
 
       - uses: actions/setup-node@v5
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install
