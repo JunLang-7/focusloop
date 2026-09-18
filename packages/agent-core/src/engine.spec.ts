@@ -196,6 +196,14 @@ describe('FocusLoopEngine', () => {
       expect(ctx.engine.getCurrentSession()?.session.id).toBe(session.id);
     });
 
+    it('stops reporting a session once it has ended', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.endSession({ sessionId: session.id, reason: 'user' });
+      // "Current" means running. Falling back to the most recent session made a finished
+      // session look live, which is what put a stale resume card back on screen.
+      expect(ctx.engine.getCurrentSession()).toBeNull();
+    });
+
     it('returns null for the current session before anything starts', () => {
       expect(ctx.engine.getCurrentSession()).toBeNull();
     });

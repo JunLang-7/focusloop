@@ -197,8 +197,16 @@ export class FocusLoopEngine {
     return session;
   }
 
+  /**
+   * The session that is running, or `null`.
+   *
+   * Deliberately not "the most recent session". The fallback to `getLatestSession` read as
+   * a convenience, but it made a finished session look live: the workspace kept its End
+   * session button, the home page offered to continue it, and its resume card was fetched
+   * again on every reload — so ending a session left the card on screen over the app.
+   */
   getCurrentSession(): SessionSnapshot | null {
-    const record = this.store.getActiveSession() ?? this.store.getLatestSession();
+    const record = this.store.getActiveSession();
     if (record === null) return null;
     return this.snapshot(record);
   }

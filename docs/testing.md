@@ -31,10 +31,10 @@ dependency, launches Electron and drives the real UI.
         ▲  E2E (Playwright, 8 tests)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
-     ╱     ╲  Integration (agent-core, 100 tests)
+     ╱     ╲  Integration (agent-core, 101 tests)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
-  ╱___________╲ Unit (domain packages, 320 tests)
+  ╱___________╲ Unit (domain packages, 322 tests)
                 the rules, with no IO at all
 ```
 
@@ -83,11 +83,13 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - A file-backed database survives close and reopen.
 - Sessions are isolated from one another.
 
-### `agent-core` — 100 tests
+### `agent-core` — 101 tests
 
 - The demo course has the shape the golden path needs.
 - Material import is idempotent per content hash.
 - Session lifecycle, progress, and dashboard aggregation.
+- `getCurrentSession` reports the running session and only the running session: a finished one is
+  not current, which is what stops the workspace and the home page from treating it as live.
 - The full interruption → checkpoint → resume card → accept → outcome sequence.
 - Replayed bridge events are ignored.
 - Every policy rule _through the engine_, not just in the policy package.
@@ -95,7 +97,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Simulator availability, including the production-disabled path.
 - Deterministic micro-task generation: same material in, same course out.
 
-### `apps/desktop` — 122 tests
+### `apps/desktop` — 124 tests
 
 - IPC validation rejects non-objects, unknown event types, unknown sources, oversize payloads,
   unknown session-end reasons, unknown simulator commands, unsupported locales, and unexpected
@@ -106,6 +108,8 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - The preload and the main process agree on every payload, driven through the shared builders.
 - Both language dictionaries define the same key set, cover every key the domain can emit, and use
   the same `{name}` placeholders.
+- The document language: `<html lang>` follows the interface locale, so a screen reader is told which
+  voice to use.
 - The chart helpers the dashboard and the sidebar share: the donut arcs, the heat scale, the span
   formatter, which states count as focus, and which shares are worth drawing at all.
 - The event-log folding: adjacent repeats merge, an unrelated event in between does not, two sources
