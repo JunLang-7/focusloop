@@ -12,6 +12,7 @@ import {
 import { AppStateService } from './core/app-state.service';
 import { I18nService, LOCALE_LABELS, type MessageKey } from './core/i18n/i18n.service';
 import { STATE_KEYS } from './core/i18n/labels';
+import { applyLanguage } from './core/language';
 import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
 import { applyTheme, resolveTheme } from './core/theme';
 import { ResumeCardComponent } from './components/resume-card.component';
@@ -184,10 +185,15 @@ export class AppComponent implements OnInit, OnDestroy {
 
   /**
    * The renderer keeps no language state of its own: the store owns the choice,
-   * `AppStateService.locale` mirrors it, and this effect is the single place that
-   * pushes it into the translator. One direction, so the two cannot disagree.
+   * `AppStateService.locale` mirrors it, and this effect is the single place that pushes
+   * it into the translator and onto `<html lang>`. One direction, so the two cannot
+   * disagree — and a screen reader is told which voice to use.
    */
-  private readonly syncLocale = effect(() => this.i18n.set(this.locale()));
+  private readonly syncLocale = effect(() => {
+    const locale = this.locale();
+    this.i18n.set(locale);
+    applyLanguage(document.documentElement, locale);
+  });
 
   /**
    * One place resolves the preference into a concrete theme and writes it to the
