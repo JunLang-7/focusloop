@@ -1,3 +1,11 @@
+/**
+ * The engine that owns a session.
+ *
+ * Composes the store, the state machine and the policy into the operations the application asks for
+ * — start, dispatch an event, tick, dashboard, insights — and ships the demo course and the
+ * deterministic micro-task generator the golden path depends on.
+ */
+
 export * from './demo-course';
 export * from './micro-task-generator';
 export * from './dashboard';

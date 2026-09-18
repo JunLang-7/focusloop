@@ -1,3 +1,11 @@
+/**
+ * The contract every other package shares.
+ *
+ * The domain's states, the event vocabulary, the shape of the IPC surface and the message keys live
+ * here, so a change to the shape of the system is a compile error in the package that has to handle
+ * it. Types, constants and closed lists only — no behaviour.
+ */
+
 export * from './state';
 export * from './events';
 export * from './session';

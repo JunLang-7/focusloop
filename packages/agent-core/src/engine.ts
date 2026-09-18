@@ -62,6 +62,10 @@ export const LOCALE_KEY = 'locale';
 /** The `app_meta` key the theme preference is stored under. */
 export const THEME_KEY = 'theme';
 
+/**
+ * A request the engine refuses, carrying the code the caller branches on — so a rejection is a value
+ * rather than a message to parse.
+ */
 export class EngineError extends Error {
   readonly code:
     'session-not-found' | 'course-not-found' | 'checkpoint-not-found' | 'simulator-disabled';
@@ -281,6 +285,12 @@ export class FocusLoopEngine {
     const course = this.store.getCourse(record.session.courseId);
     const at = request.at ?? this.clock();
 
+    /*
+     * SAFETY: `type` and `source` are already members of the union — the IPC boundary and the bridge
+     * both check the type against LEARNING_EVENT_TYPES before a request reaches the engine — so the
+     * only thing the compiler cannot see is that `payload` matches the member its type names. That
+     * shape is the caller's contract, and the per-event payload builders are what satisfy it.
+     */
     const event = {
       id: request.eventId ?? this.idFactory(),
       sessionId: request.sessionId,
@@ -347,6 +357,11 @@ export class FocusLoopEngine {
     const resume = this.ensureResumeArtifacts(session, course, engineState, now);
     const policy = this.applyPolicy(session, course, engineState, now);
 
+    /*
+     * SAFETY: `eventType` comes from `evaluateTimeBasedState`, which reports only TAB_LEFT or
+     * IDLE_STARTED and with an empty payload, so the result is a member of the union. The cast covers
+     * `payload`: the transition record does not type it per event.
+     */
     const event: LearningEvent = {
       id: `tick:${result.transition.eventId}`,
       sessionId: session.id,

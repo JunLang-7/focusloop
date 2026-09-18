@@ -26,6 +26,10 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
   dark: 'theme.dark',
 };
 
+/**
+ * The shell every screen renders inside: navigation, the sidebar's ambient summary, the language and
+ * theme controls, and the single subscription to events the main process pushes.
+ */
 @Component({
   selector: 'fl-app',
   standalone: true,
