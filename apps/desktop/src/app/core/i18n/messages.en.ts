@@ -108,6 +108,8 @@ const en = {
   'focus.upNext': 'Up next',
   'focus.startTask': 'Start',
   'focus.allDone': 'Everything in this course is complete.',
+  // The plan states the total so the learner does not have to add up the blocks.
+  'focus.plan.remaining': 'about {time} left',
   'focus.none.title': 'No session running',
   'focus.none.body': 'Start a session from a course to enter the focus workspace.',
   'focus.none.browse': 'Browse courses',

@@ -105,6 +105,42 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
+test('the remaining work is shown as a proportional plan', async () => {
+  await window.getByRole('link', { name: 'Focus Session' }).click();
+  await expect(window.locator('.plan')).toBeVisible();
+
+  // One block per remaining micro task. The demo course has five; the golden path finished one.
+  const blocks = window.locator('[data-testid=plan-block]');
+  await expect(blocks).toHaveCount(4);
+
+  const boxes = await blocks.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const box = node.getBoundingClientRect();
+      return { top: box.top, height: box.height };
+    }),
+  );
+
+  // The geometry is the information: the longest task must occupy more of the column than the
+  // shortest one, or the plan is just a list with extra spacing.
+  const heights = boxes.map((box) => box.height);
+  expect(Math.max(...heights)).toBeGreaterThan(Math.min(...heights));
+
+  // And the blocks tile the column, so the plan reads as one continuous stretch of time.
+  for (let index = 1; index < boxes.length; index += 1) {
+    const previous = boxes[index - 1]!;
+    const current = boxes[index]!;
+    expect(Math.abs(previous.top + previous.height - current.top)).toBeLessThan(1);
+  }
+
+  // The total is stated, so it does not have to be added up from the blocks.
+  await expect(window.getByTestId('plan-remaining')).toContainText('left');
+
+  // Every block is still startable, which is the whole point of showing it.
+  await expect(window.getByTestId('start-task')).toHaveCount(4);
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
 test('the app keeps working when the agent has nothing to say', async () => {
   await window.getByRole('link', { name: 'Home' }).click();
   await expect(

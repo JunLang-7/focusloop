@@ -253,7 +253,7 @@ Full statement: [`docs/privacy.md`](docs/privacy.md).
 ## Testing
 
 ```bash
-pnpm test                                        # 431 unit tests
+pnpm test                                        # 440 unit tests
 pnpm --filter @focusloop/desktop-e2e run e2e     # the golden path, in the real app
 node scripts/verify-no-scaffolding.mjs           # release hygiene gate
 ```

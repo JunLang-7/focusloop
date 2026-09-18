@@ -33,6 +33,15 @@
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #f87171;
+  /*
+   * Task kinds. A kind is a label, not a verdict, so these are deliberately not the semantic
+   * ok/warn/danger trio: a quiz is not "bad" and reading is not "good". Hues are kept apart
+   * from each other and from the semantic three, and the glyph carries the meaning for anyone
+   * who cannot separate the hues.
+   */
+  --kind-read: #38bdf8;
+  --kind-practice: #a78bfa;
+  --kind-quiz: #fb923c;
   /* Heatmap: an ink triplet plus four alphas, so the ramp and its floor are both
      themeable. `--heat-floor` must stay quieter than the panel behind it. */
   --heat-floor: rgb(255 255 255 / 4%);
@@ -78,6 +87,9 @@
   --ok: #16a34a;
   --warn: #d97706;
   --danger: #dc2626;
+  --kind-read: #0284c7;
+  --kind-practice: #7c3aed;
+  --kind-quiz: #c2410c;
   --heat-floor: rgb(15 23 42 / 7%);
   --heat-ink: 22 163 74;
   --heat-1: 28%;
@@ -556,6 +568,73 @@ body:has(.simulator) .content {
 /* Pushed right, so the row reads as "when, and what" then "from where". */
 .timeline__source {
   margin-left: auto;
+}
+
+/* Session plan --------------------------------------------------------- */
+
+/* A title and its right-hand fact on one baseline, above the list it describes. */
+.section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.section-head .section-title {
+  margin-bottom: 0;
+}
+
+/*
+ * The blocks are absolutely positioned, because their geometry is the information: a task
+ * twice as long occupies twice the column. The track is given an explicit height for the same
+ * reason, so nothing has to be measured in the browser. session-plan.ts owns the arithmetic.
+ */
+.plan {
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan__block {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--kind-read);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  font-size: 13px;
+}
+
+.plan__block[data-kind='practice'] {
+  border-left-color: var(--kind-practice);
+}
+
+.plan__block[data-kind='quiz'] {
+  border-left-color: var(--kind-quiz);
+}
+
+.plan__glyph {
+  color: var(--text-muted);
+  font-size: 15px;
+}
+
+.plan__title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Pinned right, so the estimate and the control always sit in the same place down the column. */
+.plan__estimate {
+  margin-left: auto;
+  white-space: nowrap;
 }
 
 /* Small inline label for a closed vocabulary — a task kind, a state, a tag. */
