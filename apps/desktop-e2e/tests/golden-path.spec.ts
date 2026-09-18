@@ -289,3 +289,26 @@ test('a run of identical events is folded into one row', async () => {
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+/*
+ * Also last: it ends the only running session, so anything after it would have nothing to
+ * work with.
+ */
+test('ending a session leaves nothing current', async () => {
+  await window.getByRole('link', { name: 'Focus Session' }).click();
+  await expect(window.getByTestId('end-session')).toBeVisible();
+
+  await window.getByTestId('end-session').click();
+
+  /*
+   * This assertion is only reachable now that starting a session ends the running one.
+   * Before that, an older session was still active underneath, so the app silently handed
+   * itself back to it and "no session running" never appeared.
+   */
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+
+  await window.getByRole('link', { name: 'Home' }).click();
+  await expect(window.getByText('No session running. Pick a course below to begin.')).toBeVisible();
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});

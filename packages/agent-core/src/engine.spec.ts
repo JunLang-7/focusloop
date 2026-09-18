@@ -204,6 +204,30 @@ describe('FocusLoopEngine', () => {
       expect(ctx.engine.getCurrentSession()).toBeNull();
     });
 
+    it('ends the running session before starting another', () => {
+      const first = ctx.engine.startSession(DEMO_COURSE_ID);
+      const second = ctx.engine.startSession(DEMO_COURSE_ID);
+
+      expect(second.session.id).not.toBe(first.session.id);
+      expect(ctx.engine.getCurrentSession()?.session.id).toBe(second.session.id);
+
+      /*
+       * The observable form of "at most one session is active": ending the running one
+       * leaves nothing current. Before this, the first session was still active
+       * underneath, so ending the newest silently handed the app back to the one the
+       * learner had already left.
+       */
+      ctx.engine.endSession({ sessionId: second.session.id, reason: 'user' });
+      expect(ctx.engine.getCurrentSession()).toBeNull();
+    });
+
+    it('does not end the running session when the course is unknown', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      // A bad request must not cost the learner the session they are in.
+      expect(() => ctx.engine.startSession('no-such-course')).toThrow();
+      expect(ctx.engine.getCurrentSession()?.session.id).toBe(session.id);
+    });
+
     it('returns null for the current session before anything starts', () => {
       expect(ctx.engine.getCurrentSession()).toBeNull();
     });
