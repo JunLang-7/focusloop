@@ -10,6 +10,11 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Both jobs only read the repository: they check out the pull request's code, run it and report.
+# Leaving this unset would inherit the repository default, which is more than they need.
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '22.13.0'
   PNPM_VERSION: '11.4.0'
@@ -87,3 +92,42 @@ jobs:
           name: playwright-traces
           path: apps/desktop-e2e/test-results/
           retention-days: 7
+
+  package:
+    name: package (smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v5
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The release workflow is the only place these two commands used to run, which meant a broken
+      # packaging configuration was discovered while cutting a release. `package:dir` runs
+      # electron-builder without the installer, so it needs no wine and no signing toolchain.
+      - name: Package the app directory
+        run: pnpm --filter @focusloop/desktop run package:dir
+
+      - name: Package the extension zip
+        run: pnpm --filter @focusloop/extension run build:zip
+
+      # The paths are the contract the release workflow reads. If packaging moves its output, this
+      # is where it should fail — not on the tag.
+      - name: Check the artefacts the release expects
+        run: |
+          test -d apps/desktop/release/linux-unpacked
+          test -f apps/desktop/release/linux-unpacked/resources/app.asar
+          test -f apps/extension/release/focusloop-extension.zip
+          ls -lh \
+            apps/desktop/release/linux-unpacked/resources/app.asar \
+            apps/extension/release/focusloop-extension.zip
