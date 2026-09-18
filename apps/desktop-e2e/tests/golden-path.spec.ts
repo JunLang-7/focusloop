@@ -290,6 +290,37 @@ test('a run of identical events is folded into one row', async () => {
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
+test('the resume card takes focus, keeps it, and closes on Escape', async () => {
+  await window.getByRole('link', { name: 'Focus Session' }).click();
+  await window.getByTestId('sim-distraction').click();
+  await window.getByTestId('sim-return').click();
+
+  const dialog = window.getByRole('dialog', { name: 'Resume where you left off' });
+  await expect(dialog).toBeVisible();
+
+  const focusIsInsideDialog = (): Promise<boolean> =>
+    window.evaluate(() => document.activeElement?.closest('[role=dialog]') !== null);
+
+  /*
+   * The card is the product's central surface — the thing that exists so a learner can get
+   * back into the work — so a learner who cannot use a mouse has to be able to reach it.
+   */
+  await expect.poll(focusIsInsideDialog).toBe(true);
+
+  // Tab stays inside rather than walking off behind the overlay.
+  for (let index = 0; index < 6; index += 1) await window.keyboard.press('Tab');
+  await expect.poll(focusIsInsideDialog).toBe(true);
+
+  // Shift+Tab too, since that is the direction the wrap arithmetic gets wrong.
+  for (let index = 0; index < 4; index += 1) await window.keyboard.press('Shift+Tab');
+  await expect.poll(focusIsInsideDialog).toBe(true);
+
+  await window.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
 /*
  * Also last: it ends the only running session, so anything after it would have nothing to
  * work with.

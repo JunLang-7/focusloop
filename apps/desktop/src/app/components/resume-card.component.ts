@@ -1,7 +1,9 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, viewChild } from '@angular/core';
+import type { ElementRef, OnDestroy } from '@angular/core';
 import type { ResumeCardView } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
+import { focusableWithin, nextIndex } from '../core/focus-trap';
 
 /**
  * Screen 4 of 5. This is the product: it restores the learner's cognitive
@@ -12,8 +14,19 @@ import { I18nService } from '../core/i18n/i18n.service';
   standalone: true,
   template: `
     @if (card(); as view) {
-      <div class="overlay" role="dialog" aria-modal="true" [attr.aria-label]="t('resume.aria')">
-        <div class="resume">
+      <div
+        class="overlay"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="t('resume.aria')"
+        (keydown)="onKeydown($event)"
+      >
+        <!--
+          The card is focusable so it can hold focus when it opens: the dialog is announced
+          before its controls are reached, and focus is provably inside the aria-modal region
+          rather than left on the page behind it.
+        -->
+        <div class="resume" #panel tabindex="-1">
           <header class="resume__header">
             <p class="eyebrow">{{ t('resume.welcome') }}</p>
             <h2>{{ title(view) }}</h2>
@@ -83,13 +96,68 @@ import { I18nService } from '../core/i18n/i18n.service';
     }
   `,
 })
-export class ResumeCardComponent {
+export class ResumeCardComponent implements OnDestroy {
   private readonly state = inject(AppStateService);
   private readonly i18n = inject(I18nService);
 
   protected readonly t = this.i18n.t;
   protected readonly card = this.state.resumeCard;
   protected readonly showContext = signal(false);
+
+  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+
+  /** What had focus before the card opened, so it can be handed back on close. */
+  private returnFocusTo: HTMLElement | null = null;
+
+  /**
+   * `aria-modal="true"` is a promise that the rest of the page is inert. Claiming it without
+   * moving focus in leaves a keyboard user on the page behind the overlay, unable to reach
+   * the card's own buttons or to close it at all.
+   */
+  private readonly manageFocus = effect(() => {
+    const panel = this.panel()?.nativeElement;
+
+    if (this.card() !== null && panel !== undefined) {
+      this.returnFocusTo ??= document.activeElement as HTMLElement | null;
+      panel.focus();
+      return;
+    }
+
+    if (this.card() === null && this.returnFocusTo !== null) {
+      this.returnFocusTo.focus();
+      this.returnFocusTo = null;
+    }
+  });
+
+  ngOnDestroy(): void {
+    this.manageFocus.destroy();
+  }
+
+  protected onKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.dismiss();
+      return;
+    }
+
+    if (event.key !== 'Tab') return;
+
+    const panel = this.panel()?.nativeElement;
+    if (panel === undefined) return;
+
+    // Tab stays inside. A Tab that escaped to the page behind the overlay is what made the
+    // `aria-modal` claim false.
+    const items = focusableWithin(panel);
+    const target = nextIndex(
+      items.indexOf(document.activeElement as HTMLElement),
+      items.length,
+      event.shiftKey,
+    );
+    if (target === -1) return;
+
+    event.preventDefault();
+    items[target]?.focus();
+  }
 
   protected title(view: ResumeCardView): string {
     return this.i18n.translate(view.card.title);
