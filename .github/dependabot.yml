@@ -1,0 +1,48 @@
+version: 2
+
+updates:
+  # The workspace. One grouped pull request per ecosystem per week: a lockfile with this many
+  # packages otherwise produces a stream of single-line pull requests that nobody reviews.
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(deps)'
+    labels:
+      - chore
+    groups:
+      # Runtime dependencies first: these end up inside the application.
+      production:
+        dependency-type: production
+        update-types: [minor, patch]
+      development:
+        dependency-type: development
+        update-types: [minor, patch]
+    ignore:
+      # A major bump of Electron or Angular is an issue with a decision in it, not a lockfile edit.
+      # They arrive on their own, one at a time, when someone asks for one.
+      - dependency-name: electron
+        update-types: ['version-update:semver-major']
+      - dependency-name: '@angular/*'
+        update-types: ['version-update:semver-major']
+      - dependency-name: nx
+        update-types: ['version-update:semver-major']
+
+  # The actions the workflows run. These are pinned to full commit SHAs in the workflow files, so
+  # Dependabot is the thing that moves the pins — with the release it moved to in the comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore(ci)'
+    labels:
+      - chore
+    groups:
+      actions:
+        patterns: ['*']

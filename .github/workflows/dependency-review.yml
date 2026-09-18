@@ -1,0 +1,33 @@
+name: Dependency review
+
+on:
+  pull_request:
+    branches: [main]
+
+# The check reads the pull request's dependency diff and reports. It never writes to the repository,
+# which is also what lets it run on a pull request from a fork — there the token is read-only no
+# matter what this file asks for, so `comment-summary-in-pr` stays off.
+permissions:
+  contents: read
+
+jobs:
+  review:
+    name: dependency review
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - name: Review the dependencies this pull request adds
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          # Block on a high or critical advisory; report the rest without failing. The scopes that
+          # count are the action's default (runtime), because a vulnerable build tool is a chore and
+          # a vulnerable runtime dependency is a defect.
+          fail-on-severity: high
+          # Which licences this project accepts is a decision nobody has made yet, and inventing one
+          # inside a CI issue is the wrong place for it.
+          license-check: false
+          comment-summary-in-pr: never
