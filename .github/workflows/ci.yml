@@ -70,6 +70,12 @@ jobs:
       - name: Workflow hygiene
         run: pnpm verify:workflows
 
+      - name: Documentation drift
+        run: pnpm verify:docs
+
+      - name: Theme invariants
+        run: pnpm verify:tokens
+
   e2e:
     name: golden path (${{ matrix.os }})
     # Two platforms, neither of which needs a display: Windows is what the project ships, macOS is

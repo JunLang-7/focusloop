@@ -6,7 +6,10 @@
 pnpm test                                       # every unit test in the workspace
 pnpm --filter @focusloop/learning-state test    # one package
 pnpm --filter @focusloop/desktop-e2e run e2e    # the golden path, in the real app
-node scripts/verify-no-scaffolding.mjs          # release hygiene gate
+pnpm verify:scaffolding                         # no scaffolding, debug leftovers or bare TODOs
+pnpm verify:workflows                           # pinned actions, stated permissions, timeouts
+pnpm verify:docs                                # the commands, packages and links the docs cite
+pnpm verify:tokens                              # one palette, and the native window background
 ```
 
 For UI work there is a capture helper that drives the real app through the golden path and writes a
@@ -28,22 +31,27 @@ dependency, launches Electron and drives the real UI.
 ## The pyramid, and why it is shaped this way
 
 ```text
-        ▲  E2E (Playwright, 11 tests)
+        ▲  E2E (Playwright)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
-     ╱     ╲  Integration (agent-core, 103 tests)
+     ╱     ╲  Integration (agent-core)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
-  ╱___________╲ Unit (domain packages, 337 tests)
+  ╱___________╲ Unit (domain packages)
                 the rules, with no IO at all
 ```
+
+Counts are deliberately absent from this document. `pnpm test` prints its own totals, and a number
+quoted in prose is a promise nobody renews: ten tests added to `apps/desktop` in one afternoon were
+enough to make three of them wrong. What matters here is _where_ a behaviour is proven, not how many
+assertions it took.
 
 Almost everything is a unit test, because almost everything is a pure function. The E2E layer only
 has to prove that the pieces are wired together — it does not re-prove the rules.
 
 ## Where each behaviour is proven
 
-### `learning-state` — 33 tests
+### `learning-state`
 
 - Every transition, in both directions, including the ones that must _not_ happen.
 - Threshold behaviour, including the boundary (a value exactly at the threshold counts).
@@ -51,7 +59,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - The reducer never mutates its input, and is deterministic for identical input.
 - Configuration validation rejects negative and non-finite thresholds.
 
-### `continuity` — 31 tests
+### `continuity`
 
 - `describeProgress` splits concepts into mastered and unresolved correctly, including partial work.
 - Checkpoint content for a fresh session, a mid-task session, a completed session, and a session
@@ -61,7 +69,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - `computeResumeLatencyMs` returns `null` for a missing, invalid or skewed timestamp.
 - Interruption detection matching already-interrupted state without re-deriving it.
 
-### `intervention-policy` — 38 tests
+### `intervention-policy`
 
 - `NO_ACTION` for every state that should be left alone.
 - Every action rule, including the escalation from `HINT` to `EXAMPLE`.
@@ -71,7 +79,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Outcome recording, per-action aggregation, average latency that ignores non-finite values, and an
   acceptance rate that excludes `NO_ACTION`.
 
-### `persistence` — 31 tests
+### `persistence`
 
 - Migrations are idempotent.
 - Course, concept, task and quiz round-trips; `saveCourse` replaces children rather than duplicating.
@@ -83,7 +91,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - A file-backed database survives close and reopen.
 - Sessions are isolated from one another.
 
-### `agent-core` — 103 tests
+### `agent-core`
 
 - The demo course has the shape the golden path needs.
 - Material import is idempotent per content hash.
@@ -101,7 +109,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Simulator availability, including the production-disabled path.
 - Deterministic micro-task generation: same material in, same course out.
 
-### `apps/desktop` — 139 tests
+### `apps/desktop`
 
 - IPC validation rejects non-objects, unknown event types, unknown sources, oversize payloads,
   unknown session-end reasons, unknown simulator commands, unsupported locales, and unexpected
@@ -125,7 +133,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   two-minute task readable, the blocks tile the column with no gap or overlap, a negative estimate
   counts as nothing, and every kind has its own glyph.
 
-### `apps/extension` — 21 tests
+### `apps/extension`
 
 - The tracker adopts the first tab, emits left/return with a measured duration, does not double
   emit, and never exposes anything but ids.
@@ -133,7 +141,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   closed payload shape, reconnects after a close, bounds the offline queue, and survives a socket
   factory that throws.
 
-### `apps/desktop-e2e` — 11 tests
+### `apps/desktop-e2e`
 
 The golden path, in the real application:
 
