@@ -1,9 +1,12 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router } from '@angular/router';
+import type { MicroTaskKind } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { STATE_KEYS, kindLabel } from '../core/i18n/labels';
 import { formatClock, formatDuration, percent } from '../core/format';
+import { formatSpan } from '../core/insights-view';
+import { KIND_GLYPHS, buildPlan } from '../core/session-plan';
 
 /** Screen 3 of 5: the focus workspace. */
 @Component({
@@ -91,24 +94,47 @@ import { formatClock, formatDuration, percent } from '../core/format';
       }
 
       <section>
-        <h2 class="section-title">{{ t('focus.upNext') }}</h2>
-        <ul class="task-list">
-          @for (item of openTasks(); track item.id) {
-            <li>
-              <span>{{ item.title }}</span>
-              <button
-                type="button"
-                class="btn btn--small"
-                data-testid="start-task"
-                (click)="start(item.id)"
-              >
-                {{ t('focus.startTask') }}
-              </button>
-            </li>
-          } @empty {
-            <li class="muted">{{ t('focus.allDone') }}</li>
+        <div class="section-head">
+          <h2 class="section-title">{{ t('focus.upNext') }}</h2>
+          @if (plan().blocks.length > 0) {
+            <span class="muted small" data-testid="plan-remaining">
+              {{ remaining(plan().totalMinutes) }}
+            </span>
           }
-        </ul>
+        </div>
+
+        @if (plan().blocks.length === 0) {
+          <p class="muted">{{ t('focus.allDone') }}</p>
+        } @else {
+          <!--
+            The blocks are positioned rather than flowed, because their geometry is the
+            information: a task twice as long occupies twice the column. The maths lives in
+            session-plan.ts, and the accessible reading order is the DOM order below.
+          -->
+          <ul class="plan" [style.height.px]="plan().height">
+            @for (block of plan().blocks; track block.id) {
+              <li
+                class="plan__block"
+                data-testid="plan-block"
+                [attr.data-kind]="block.kind"
+                [style.top.px]="block.offset"
+                [style.height.px]="block.height"
+              >
+                <span class="plan__glyph" aria-hidden="true">{{ glyph(block.kind) }}</span>
+                <span class="plan__title">{{ block.title }}</span>
+                <span class="muted small plan__estimate">{{ shortEstimate(block.minutes) }}</span>
+                <button
+                  type="button"
+                  class="btn btn--small"
+                  data-testid="start-task"
+                  (click)="start(block.id)"
+                >
+                  {{ t('focus.startTask') }}
+                </button>
+              </li>
+            }
+          </ul>
+        }
       </section>
     } @else {
       <div class="card">
@@ -129,6 +155,21 @@ export class FocusPage {
   protected readonly t = this.i18n.t;
   protected readonly snapshot = this.state.snapshot;
   protected readonly task = this.state.currentTask;
+
+  /** What is left, as geometry. See session-plan.ts for why it is not a plain list. */
+  protected readonly plan = computed(() => buildPlan(this.openTasks()));
+
+  protected glyph(kind: MicroTaskKind): string {
+    return KIND_GLYPHS[kind];
+  }
+
+  protected remaining(minutes: number): string {
+    return this.t('focus.plan.remaining', { time: formatSpan(minutes * 60_000, this.t) });
+  }
+
+  protected shortEstimate(minutes: number): string {
+    return this.t('course.minutes', { minutes: `${minutes}` });
+  }
 
   protected stateLabel(): string {
     return this.t(STATE_KEYS[this.state.state()]);

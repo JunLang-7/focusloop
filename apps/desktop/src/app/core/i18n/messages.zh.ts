@@ -104,6 +104,8 @@ export const zh: Record<MessageKey, string> = {
   'focus.upNext': '接下来',
   'focus.startTask': '开始',
   'focus.allDone': '这门课程的所有任务都已完成。',
+  // 把总量直接说出来，省得学习者自己去把块加起来。
+  'focus.plan.remaining': '还剩约 {time}',
   'focus.none.title': '当前没有进行中的会话',
   'focus.none.body': '从一门课程开始会话，即可进入专注工作区。',
   'focus.none.browse': '浏览课程',
