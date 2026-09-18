@@ -100,6 +100,16 @@ export class AppStateService {
       this.resumeCard.set(
         snapshot === null ? null : await this.api.getResumeCard(snapshot.session.id),
       );
+      /*
+       * The log has to be loaded here too, not only in `reloadSnapshot`.
+       *
+       * `refresh` is the launch path, and without this the dashboard showed "No events
+       * recorded yet" for a session that had plenty of them — the list stayed empty
+       * until the learner happened to cause one more event.
+       */
+      this.recentEvents.set(
+        snapshot === null ? [] : await this.api.listEvents(snapshot.session.id),
+      );
     });
     await this.refreshToday();
   }
@@ -308,6 +318,9 @@ export class AppStateService {
     if (snapshot !== null) {
       this.resumeCard.set(await this.api.getResumeCard(snapshot.session.id));
       this.recentEvents.set(await this.api.listEvents(snapshot.session.id));
+    } else {
+      // Ending a session must not leave that session's log on screen.
+      this.recentEvents.set([]);
     }
     await this.refreshToday();
   }

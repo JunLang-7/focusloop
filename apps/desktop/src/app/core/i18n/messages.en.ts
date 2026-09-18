@@ -176,6 +176,8 @@ const en = {
   'dashboard.bridge.unavailable': 'Bridge status unavailable.',
   'dashboard.events': 'Recent events',
   'dashboard.events.none': 'No events recorded yet.',
+  // No singular form: the badge only renders for a run of two or more.
+  'dashboard.events.times': '{count} times',
 
   // --------------------------------------------------------- resume card
   'resume.aria': 'Resume where you left off',

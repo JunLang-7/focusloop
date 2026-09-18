@@ -28,6 +28,12 @@ try {
   await window.waitForLoadState('domcontentloaded');
   await window.setViewportSize({ width: 1280, height: 1000 });
   await window.getByRole('heading', { name: 'Keep your learning continuous' }).waitFor();
+
+  // Pin the theme before the first shot. The stored default is `system`, so without this
+  // the "default" screenshots change with the OS setting and cannot be compared between
+  // runs — which is what happened when Windows switched to its light schedule and the
+  // same script produced dark images in the morning and light ones in the afternoon.
+  await window.getByTestId('theme-dark').click();
   await shot(window, '01-home');
 
   // Build up some real activity so the charts are not empty.

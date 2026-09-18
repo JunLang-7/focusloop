@@ -28,13 +28,13 @@ dependency, launches Electron and drives the real UI.
 ## The pyramid, and why it is shaped this way
 
 ```text
-        ▲  E2E (Playwright, 7 tests)
+        ▲  E2E (Playwright, 8 tests)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
      ╱     ╲  Integration (agent-core, 100 tests)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
-  ╱___________╲ Unit (domain packages, 312 tests)
+  ╱___________╲ Unit (domain packages, 320 tests)
                 the rules, with no IO at all
 ```
 
@@ -95,7 +95,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - Simulator availability, including the production-disabled path.
 - Deterministic micro-task generation: same material in, same course out.
 
-### `apps/desktop` — 114 tests
+### `apps/desktop` — 122 tests
 
 - IPC validation rejects non-objects, unknown event types, unknown sources, oversize payloads,
   unknown session-end reasons, unknown simulator commands, unsupported locales, and unexpected
@@ -108,6 +108,9 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   the same `{name}` placeholders.
 - The chart helpers the dashboard and the sidebar share: the donut arcs, the heat scale, the span
   formatter, which states count as focus, and which shares are worth drawing at all.
+- The event-log folding: adjacent repeats merge, an unrelated event in between does not, two sources
+  stay apart, the row is keyed by the oldest event so a new one does not re-key it, and the input
+  array is left alone.
 
 ### `apps/extension` — 21 tests
 
@@ -117,7 +120,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   closed payload shape, reconnects after a close, bounds the offline queue, and survives a socket
   factory that throws.
 
-### `apps/desktop-e2e` — 7 tests
+### `apps/desktop-e2e` — 8 tests
 
 The golden path, in the real application:
 
@@ -130,8 +133,9 @@ launch → demo course → start session → start task → complete task
 
 Plus: the agent offers a break on overload and the learner can decline it, the resume card is the
 only surface that offers `RESUME`, the sidebar's ambient summary refreshes on a new event without
-changing the window the dashboard is showing, and the interface can be switched to Chinese with the
-choice surviving a real restart of the app.
+changing the window the dashboard is showing, three identical events from one click collapse into a
+single `×3` row, and the interface can be switched to Chinese with the choice surviving a real
+restart of the app.
 
 There is no `test` target for this project on purpose. When there was one it ran Playwright under
 `pnpm test`, which meant the unit run tried to launch Electron without a build — CI could never go

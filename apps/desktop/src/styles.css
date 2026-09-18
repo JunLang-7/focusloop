@@ -519,10 +519,43 @@ body:has(.simulator) .content {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg-elevated);
+  /*
+   * A log, not a stack of cards — the same reasoning as `.task-list`. One bordered card
+   * per event made nine events the heaviest thing on the dashboard, and three of them
+   * were the same event repeated.
+   */
+  padding: 7px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+/* The rows carry their own hairline, so the list needs no gap of its own. */
+.timeline {
+  gap: 0;
+}
+
+.timeline li:last-child {
+  border-bottom: 0;
+}
+
+/* Fixed width so the times form a column rather than a ragged left edge. */
+.timeline__at {
+  min-width: 64px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+ * Not a `.chip`: that vocabulary is for categorical labels — a task kind, a state — and
+ * a repeat count is not one. A bordered pill here also reads as a filter button.
+ */
+.timeline__count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pushed right, so the row reads as "when, and what" then "from where". */
+.timeline__source {
+  margin-left: auto;
 }
 
 /* Small inline label for a closed vocabulary — a task kind, a state, a tag. */
@@ -541,10 +574,6 @@ body:has(.simulator) .content {
 /* The chip and its estimate sit on one line under the task instructions. */
 .task-meta {
   margin: 12px 0 0;
-}
-
-.timeline strong {
-  margin-right: 8px;
 }
 
 .table {
