@@ -107,6 +107,7 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
 
 test('the remaining work is shown as a proportional plan', async () => {
   await window.getByRole('link', { name: 'Focus Session' }).click();
+  await window.getByTestId('focus-plan-toggle').click();
   await expect(window.locator('.plan')).toBeVisible();
 
   // One block per remaining micro task. The demo course has five; the golden path finished one.
@@ -136,7 +137,7 @@ test('the remaining work is shown as a proportional plan', async () => {
   await expect(window.getByTestId('plan-remaining')).toContainText('left');
 
   // Every block is still startable, which is the whole point of showing it.
-  await expect(window.getByTestId('start-task')).toHaveCount(4);
+  await expect(window.locator('.plan').getByTestId('start-task')).toHaveCount(4);
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });

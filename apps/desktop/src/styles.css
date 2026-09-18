@@ -1206,3 +1206,746 @@ code {
   background: var(--bg-soft);
   font-size: 12px;
 }
+
+/* ===========================================================================
+   Focus workspace
+
+   This is intentionally a canvas rather than another dashboard card. The
+   focus page owns one warm time object and one next action; supporting context
+   is allowed to recede until the learner asks for it.
+   =========================================================================== */
+
+.focus-workspace {
+  --focus-warm: var(--warn);
+  --focus-warm-quiet: color-mix(in srgb, var(--warn) 18%, transparent);
+  --focus-warm-faint: color-mix(in srgb, var(--warn) 8%, transparent);
+  --focus-ink-quiet: color-mix(in srgb, var(--text) 76%, var(--text-muted));
+  --focus-stage-width: 920px;
+  display: flex;
+  flex-direction: column;
+  min-height: min(760px, calc(100vh - 48px));
+  margin: -2px auto 0;
+  width: 100%;
+}
+
+.focus-stage__topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: min(100%, var(--focus-stage-width));
+  min-height: 54px;
+  margin: 0 auto;
+  padding: 0 4px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.focus-stage__topbar > :first-child {
+  min-width: 0;
+}
+
+.focus-stage__topbar h1,
+.focus-stage__topbar h2 {
+  overflow: hidden;
+  margin: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.focus-stage__topbar .eyebrow {
+  margin-bottom: 1px;
+}
+
+.focus-stage {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: stretch;
+  width: min(100%, var(--focus-stage-width));
+  min-height: 0;
+  margin: 0 auto;
+  padding: clamp(28px, 5vh, 54px) 4px clamp(22px, 4vh, 42px);
+}
+
+.focus-task {
+  min-width: 0;
+  max-width: 540px;
+  padding: 0;
+}
+
+.focus-task--ready,
+.focus-task--complete,
+.focus-task--empty {
+  align-self: center;
+  width: min(100%, 720px);
+}
+
+.focus-task--ready {
+  padding-block: clamp(24px, 4vh, 44px) clamp(22px, 3vh, 34px);
+}
+
+.focus-task--complete {
+  padding-block: clamp(26px, 5vh, 54px) clamp(22px, 3vh, 34px);
+}
+
+.focus-task--active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
+  grid-template-areas:
+    'copy clock'
+    'controls controls';
+  align-items: center;
+  gap: 22px clamp(40px, 7vw, 92px);
+  width: min(100%, 860px);
+  max-width: none;
+  margin: auto;
+  padding-block: clamp(18px, 3vh, 36px);
+}
+
+.focus-task__copy {
+  grid-area: copy;
+  min-width: 0;
+}
+
+.focus-task__action-row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.focus-task__action-row .btn {
+  min-width: 148px;
+}
+
+.focus-task__time-note {
+  display: block;
+  max-width: 32ch;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.focus-task__next-label {
+  margin-top: 20px;
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.focus-task__next-title {
+  margin-bottom: 0;
+  color: var(--focus-ink-quiet);
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.focus-task .eyebrow {
+  margin-bottom: 10px;
+  color: var(--focus-warm);
+}
+
+.focus-task h2,
+.focus-task h1 {
+  max-width: 18ch;
+  margin-bottom: 14px;
+  color: var(--text);
+  font-size: clamp(28px, 4vw, 46px);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1.08;
+  text-wrap: balance;
+}
+
+.focus-task p:not(.eyebrow):not(.row) {
+  max-width: 48ch;
+  margin-bottom: 22px;
+  color: var(--focus-ink-quiet);
+  font-size: clamp(15px, 1.5vw, 18px);
+  line-height: 1.6;
+  text-wrap: pretty;
+}
+
+.focus-task .task-meta {
+  gap: 8px;
+  margin: 0 0 24px;
+}
+
+.focus-task .chip {
+  border-color: color-mix(in srgb, var(--focus-warm) 34%, var(--border));
+  background: var(--focus-warm-faint);
+  color: var(--focus-warm);
+}
+
+.focus-task > .card,
+.focus-task.card,
+.focus-task.card--accent {
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.focus-clock {
+  position: relative;
+  display: grid;
+  place-items: center;
+  grid-area: clock;
+  width: min(100%, 276px);
+  aspect-ratio: 1;
+  justify-self: end;
+  isolation: isolate;
+}
+
+.focus-clock::before {
+  position: absolute;
+  inset: 13%;
+  border: 1px solid var(--focus-warm-quiet);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.focus-clock__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+
+.focus-clock__track,
+.focus-clock__progress {
+  fill: none;
+  stroke-width: 6;
+}
+
+.focus-clock__track {
+  stroke: color-mix(in srgb, var(--text-muted) 18%, transparent);
+}
+
+.focus-clock__progress {
+  stroke: var(--focus-warm);
+  stroke-linecap: round;
+  transition:
+    stroke-dashoffset 500ms ease,
+    stroke 180ms ease;
+}
+
+.focus-clock__value {
+  position: relative;
+  z-index: 1;
+  display: block;
+  color: var(--text);
+  font-size: clamp(32px, 5vw, 48px);
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  line-height: 1;
+}
+
+.focus-clock__caption {
+  position: relative;
+  z-index: 1;
+  display: block;
+  margin-top: 9px;
+  color: var(--text-muted);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.focus-controls {
+  grid-area: controls;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.focus-controls .btn {
+  min-height: 40px;
+  padding-inline: 15px;
+}
+
+.focus-controls .btn--primary {
+  border-color: var(--focus-warm);
+  background: var(--focus-warm);
+  color: var(--on-accent);
+}
+
+.focus-controls .btn--primary:hover {
+  border-color: color-mix(in srgb, var(--focus-warm) 84%, var(--text));
+  background: color-mix(in srgb, var(--focus-warm) 84%, var(--text));
+}
+
+.focus-controls .btn--ghost {
+  color: var(--focus-ink-quiet);
+}
+
+.focus-progress-strip {
+  display: grid;
+  grid-template-columns: auto auto minmax(120px, 1fr);
+  align-items: center;
+  gap: 12px;
+  width: min(100%, var(--focus-stage-width));
+  margin: 0 auto clamp(26px, 5vh, 54px);
+  padding: 12px 4px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.focus-progress-strip__item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.focus-progress-strip__label {
+  color: var(--text-muted);
+}
+
+.focus-progress-strip [role='progressbar'] {
+  grid-column: 1 / -1;
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-muted) 18%, var(--bg-soft));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 70%, transparent);
+}
+
+.focus-progress-strip__fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: var(--focus-warm);
+  transition: width 240ms ease;
+}
+
+.focus-progress-strip .meter {
+  flex: 1 1 auto;
+  height: 3px;
+}
+
+.focus-progress-strip .meter__fill {
+  background: var(--focus-warm);
+}
+
+.focus-plan {
+  align-self: center;
+  width: min(100%, 860px);
+  min-width: 0;
+  padding: 14px 0 0;
+  border-top: 1px solid var(--border);
+}
+
+.focus-plan__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0 0 12px;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.focus-plan__summary:hover,
+.focus-plan__summary:focus-visible {
+  color: var(--text);
+}
+
+.focus-plan__summary::after {
+  color: var(--text-muted);
+  content: '→';
+  font-size: 16px;
+}
+
+.focus-plan .plan {
+  margin-top: 14px;
+}
+
+.focus-plan .plan__block {
+  border-width: 0 0 1px;
+  border-left-width: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+/* Focus mode deliberately quiets the shell, while leaving all controls in the
+   DOM and leaving the simulator's pointer target intact for demo/e2e flows. */
+body:has(fl-focus .focus-workspace[data-phase='active']) .shell,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .shell,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .shell,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .shell {
+  grid-template-columns: 64px minmax(0, 1fr);
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .sidebar,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .sidebar {
+  align-items: center;
+  gap: 0;
+  overflow: hidden;
+  padding-inline: 10px;
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .brand__text,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .brand__text,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .brand__text,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .brand__text,
+body:has(fl-focus .focus-workspace[data-phase='active']) .today,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .today,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .today,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .today,
+body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar__footer,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar__footer,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .sidebar__footer,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .sidebar__footer {
+  display: none;
+}
+
+/* Keep a compact navigation rail available in focus mode. The labels remain
+   in the accessibility tree while the rail uses a quiet glyph treatment. */
+body:has(fl-focus .focus-workspace[data-phase='active']) .nav,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav {
+  display: flex;
+  width: 100%;
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .nav a,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  font-size: 0;
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .nav a::before,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a::before,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a::before,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a::before {
+  color: currentColor;
+  font-size: 18px;
+  line-height: 1;
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/home']::before,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/home']::before,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a[href$='/home']::before,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a[href$='/home']::before {
+  content: '⌂';
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/focus']::before,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/focus']::before,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a[href$='/focus']::before,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a[href$='/focus']::before {
+  content: '◎';
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/dashboard']::before,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/dashboard']::before,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a[href$='/dashboard']::before,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a[href$='/dashboard']::before {
+  content: '▦';
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .content,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .content,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .content,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .content {
+  padding: 18px clamp(20px, 5vw, 68px) 96px;
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active'])
+  .focus-plan:not(:has(.focus-plan__summary)),
+body:has(fl-focus .focus-workspace[data-phase='paused'])
+  .focus-plan:not(:has(.focus-plan__summary)),
+body:has(fl-focus .focus-workspace[data-phase='blocked'])
+  .focus-plan:not(:has(.focus-plan__summary)),
+body:has(fl-focus .focus-workspace[data-phase='resuming'])
+  .focus-plan:not(:has(.focus-plan__summary)) {
+  display: none;
+}
+
+/* If the summary button lives inside the plan drawer, keep that one escape
+   hatch reachable while the task itself remains the visual centre. The host
+   page can reveal the body with `.is-open` or `[data-open='true']`. */
+body:has(fl-focus .focus-workspace[data-phase='active']) .focus-plan:has(.focus-plan__summary),
+body:has(fl-focus .focus-workspace[data-phase='paused']) .focus-plan:has(.focus-plan__summary),
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .focus-plan:has(.focus-plan__summary),
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .focus-plan:has(.focus-plan__summary) {
+  display: block;
+  align-self: start;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active'])
+  .focus-plan:has(.focus-plan__summary):not([open])
+  > :not(.focus-plan__summary),
+body:has(fl-focus .focus-workspace[data-phase='paused'])
+  .focus-plan:has(.focus-plan__summary):not([open])
+  > :not(.focus-plan__summary),
+body:has(fl-focus .focus-workspace[data-phase='blocked'])
+  .focus-plan:has(.focus-plan__summary):not([open])
+  > :not(.focus-plan__summary),
+body:has(fl-focus .focus-workspace[data-phase='resuming'])
+  .focus-plan:has(.focus-plan__summary):not([open])
+  > :not(.focus-plan__summary) {
+  display: none;
+}
+
+.focus-plan.is-open,
+.focus-plan[data-open='true'],
+.focus-plan[open] {
+  position: fixed;
+  z-index: 12;
+  top: 76px;
+  right: clamp(16px, 4vw, 56px);
+  width: min(320px, calc(100vw - 32px));
+  max-height: min(70vh, 620px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+}
+
+.focus-plan.is-open > :not(.focus-plan__summary),
+.focus-plan[data-open='true'] > :not(.focus-plan__summary),
+.focus-plan[open] > :not(.focus-plan__summary) {
+  display: block;
+}
+
+body:has(fl-focus .focus-workspace[data-phase='active']) .simulator,
+body:has(fl-focus .focus-workspace[data-phase='paused']) .simulator,
+body:has(fl-focus .focus-workspace[data-phase='blocked']) .simulator,
+body:has(fl-focus .focus-workspace[data-phase='resuming']) .simulator {
+  opacity: 0.76;
+}
+
+.focus-workspace[data-phase='paused'] .focus-clock__progress,
+.focus-workspace[data-phase='blocked'] .focus-clock__progress {
+  stroke: var(--text-muted);
+}
+
+.focus-workspace[data-phase='paused'] .focus-clock__value,
+.focus-workspace[data-phase='blocked'] .focus-clock__value {
+  color: var(--focus-ink-quiet);
+}
+
+@media (max-width: 900px) {
+  .focus-stage {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+    gap: 34px;
+    padding-top: 38px;
+  }
+
+  .focus-task {
+    width: min(100%, 600px);
+    text-align: center;
+  }
+
+  .focus-task p:not(.eyebrow):not(.row) {
+    margin-inline: auto;
+  }
+
+  .focus-task .task-meta,
+  .focus-controls {
+    justify-content: center;
+  }
+
+  .focus-clock {
+    grid-row: 1;
+    width: min(58vw, 252px);
+    justify-self: center;
+  }
+
+  .focus-task {
+    grid-row: 2;
+  }
+
+  .focus-plan {
+    display: none;
+  }
+}
+
+@media (max-height: 680px) and (min-width: 901px) {
+  .focus-workspace {
+    min-height: calc(100vh - 28px);
+  }
+
+  .focus-stage {
+    gap: 36px;
+    padding-top: 24px;
+    padding-bottom: 24px;
+  }
+
+  .focus-task h2,
+  .focus-task h1 {
+    font-size: clamp(25px, 3vw, 36px);
+  }
+
+  .focus-clock {
+    width: min(30vw, 220px);
+  }
+}
+
+@media (max-width: 600px) {
+  body:has(fl-focus .focus-workspace[data-phase='active']) .shell,
+  body:has(fl-focus .focus-workspace[data-phase='paused']) .shell,
+  body:has(fl-focus .focus-workspace[data-phase='blocked']) .shell,
+  body:has(fl-focus .focus-workspace[data-phase='resuming']) .shell {
+    grid-template-columns: 52px minmax(0, 1fr);
+  }
+
+  body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar,
+  body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar,
+  body:has(fl-focus .focus-workspace[data-phase='blocked']) .sidebar,
+  body:has(fl-focus .focus-workspace[data-phase='resuming']) .sidebar {
+    display: flex;
+    align-items: center;
+    padding-inline: 8px;
+  }
+
+  body:has(fl-focus .focus-workspace[data-phase='active']) .nav a,
+  body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a,
+  body:has(fl-focus .focus-workspace[data-phase='blocked']) .nav a,
+  body:has(fl-focus .focus-workspace[data-phase='resuming']) .nav a {
+    flex-basis: 36px;
+    width: 36px;
+    height: 36px;
+  }
+
+  .focus-stage__topbar {
+    padding-inline: 0;
+  }
+
+  .focus-stage {
+    gap: 28px;
+    padding-top: 28px;
+  }
+
+  .focus-task h2,
+  .focus-task h1 {
+    font-size: clamp(26px, 9vw, 36px);
+  }
+
+  .focus-controls {
+    width: 100%;
+  }
+
+  .focus-controls .btn {
+    flex: 1 1 auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .focus-clock__progress {
+    transition: none;
+  }
+
+  .focus-progress-strip__fill {
+    transition: none;
+  }
+}
+
+/* Final focus layout overrides. Keep the task and its first action together on
+   wide canvases; let the timer become a clear second column only while a task
+   is actually running. */
+.focus-task--ready .focus-task__meta,
+.focus-task--complete .focus-task__meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 22px;
+}
+
+.focus-task--ready .focus-task__instructions,
+.focus-task--complete .focus-task__instructions {
+  max-width: 56ch;
+}
+
+@media (max-width: 900px) {
+  .focus-task--active {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'clock'
+      'copy'
+      'controls';
+    width: min(100%, 640px);
+    gap: 20px;
+    text-align: center;
+  }
+
+  .focus-task--active .focus-task__copy {
+    width: 100%;
+  }
+
+  .focus-task--active .focus-task__instructions {
+    margin-inline: auto;
+  }
+
+  .focus-task--active .focus-task__meta,
+  .focus-task--active .focus-controls {
+    justify-content: center;
+  }
+
+  .focus-task--active .focus-clock {
+    justify-self: center;
+    width: min(58vw, 252px);
+  }
+
+  .focus-task__action-row {
+    align-items: center;
+  }
+}
+
+@media (max-width: 600px) {
+  .focus-progress-strip {
+    grid-template-columns: 1fr auto;
+    gap: 8px 12px;
+  }
+
+  .focus-progress-strip__meter {
+    grid-column: 1 / -1;
+  }
+
+  .focus-stage {
+    padding-inline: 0;
+  }
+
+  .focus-task--ready,
+  .focus-task--complete,
+  .focus-task--empty {
+    width: 100%;
+  }
+}
