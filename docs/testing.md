@@ -28,10 +28,10 @@ dependency, launches Electron and drives the real UI.
 ## The pyramid, and why it is shaped this way
 
 ```text
-        ▲  E2E (Playwright, 8 tests)
+        ▲  E2E (Playwright, 9 tests)
        ╱ ╲   the product, launched and clicked
       ╱   ╲
-     ╱     ╲  Integration (agent-core, 101 tests)
+     ╱     ╲  Integration (agent-core, 103 tests)
     ╱       ╲ the golden path with a real database, in memory
    ╱         ╲
   ╱___________╲ Unit (domain packages, 322 tests)
@@ -83,13 +83,17 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - A file-backed database survives close and reopen.
 - Sessions are isolated from one another.
 
-### `agent-core` — 101 tests
+### `agent-core` — 103 tests
 
 - The demo course has the shape the golden path needs.
 - Material import is idempotent per content hash.
 - Session lifecycle, progress, and dashboard aggregation.
 - `getCurrentSession` reports the running session and only the running session: a finished one is
   not current, which is what stops the workspace and the home page from treating it as live.
+- Starting a session ends the running one first, so at most one session is ever active — asserted
+  through the observable consequence, that ending the running session leaves nothing current.
+- An unknown course is rejected before anything is ended, so a bad request cannot cost the learner
+  the session they are in.
 - The full interruption → checkpoint → resume card → accept → outcome sequence.
 - Replayed bridge events are ignored.
 - Every policy rule _through the engine_, not just in the policy package.
@@ -124,7 +128,7 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   closed payload shape, reconnects after a close, bounds the offline queue, and survives a socket
   factory that throws.
 
-### `apps/desktop-e2e` — 8 tests
+### `apps/desktop-e2e` — 9 tests
 
 The golden path, in the real application:
 
@@ -138,8 +142,8 @@ launch → demo course → start session → start task → complete task
 Plus: the agent offers a break on overload and the learner can decline it, the resume card is the
 only surface that offers `RESUME`, the sidebar's ambient summary refreshes on a new event without
 changing the window the dashboard is showing, three identical events from one click collapse into a
-single `×3` row, and the interface can be switched to Chinese with the choice surviving a real
-restart of the app.
+single `×3` row, ending a session leaves the app with nothing current, and the interface can be
+switched to Chinese with the choice surviving a real restart of the app.
 
 There is no `test` target for this project on purpose. When there was one it ran Playwright under
 `pnpm test`, which meant the unit run tried to launch Electron without a build — CI could never go

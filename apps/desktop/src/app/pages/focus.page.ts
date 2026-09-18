@@ -17,7 +17,9 @@ import { formatClock, formatDuration, percent } from '../core/format';
           <h1>{{ current.courseTitle ?? t('focus.untitled') }}</h1>
         </div>
         <div class="row">
-          <button type="button" class="btn btn--ghost" (click)="end()">{{ t('focus.end') }}</button>
+          <button type="button" class="btn btn--ghost" data-testid="end-session" (click)="end()">
+            {{ t('focus.end') }}
+          </button>
         </div>
       </header>
 

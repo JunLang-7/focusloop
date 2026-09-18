@@ -156,9 +156,28 @@ export class FocusLoopEngine {
   // ---------------------------------------------------------------- sessions
 
   startSession(courseId: string): StartSessionResponse {
+    // Validated before anything is ended, so a bad request cannot cost the learner the
+    // session they are in.
     const course = this.store.getCourse(courseId);
     if (course === null) {
       throw new EngineError('course-not-found', `Unknown course: ${courseId}`);
+    }
+
+    /*
+     * One session at a time.
+     *
+     * Starting another ends the running one first. Two active sessions made "the current
+     * session" ambiguous — `getActiveSession` picked one of them, newest first — so ending
+     * the newest silently handed the application back to the one the learner had already
+     * left, which is what made "no session running" unreachable.
+     *
+     * `reason: 'user'` rather than a new vocabulary member: the learner is the one who
+     * pressed Start. The ended session keeps its events, progress and checkpoint; only its
+     * `endedAt` is set, so nothing is destroyed by switching courses.
+     */
+    const running = this.store.getActiveSession();
+    if (running !== null) {
+      this.endSession({ sessionId: running.session.id, reason: 'user' });
     }
 
     const now = this.clock();
