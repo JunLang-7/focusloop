@@ -22,6 +22,11 @@ interface SqliteDriverModule {
   DatabaseSync: new (path: string) => SqliteDriverDatabase;
 }
 
+/*
+ * SAFETY: `process.getBuiltinModule` is typed as returning `unknown`, so the shape has to be asserted
+ * rather than checked. `SqliteDriverModule` above is that assertion written down: it declares only the
+ * members this driver calls, and the driver suite exercises each of them against a real database.
+ */
 const { DatabaseSync } = process.getBuiltinModule('node:sqlite') as unknown as SqliteDriverModule;
 
 export interface SqlRunResult {
@@ -29,6 +34,14 @@ export interface SqlRunResult {
   readonly lastInsertRowid: number | bigint;
 }
 
+/**
+ * A prepared statement.
+ *
+ * A row is whatever the table has: the driver cannot know which table it read, so turning one into a
+ * domain type happens in the store, where that shape is known. `unknown` is that statement in the type
+ * system, and the visible cost is that each read asserts its own shape — sixteen of them in `store.ts`,
+ * which is #38's business rather than this file's.
+ */
 export interface SqlStatement {
   run(...params: unknown[]): SqlRunResult;
   get(...params: unknown[]): unknown;
@@ -90,6 +103,10 @@ class NodeSqliteStatementAdapter implements SqlStatement {
   }
 }
 
+/**
+ * The `SqlDatabase` port over Node's built-in SQLite, with the pragmas this store needs (WAL,
+ * foreign keys) and transactions that nest by joining the outer one rather than opening a second.
+ */
 export class NodeSqliteDatabase implements SqlDatabase {
   private readonly db: SqliteDriverDatabase;
   private depth = 0;

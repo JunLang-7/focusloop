@@ -9,6 +9,10 @@ import type {
 
 export type MaterialParseFailure = 'unsupported-format' | 'empty-content' | 'too-large';
 
+/**
+ * Material the parser cannot use, with the reason the caller reports back: an unsupported format,
+ * empty content, or a document past the size the parser accepts.
+ */
 export class MaterialParseError extends Error {
   readonly reason: MaterialParseFailure;
 

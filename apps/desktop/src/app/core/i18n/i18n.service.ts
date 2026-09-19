@@ -39,6 +39,10 @@ type _EveryDomainKeyHasWording = MissingDomainKeys extends never ? true : Missin
 const _domainCoverage: _EveryDomainKeyHasWording = true;
 void _domainCoverage;
 
+/**
+ * Translates a message key for the current locale, and owns the locale signal itself. The dictionaries
+ * are the only place the wording lives; nothing here composes a sentence the domain did not emit.
+ */
 @Injectable({ providedIn: 'root' })
 export class I18nService {
   private readonly current = signal<Locale>(DEFAULT_LOCALE);

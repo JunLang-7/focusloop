@@ -18,6 +18,10 @@ import {
   type StartSessionRequest,
 } from '@focusloop/shared-types';
 
+/**
+ * A payload the boundary refuses, naming the channel it arrived on so the main process can log where
+ * it came from rather than just that something was malformed.
+ */
 export class IpcValidationError extends Error {
   readonly channel: string;
 
