@@ -18,9 +18,35 @@ export interface GeneratedCourse {
 const DEFAULT_MAX_CONCEPTS = 6;
 const DEFAULT_PRACTICE_MIN_CHARS = 120;
 
+/**
+ * The first sentence of a section, used as the concept summary and as a quiz option.
+ *
+ * The terminators include the full-width ones, and a full-width terminator does not have to be
+ * followed by a space: Chinese does not put one after `。`, and requiring whitespace there made
+ * every Chinese section fall through to the blunt 200-character cut. That cut landed mid-word,
+ * and because the same string is the summary, the key point and the read instruction, one broken
+ * sentence appeared three times — in the concept card, in the quiz options and in the task the
+ * learner was asked to start with.
+ *
+ * An ASCII terminator still requires a space or the end of the string, so a decimal point or an
+ * abbreviation does not end the sentence early.
+ */
 function firstSentence(body: string): string {
-  const match = /^(.{20,240}?[.!?])(\s|$)/s.exec(body.trim());
+  const match = /^(.{20,240}?(?:[.!?](?=\s|$)|[。！？]))/s.exec(body.trim());
   return (match?.[1] ?? body.trim().slice(0, 200)).trim();
+}
+
+/**
+ * The document's own title is not a concept.
+ *
+ * A Markdown file usually opens with `# Title` and a short blurb. The parser gives every heading a
+ * section, so the blurb became concept one — titled exactly like the course, and generating a read
+ * task that asked the learner to summarise the document's own preamble while the first real
+ * concept waited behind it. A file with no `#` heading hits the same rule through the file name,
+ * which is what the parser uses as the heading for the text before the first heading.
+ */
+function isDocumentTitle(heading: string, material: MaterialDocument): boolean {
+  return heading === material.title;
 }
 
 function conceptSlug(title: string, index: number): string {
@@ -45,6 +71,7 @@ export function generateCourse(
 
   const usable = material.sections
     .filter((section) => section.body.trim().length > 0)
+    .filter((section) => !isDocumentTitle(section.heading, material))
     .slice(0, maxConcepts);
 
   if (usable.length === 0) {
@@ -68,7 +95,14 @@ export function generateCourse(
       title: section.heading,
       summary: firstSentence(section.body),
       order: index,
-      keyPoints: [firstSentence(section.body)],
+      /*
+       * Deliberately empty. This used to be `[firstSentence(section.body)]`, which is the same
+       * string as `summary`, so the course page rendered every concept's opening sentence twice:
+       * once as the summary paragraph and once as its only key point. A key point that repeats the
+       * summary is not a key point, and inventing extra ones would trade the duplication for a wall
+       * of text. The card is title plus one line until there is something real to put here.
+       */
+      keyPoints: [],
     };
   });
 
