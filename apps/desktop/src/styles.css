@@ -1565,40 +1565,38 @@ code {
   background: transparent;
 }
 
-/* Focus mode quietly narrows the shell to a rail while a commitment is running. Everything
-   stays in the DOM, so the e2e flow and the demo simulator keep their targets. */
-body:has(fl-focus .focus-workspace[data-phase='active']) .shell,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .shell {
+/* Focus mode quietly narrows the shell to a rail. Everything stays in the DOM, so the e2e flow
+   and the demo simulator keep their targets.
+   Which phases get the rail is a product decision rather than a stylesheet one: it is `keepsRail`
+   in core/focus-phase.ts, and the component marks the canvas with `data-rail`. This block used to
+   list `active` and `paused` by hand, which released the rail the moment the timer ran out or a
+   step was finished — putting the Today summary, the language switch and the theme switch back in
+   front of someone who had just been asked to keep going. */
+body:has(fl-focus .focus-workspace[data-rail]) .shell {
   grid-template-columns: 64px minmax(0, 1fr);
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar {
+body:has(fl-focus .focus-workspace[data-rail]) .sidebar {
   align-items: center;
   gap: 0;
   overflow: hidden;
   padding-inline: 10px;
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .brand__text,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .brand__text,
-body:has(fl-focus .focus-workspace[data-phase='active']) .today,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .today,
-body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar__footer,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar__footer {
+body:has(fl-focus .focus-workspace[data-rail]) .brand__text,
+body:has(fl-focus .focus-workspace[data-rail]) .today,
+body:has(fl-focus .focus-workspace[data-rail]) .sidebar__footer {
   display: none;
 }
 
 /* Keep a compact navigation rail available in focus mode. The labels remain
    in the accessibility tree while the rail uses a quiet glyph treatment. */
-body:has(fl-focus .focus-workspace[data-phase='active']) .nav,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav {
+body:has(fl-focus .focus-workspace[data-rail]) .nav {
   display: flex;
   width: 100%;
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .nav a,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a {
+body:has(fl-focus .focus-workspace[data-rail]) .nav a {
   display: grid;
   place-items: center;
   flex: 0 0 36px;
@@ -1608,43 +1606,34 @@ body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a {
   font-size: 0;
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .nav a::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a::before {
+body:has(fl-focus .focus-workspace[data-rail]) .nav a::before {
   color: currentColor;
   font-size: 18px;
   line-height: 1;
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/home']::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/home']::before {
+body:has(fl-focus .focus-workspace[data-rail]) .nav a[href$='/home']::before {
   content: '⌂';
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/focus']::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/focus']::before {
+body:has(fl-focus .focus-workspace[data-rail]) .nav a[href$='/focus']::before {
   content: '◎';
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .nav a[href$='/dashboard']::before,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a[href$='/dashboard']::before {
+body:has(fl-focus .focus-workspace[data-rail]) .nav a[href$='/dashboard']::before {
   content: '▦';
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .content,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .content {
+body:has(fl-focus .focus-workspace[data-rail]) .content {
   padding: 18px clamp(20px, 5vw, 68px) 96px;
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active'])
-  .focus-plan:not(:has(.focus-plan__summary)),
-body:has(fl-focus .focus-workspace[data-phase='paused'])
-  .focus-plan:not(:has(.focus-plan__summary)) {
+body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:not(:has(.focus-plan__summary)) {
   display: none;
 }
 
 /* Focus mode keeps the plan summary reachable while the task stays the visual centre. */
-body:has(fl-focus .focus-workspace[data-phase='active']) .focus-plan:has(.focus-plan__summary),
-body:has(fl-focus .focus-workspace[data-phase='paused']) .focus-plan:has(.focus-plan__summary) {
+body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:has(.focus-plan__summary) {
   display: block;
   align-self: start;
   min-width: 0;
@@ -1652,10 +1641,7 @@ body:has(fl-focus .focus-workspace[data-phase='paused']) .focus-plan:has(.focus-
   border: 0;
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active'])
-  .focus-plan:has(.focus-plan__summary):not([open])
-  > :not(.focus-plan__summary),
-body:has(fl-focus .focus-workspace[data-phase='paused'])
+body:has(fl-focus .focus-workspace[data-rail])
   .focus-plan:has(.focus-plan__summary):not([open])
   > :not(.focus-plan__summary) {
   display: none;
@@ -1679,8 +1665,7 @@ body:has(fl-focus .focus-workspace[data-phase='paused'])
   display: block;
 }
 
-body:has(fl-focus .focus-workspace[data-phase='active']) .simulator,
-body:has(fl-focus .focus-workspace[data-phase='paused']) .simulator {
+body:has(fl-focus .focus-workspace[data-rail]) .simulator {
   opacity: 0.76;
 }
 
@@ -1750,20 +1735,17 @@ body:has(fl-focus .focus-workspace[data-phase='paused']) .simulator {
 }
 
 @media (max-width: 600px) {
-  body:has(fl-focus .focus-workspace[data-phase='active']) .shell,
-  body:has(fl-focus .focus-workspace[data-phase='paused']) .shell {
+  body:has(fl-focus .focus-workspace[data-rail]) .shell {
     grid-template-columns: 52px minmax(0, 1fr);
   }
 
-  body:has(fl-focus .focus-workspace[data-phase='active']) .sidebar,
-  body:has(fl-focus .focus-workspace[data-phase='paused']) .sidebar {
+  body:has(fl-focus .focus-workspace[data-rail]) .sidebar {
     display: flex;
     align-items: center;
     padding-inline: 8px;
   }
 
-  body:has(fl-focus .focus-workspace[data-phase='active']) .nav a,
-  body:has(fl-focus .focus-workspace[data-phase='paused']) .nav a {
+  body:has(fl-focus .focus-workspace[data-rail]) .nav a {
     flex-basis: 36px;
     width: 36px;
     height: 36px;

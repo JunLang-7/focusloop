@@ -20,8 +20,8 @@ import { STATE_KEYS, kindLabel } from '../core/i18n/labels';
 import { formatDuration } from '../core/format';
 import { formatSpan } from '../core/insights-view';
 import { KIND_GLYPHS, buildPlan } from '../core/session-plan';
+import { keepsRail, type FocusPhase } from '../core/focus-phase';
 
-type FocusPhase = 'ready' | 'active' | 'paused' | 'expired' | 'complete';
 const CLOCK_RADIUS = 86;
 const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
 
@@ -31,7 +31,7 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
   standalone: true,
   template: `
     @if (snapshot(); as current) {
-      <div class="focus-workspace" [attr.data-phase]="phase()">
+      <div class="focus-workspace" [attr.data-phase]="phase()" [attr.data-rail]="railAttr()">
         <header class="focus-stage__topbar">
           <div class="focus-stage__identity">
             <p class="eyebrow">{{ t('focus.eyebrow') }}</p>
@@ -269,6 +269,13 @@ export class FocusPage implements OnDestroy {
       ? 'active'
       : 'ready';
   });
+  /**
+   * Whether the shell narrows to a rail. The policy is `keepsRail` in core/focus-phase.ts, so it
+   * is unit-tested without rendering this page; the stylesheet only matches `[data-rail]`.
+   */
+  protected readonly rail = computed(() => keepsRail(this.phase()));
+  /** An empty attribute is present; `null` removes it, which is what the stylesheet keys on. */
+  protected readonly railAttr = computed(() => (this.rail() ? '' : null));
   protected readonly plan = computed(() => buildPlan(this.openTasks()));
   protected readonly nextTask = computed<MicroTask | null>(() => this.openTasks()[0] ?? null);
 
