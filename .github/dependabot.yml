@@ -30,6 +30,12 @@ updates:
         update-types: ['version-update:semver-major']
       - dependency-name: nx
         update-types: ['version-update:semver-major']
+      # TypeScript is not free to move on its own either: the Angular compiler requires >=5.8.0 and
+      # <6.0.0, so 6.0.3 could not pass no matter what the repository did. Dependabot opened it, the
+      # compiler refused it, and the run failed at the package step. Ignoring the major here is what
+      # stops that pull request arriving every Monday until Angular widens the range.
+      - dependency-name: typescript
+        update-types: ['version-update:semver-major']
 
   # The actions the workflows run. These are pinned to full commit SHAs in the workflow files, so
   # Dependabot is the thing that moves the pins — with the release it moved to in the comment.
@@ -46,3 +52,8 @@ updates:
     groups:
       actions:
         patterns: ['*']
+        # Minor and patch move together; a major arrives alone, the same rule the npm groups above
+        # follow. Without this filter the group matched majors too, so five of them landed in a single
+        # pull request, and two of the five - the artefact upload guarded by `if: failure()` and the
+        # release upload that only runs on a tag - are steps no pull request check can exercise.
+        update-types: [minor, patch]
