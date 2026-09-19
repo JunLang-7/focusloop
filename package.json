@@ -22,11 +22,13 @@
     "verify:docs": "node scripts/verify-docs.mjs",
     "verify:tokens": "node scripts/verify-theme-tokens.mjs",
     "desktop": "nx run desktop:serve",
-    "package:windows": "nx run desktop:package"
+    "package:windows": "nx run desktop:package",
+    "coverage": "pnpm -r --no-bail --filter \"./packages/*\" run test:coverage"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
     "@types/node": "^22.7.5",
+    "@vitest/coverage-v8": "2.1.9",
     "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-jsdoc": "^64.5.2",

@@ -132,6 +132,11 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - The session plan geometry: block heights are proportional to the estimates, the floor keeps a
   two-minute task readable, the blocks tile the column with no gap or overlap, a negative estimate
   counts as nothing, and every kind has its own glyph.
+- The focus timer state machine: the three-minute default, a late tick reporting `expired` and
+  never negative time, a paused timer ignoring every further tick, resume continuing from the new
+  timestamp with the same remaining time, `+1 minute` preserving elapsed progress, an expired timer
+  reopening when a minute is added, zero and negative commitments, immutability, and the `m:ss`
+  formatting including the 61-minute case.
 
 ### `apps/extension`
 
