@@ -19,11 +19,13 @@
     "format:check": "prettier --check \"**/*.{ts,js,mjs,json,md,yml,yaml,html,css}\"",
     "verify:scaffolding": "node scripts/verify-no-scaffolding.mjs",
     "desktop": "nx run desktop:serve",
-    "package:windows": "nx run desktop:package"
+    "package:windows": "nx run desktop:package",
+    "coverage": "pnpm -r --no-bail --filter \"./packages/*\" run test:coverage"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
     "@types/node": "^22.7.5",
+    "@vitest/coverage-v8": "2.1.9",
     "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",
     "globals": "^15.11.0",
