@@ -26,6 +26,7 @@ const api: FocusLoopApi = {
       IPC_CHANNELS.importMaterial,
       payload.importMaterial(request.fileName, request.content),
     ),
+  listMaterials: () => ipcRenderer.invoke(IPC_CHANNELS.listMaterials, payload.none()),
 
   startSession: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.startSession, payload.startSession(request.courseId)),
@@ -74,6 +75,11 @@ const api: FocusLoopApi = {
   setLocale: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.setLocale, payload.setLocale(request.locale)),
   setTheme: (request) => ipcRenderer.invoke(IPC_CHANNELS.setTheme, payload.setTheme(request.theme)),
+  setShowMaterialText: (request) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.setShowMaterialText,
+      payload.setShowMaterialText(request.showMaterialText),
+    ),
 
   getInsights: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.getInsights, payload.insights(request.range)),

@@ -1565,6 +1565,24 @@ code {
   background: transparent;
 }
 
+/* The imported text, shown as the author wrote it. The parser keeps the blank lines between
+   paragraphs, and `pre-line` is what turns them back into breaks instead of one long wall. */
+.material {
+  margin-top: 10px;
+}
+
+.material > summary {
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.material__body {
+  margin-top: 8px;
+  line-height: 1.75;
+  white-space: pre-line;
+}
+
 /* Focus mode quietly narrows the shell to a rail. Everything stays in the DOM, so the e2e flow
    and the demo simulator keep their targets.
    Which phases get the rail is a product decision rather than a stylesheet one: it is `keepsRail`

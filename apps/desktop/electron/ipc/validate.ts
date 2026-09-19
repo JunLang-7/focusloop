@@ -14,6 +14,7 @@ import {
   type SessionEndReason,
   type SetLocaleRequest,
   type SetThemeRequest,
+  type SetShowMaterialTextRequest,
   type SimulatorCommand,
   type StartSessionRequest,
 } from '@focusloop/shared-types';
@@ -145,6 +146,23 @@ export function parseSetTheme(channel: string, value: unknown): SetThemeRequest 
   const theme = asString(channel, record, 'theme');
   if (!isThemePreference(theme)) fail(channel, `unsupported theme "${theme}"`);
   return { theme };
+}
+
+/**
+ * The only setting that is not a string of a known set, so the check is a plain type test. Kept
+ * explicit rather than coerced: a renderer that sends "yes" has a bug, and quietly reading it as
+ * `true` would hide that bug behind a preference that looks like it worked.
+ */
+export function parseSetShowMaterialText(
+  channel: string,
+  value: unknown,
+): SetShowMaterialTextRequest {
+  const record = asRecord(channel, value);
+  const showMaterialText = record['showMaterialText'];
+  if (typeof showMaterialText !== 'boolean') {
+    fail(channel, `showMaterialText must be a boolean, received ${typeof showMaterialText}`);
+  }
+  return { showMaterialText };
 }
 
 export function parseInsightsRequest(channel: string, value: unknown): InsightsRequest {

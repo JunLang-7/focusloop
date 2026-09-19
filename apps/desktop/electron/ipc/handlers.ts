@@ -16,6 +16,7 @@ import {
   parseResumeDecision,
   parseSessionId,
   parseSetLocale,
+  parseSetShowMaterialText,
   parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
@@ -196,6 +197,11 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.setTheme,
       parse: parseSetTheme,
       handle: (request) => engine.setTheme(request.theme),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.setShowMaterialText,
+      parse: parseSetShowMaterialText,
+      handle: (request) => engine.setShowMaterialText(request.showMaterialText),
     }),
     defineHandler({
       channel: IPC_CHANNELS.getInsights,

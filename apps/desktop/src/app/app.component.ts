@@ -148,6 +148,22 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
               }
             </div>
           </div>
+
+          <div class="locale" role="group" [attr.aria-label]="t('app.material.switch')">
+            <span class="muted small">{{ t('app.material') }}</span>
+            <div class="locale__options">
+              <button
+                type="button"
+                class="btn btn--small locale__btn"
+                [class.is-active]="showMaterialText()"
+                [attr.aria-pressed]="showMaterialText()"
+                data-testid="material-text-toggle"
+                (click)="toggleMaterialText()"
+              >
+                {{ t(showMaterialText() ? 'app.material.on' : 'app.material.off') }}
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -218,6 +234,7 @@ export class AppComponent implements OnInit, OnDestroy {
     void this.stateService.loadSettings().then((settings) => {
       this.stateService.locale.set(settings.locale);
       this.stateService.theme.set(settings.theme);
+      this.stateService.showMaterialText.set(settings.showMaterialText);
     });
     void this.stateService.refresh();
     this.unsubscribe = this.stateService.subscribeToEvents();
@@ -244,6 +261,16 @@ export class AppComponent implements OnInit, OnDestroy {
 
   protected chooseTheme(theme: ThemePreference): void {
     void this.stateService.setTheme(theme);
+  }
+
+  protected readonly showMaterialText = this.stateService.showMaterialText;
+
+  /**
+   * The learner's own call, not a default: the tasks stand on their own, and the text they were
+   * generated from is there for whoever wants to read it in place.
+   */
+  protected toggleMaterialText(): void {
+    void this.stateService.setShowMaterialText(!this.showMaterialText());
   }
 
   protected span(ms: number): string {

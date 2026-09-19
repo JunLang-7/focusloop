@@ -1,5 +1,10 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { DEFAULT_INSIGHT_RANGE, DEFAULT_LOCALE, DEFAULT_THEME } from '@focusloop/shared-types';
+import {
+  DEFAULT_INSIGHT_RANGE,
+  DEFAULT_LOCALE,
+  DEFAULT_SHOW_MATERIAL_TEXT,
+  DEFAULT_THEME,
+} from '@focusloop/shared-types';
 import type {
   AppSettings,
   BridgeInfo,
@@ -13,6 +18,7 @@ import type {
   LearningEvent,
   LearningState,
   Locale,
+  MaterialDocument,
   ResumeCardView,
   RuntimeInfo,
   SessionSnapshot,
@@ -51,6 +57,12 @@ export class AppStateService {
 
   readonly runtime = signal<RuntimeInfo | null>(null);
   readonly courses = signal<readonly Course[]>([]);
+  /**
+   * The parsed documents behind imported courses. A course keeps concept summaries and tasks; the
+   * text that was uploaded lives here and nowhere else, so this is what makes the material readable
+   * inside the application instead of only quizzed.
+   */
+  readonly materials = signal<readonly MaterialDocument[]>([]);
   readonly snapshot = signal<SessionSnapshot | null>(null);
   readonly resumeCard = signal<ResumeCardView | null>(null);
   readonly dashboard = signal<DashboardSummary | null>(null);
@@ -61,6 +73,12 @@ export class AppStateService {
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
   readonly locale = signal<Locale>(DEFAULT_LOCALE);
   readonly theme = signal<ThemePreference>(DEFAULT_THEME);
+  /**
+   * Whether a course shows the text it was generated from. The learner's own material is not
+   * something to decide for them: the tasks stand on their own, and the full section is there for
+   * whoever wants it.
+   */
+  readonly showMaterialText = signal<boolean>(DEFAULT_SHOW_MATERIAL_TEXT);
   readonly insights = signal<InsightsSummary | null>(null);
   readonly insightRange = signal<InsightRange>(DEFAULT_INSIGHT_RANGE);
   /**
@@ -87,14 +105,16 @@ export class AppStateService {
 
   async refresh(): Promise<void> {
     await this.run(async () => {
-      const [runtime, courses, snapshot, dashboard] = await Promise.all([
+      const [runtime, courses, materials, snapshot, dashboard] = await Promise.all([
         this.api.getRuntimeInfo(),
         this.api.listCourses(),
+        this.api.listMaterials(),
         this.api.getCurrentSession(),
         this.api.getDashboard(),
       ]);
       this.runtime.set(runtime);
       this.courses.set(courses);
+      this.materials.set(materials);
       this.snapshot.set(snapshot);
       this.dashboard.set(dashboard);
       this.resumeCard.set(
@@ -140,7 +160,11 @@ export class AppStateService {
       return await this.api.getSettings();
     } catch (error) {
       this.lastError.set(error instanceof Error ? error.message : String(error));
-      return { locale: DEFAULT_LOCALE, theme: DEFAULT_THEME };
+      return {
+        locale: DEFAULT_LOCALE,
+        theme: DEFAULT_THEME,
+        showMaterialText: DEFAULT_SHOW_MATERIAL_TEXT,
+      };
     }
   }
 
@@ -156,6 +180,13 @@ export class AppStateService {
     await this.run(async () => {
       const settings = await this.api.setTheme({ theme });
       this.theme.set(settings.theme);
+    });
+  }
+
+  async setShowMaterialText(showMaterialText: boolean): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setShowMaterialText({ showMaterialText });
+      this.showMaterialText.set(settings.showMaterialText);
     });
   }
 
@@ -273,7 +304,19 @@ export class AppStateService {
         conceptsCreated: imported.conceptsCreated,
         microTasksCreated: imported.microTasksCreated,
       };
-      this.courses.set(await this.api.listCourses());
+      /*
+       * Both, not just the courses.
+       *
+       * An import writes a course and the document it came from, and the course only carries
+       * summaries. Reloading the list alone left the new course without its text until the next
+       * launch — the concept cards rendered and the material behind them did not.
+       */
+      const [courses, materials] = await Promise.all([
+        this.api.listCourses(),
+        this.api.listMaterials(),
+      ]);
+      this.courses.set(courses);
+      this.materials.set(materials);
     });
     return result;
   }

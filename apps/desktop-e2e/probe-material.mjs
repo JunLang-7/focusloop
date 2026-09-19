@@ -60,6 +60,13 @@ async function step(name, body) {
 try {
   await window.waitForLoadState('domcontentloaded');
   await window.setViewportSize({ width: 1280, height: 1000 });
+  // Not `waitFor` on the Home heading: a profile that has been used before opens wherever it was
+  // left, so the probe navigates rather than assuming. It also pins the language, because a stored
+  // Chinese preference changes every label the steps below look for.
+  await window.locator('body').waitFor();
+  const english = window.getByTestId('locale-en');
+  if ((await english.count()) > 0) await english.click();
+  await window.getByRole('link', { name: 'Home' }).click();
   await window.getByRole('heading', { name: 'Keep your learning continuous' }).waitFor();
   await shot('00-home-before-import');
 
@@ -83,6 +90,32 @@ try {
     await window.getByRole('heading', { name: TITLE }).waitFor();
   });
   await shot('02-course-page');
+
+  await step('the imported text is readable on the course page', async () => {
+    const details = window.locator('details.material').first();
+    await details.locator('summary').click();
+    const body = (await details.locator('.material__body').innerText()).trim();
+    if (body.length === 0) throw new Error('the section body is empty');
+    const fragment = body.split('\n')[0]?.trim() ?? '';
+    if (!CONTENT.includes(fragment)) {
+      throw new Error(`the text does not come from the material: ${fragment}`);
+    }
+    return `${body.length} characters, matching the source`;
+  });
+  await shot('02b-course-material-text');
+
+  await step('the learner can turn the material text off and on', async () => {
+    const toggle = window.getByTestId('material-text-toggle');
+    const shown = () => window.locator('details.material').count();
+    await toggle.click();
+    await window.locator('details.material').first().waitFor({ state: 'detached', timeout: 5_000 });
+    if ((await shown()) !== 0) throw new Error('the text stayed on screen with the preference off');
+    await shot('02c-course-material-hidden');
+    await toggle.click();
+    await window.locator('details.material').first().waitFor({ timeout: 5_000 });
+    if ((await shown()) === 0) throw new Error('the text did not come back');
+    return 'hidden, then shown again';
+  });
 
   // ----------------------------------------------------------------- focus
   await step('start session, land on the ready state', async () => {
@@ -188,6 +221,14 @@ try {
 } catch (error) {
   if (!String(error).includes('__import_only_done__')) {
     findings.push(`ABORT ${String(error).split('\n')[0]}`);
+    await shot('99-abort');
+    try {
+      findings.push(`title: ${await window.title()}`);
+      const text = (await window.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+      findings.push(`body: ${text.slice(0, 1000)}`);
+    } catch (dumpError) {
+      findings.push(`dump failed: ${String(dumpError).split('\n')[0]}`);
+    }
   }
 } finally {
   await app.close();

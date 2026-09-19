@@ -83,6 +83,13 @@ export const zh: Record<MessageKey, string> = {
   'course.notFound': '没有找到这门课程。',
   'course.back': '返回首页',
 
+  // ---------------------------------------------------------------- 导入材料
+  'section.show': '显示原文',
+  'app.material': '原文',
+  'app.material.switch': '是否显示上传的原文',
+  'app.material.on': '显示',
+  'app.material.off': '隐藏',
+
   // Micro-task kinds. These are vocabulary, not data: the learner reads them.
   'kind.read': '阅读',
   'kind.practice': '练习',

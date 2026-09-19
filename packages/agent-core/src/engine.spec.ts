@@ -28,19 +28,47 @@ describe('FocusLoopEngine', () => {
   });
 
   describe('settings', () => {
-    it('defaults to English and the system theme when nothing has been chosen', () => {
-      expect(ctx.engine.getSettings()).toEqual({ locale: 'en', theme: 'system' });
+    it('defaults to English, the system theme, and the material text shown', () => {
+      expect(ctx.engine.getSettings()).toEqual({
+        locale: 'en',
+        theme: 'system',
+        showMaterialText: true,
+      });
     });
 
     it('remembers the chosen language', () => {
-      expect(ctx.engine.setLocale('zh')).toEqual({ locale: 'zh', theme: 'system' });
+      expect(ctx.engine.setLocale('zh')).toEqual({
+        locale: 'zh',
+        theme: 'system',
+        showMaterialText: true,
+      });
       expect(ctx.engine.getSettings().locale).toBe('zh');
     });
 
     it('remembers the chosen theme without disturbing the language', () => {
       ctx.engine.setLocale('zh');
-      expect(ctx.engine.setTheme('light')).toEqual({ locale: 'zh', theme: 'light' });
-      expect(ctx.engine.getSettings()).toEqual({ locale: 'zh', theme: 'light' });
+      expect(ctx.engine.setTheme('light')).toEqual({
+        locale: 'zh',
+        theme: 'light',
+        showMaterialText: true,
+      });
+      expect(ctx.engine.getSettings()).toEqual({
+        locale: 'zh',
+        theme: 'light',
+        showMaterialText: true,
+      });
+    });
+
+    it('remembers whether the imported text is shown, through a store that holds strings', () => {
+      expect(ctx.engine.setShowMaterialText(false)).toEqual({
+        locale: 'en',
+        theme: 'system',
+        showMaterialText: false,
+      });
+      // `app_meta` stores strings, so the value comes back as the word rather than the primitive.
+      // A guard that only accepted a real boolean would silently fall back to the default, and the
+      // preference would look like it saved while never taking effect.
+      expect(ctx.engine.getSettings().showMaterialText).toBe(false);
     });
 
     it('ignores a language nobody wrote wording for', () => {
