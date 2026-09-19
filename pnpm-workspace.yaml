@@ -11,4 +11,9 @@ allowBuilds:
   '@parcel/watcher': true
   lmdb: true
   msgpackr-extract: true
-  better-sqlite3: set this to true or false
+  # electron-builder 26 pulls this in and its only install script is
+  # `node ./script/select-7z-arch.js`, which picks the 7-Zip binary matching the
+  # host architecture. It moved onto this list after reading that script, not
+  # after recognising the name: it is published from electron/windows-installer
+  # by the Electron organisation's own npm account.
+  electron-winstaller: true
