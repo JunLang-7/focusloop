@@ -598,6 +598,37 @@ test('the plan closes the way a panel closes, and never covers the step it start
   await expect(plan).toBeVisible();
   await expect(toggle).toHaveAttribute('aria-expanded', 'true');
 
+  /*
+   * It arrives as a sheet anchored to the bottom edge rather than to a corner, and it is centred.
+   * "Closer to the bottom than to the top" is the property, not "entirely below the middle": a
+   * sheet with four blocks and a timeline is tall enough to cross the middle on purpose. The exact
+   * offset is not asserted, because the simulator bar is present in this run and the sheet starts
+   * above it.
+   */
+  const sheet = await window.locator('.focus-plan[data-open]').evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    return {
+      top: box.top,
+      bottom: box.bottom,
+      left: box.left,
+      right: box.right,
+      // `document.documentElement`, not `window`: this module declares its own `window` for the
+      // page handle, and it shadows the global even inside an `evaluate` callback.
+      viewportHeight: document.documentElement.clientHeight,
+      viewportWidth: document.documentElement.clientWidth,
+    };
+  });
+  expect(sheet.viewportHeight - sheet.bottom).toBeLessThan(100);
+  expect(sheet.viewportHeight - sheet.bottom).toBeLessThan(sheet.top);
+  expect(Math.abs(sheet.left - (sheet.viewportWidth - sheet.right))).toBeLessThan(2);
+
+  // And it rises into place: that motion is what makes it a card that arrives rather than a jump.
+  await expect
+    .poll(() =>
+      window.locator('.focus-plan[data-open]').evaluate((el) => getComputedStyle(el).animationName),
+    )
+    .toBe('plan-rise');
+
   // Escape lowers it and hands focus back to the control that raised it. A panel that can be
   // opened from the keyboard and not closed from it is the trap this replaces: while it was a
   // `<details>`, the summary was the only affordance that could close it.
