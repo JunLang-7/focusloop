@@ -10,25 +10,40 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+# Both jobs only read the repository: they check out the pull request's code, run it and report.
+# Leaving this unset would inherit the repository default, which is more than they need.
+permissions:
+  contents: read
+
 env:
-  NODE_VERSION: '22.13.0'
+  # The Node version is not repeated here: every job reads `.nvmrc`, which is the file a
+  # developer's own tooling already reads.
   PNPM_VERSION: '11.4.0'
 
 jobs:
   quality:
-    name: lint · typecheck · test · build
-    runs-on: ubuntu-latest
+    name: quality (${{ matrix.os }})
+    # The product ships on Windows, is developed on macOS and is built on Linux runners, so the
+    # gates run where each of those facts matters. `fail-fast: false` so that one platform's failure
+    # does not hide what the other two have to say.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install
@@ -52,21 +67,39 @@ jobs:
       - name: Release hygiene
         run: pnpm verify:scaffolding
 
+      - name: Workflow hygiene
+        run: pnpm verify:workflows
+
+      - name: Documentation drift
+        run: pnpm verify:docs
+
+      - name: Theme invariants
+        run: pnpm verify:tokens
+
   e2e:
-    name: golden path (windows)
-    runs-on: windows-latest
+    name: golden path (${{ matrix.os }})
+    # Two platforms, neither of which needs a display: Windows is what the project ships, macOS is
+    # where it is developed and where the design captures are taken. Linux would need xvfb and
+    # `--no-sandbox`, and it is not a platform the product is delivered on.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     needs: quality
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
 
-      - uses: pnpm/action-setup@v5
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
         with:
-          node-version: ${{ env.NODE_VERSION }}
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install
@@ -82,8 +115,49 @@ jobs:
 
       - name: Upload traces
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: playwright-traces
           path: apps/desktop-e2e/test-results/
           retention-days: 7
+
+  package:
+    name: package (smoke)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # The release workflow is the only place these two commands used to run, which meant a broken
+      # packaging configuration was discovered while cutting a release. `package:dir` runs
+      # electron-builder without the installer, so it needs no wine and no signing toolchain.
+      - name: Package the app directory
+        run: pnpm --filter @focusloop/desktop run package:dir
+
+      - name: Package the extension zip
+        run: pnpm --filter @focusloop/extension run build:zip
+
+      # The paths are the contract the release workflow reads. If packaging moves its output, this
+      # is where it should fail — not on the tag.
+      - name: Check the artefacts the release expects
+        run: |
+          test -d apps/desktop/release/linux-unpacked
+          test -f apps/desktop/release/linux-unpacked/resources/app.asar
+          test -f apps/extension/release/focusloop-extension.zip
+          ls -lh \
+            apps/desktop/release/linux-unpacked/resources/app.asar \
+            apps/extension/release/focusloop-extension.zip

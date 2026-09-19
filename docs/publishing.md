@@ -1,14 +1,15 @@
 # Repository and releases
 
-The project lives in a **private** GitHub repository:
+The project lives in a **public** GitHub repository:
 
 ```text
 https://github.com/nianpingy-cpu/focusloop
 ```
 
 `origin` is wired to it over SSH, `main` tracks `origin/main`, and the release tag `v0.1.0-demo` is
-pushed. Only the default branch is on the remote — the feature branches were merged into `main` and
-kept local.
+pushed. The upstream repository carries only `main`: work arrives through pull requests, from a
+branch in a fork for anyone outside the project, and from a branch in the repository itself for the
+owner.
 
 ## Day-to-day
 
@@ -73,7 +74,12 @@ binaries it does not contain, and a local release run would rewrite a tracked fi
 "verify your download against `SHA256SUMS.txt`" refers to the copy attached to the release.
 
 Until that runs, the **Install** link in the README leads to an empty releases page. The repository
-is private, so the release is visible to collaborators only.
+is public, so a published release is visible to anyone.
+
+The same workflow can be rehearsed by hand: **Actions → Release → Run workflow**. A dispatched run
+executes every packaging and checksum step and stops before publishing — a release cannot be
+attached to a branch — and uploads the installer, the extension zip and `SHA256SUMS.txt` to the run
+instead. That is the only way to exercise the NSIS installer without pushing a tag.
 
 ## Before pushing
 
@@ -81,7 +87,13 @@ is private, so the release is visible to collaborators only.
 pnpm lint
 pnpm typecheck
 pnpm test
-node scripts/verify-no-scaffolding.mjs
+pnpm build
+pnpm verify:scaffolding
+pnpm verify:workflows
+pnpm verify:docs
+pnpm verify:tokens
 ```
 
-All four are CI gates (`.github/workflows/ci.yml`) and all four must pass before `main` is pushed.
+The `quality` job runs exactly these on Ubuntu, Windows and macOS, plus `pnpm format:check`; the
+`golden path` job then runs `pnpm e2e` on Windows and macOS, and the `package (smoke)` job builds the
+installer directory and the extension zip so a packaging break is caught before a tag.

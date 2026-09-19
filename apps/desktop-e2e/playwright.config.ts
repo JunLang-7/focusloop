@@ -14,5 +14,8 @@ export default defineConfig({
   reporter: process.env['CI'] === 'true' ? [['list'], ['html', { open: 'never' }]] : [['list']],
   use: {
     trace: 'retain-on-failure',
+    // The CI workflow uploads `test-results/` when the suite fails. The trace is the better artefact
+    // for a DOM problem; the screenshot is the one a reviewer can look at without a viewer.
+    screenshot: 'only-on-failure',
   },
 });

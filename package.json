@@ -18,6 +18,9 @@
     "format": "prettier --write \"**/*.{ts,js,mjs,json,md,yml,yaml,html,css}\"",
     "format:check": "prettier --check \"**/*.{ts,js,mjs,json,md,yml,yaml,html,css}\"",
     "verify:scaffolding": "node scripts/verify-no-scaffolding.mjs",
+    "verify:workflows": "node scripts/verify-workflows.mjs",
+    "verify:docs": "node scripts/verify-docs.mjs",
+    "verify:tokens": "node scripts/verify-theme-tokens.mjs",
     "desktop": "nx run desktop:serve",
     "package:windows": "nx run desktop:package",
     "coverage": "pnpm -r --no-bail --filter \"./packages/*\" run test:coverage"
