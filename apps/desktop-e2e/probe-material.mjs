@@ -60,6 +60,13 @@ async function step(name, body) {
 try {
   await window.waitForLoadState('domcontentloaded');
   await window.setViewportSize({ width: 1280, height: 1000 });
+  // Not `waitFor` on the Home heading: a profile that has been used before opens wherever it was
+  // left, so the probe navigates rather than assuming. It also pins the language, because a stored
+  // Chinese preference changes every label the steps below look for.
+  await window.locator('body').waitFor();
+  const english = window.getByTestId('locale-en');
+  if ((await english.count()) > 0) await english.click();
+  await window.getByRole('link', { name: 'Home' }).click();
   await window.getByRole('heading', { name: 'Keep your learning continuous' }).waitFor();
   await shot('00-home-before-import');
 
@@ -188,6 +195,14 @@ try {
 } catch (error) {
   if (!String(error).includes('__import_only_done__')) {
     findings.push(`ABORT ${String(error).split('\n')[0]}`);
+    await shot('99-abort');
+    try {
+      findings.push(`title: ${await window.title()}`);
+      const text = (await window.locator('body').innerText()).replace(/\s+/g, ' ').trim();
+      findings.push(`body: ${text.slice(0, 1000)}`);
+    } catch (dumpError) {
+      findings.push(`dump failed: ${String(dumpError).split('\n')[0]}`);
+    }
   }
 } finally {
   await app.close();
