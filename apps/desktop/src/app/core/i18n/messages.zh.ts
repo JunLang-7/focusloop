@@ -85,6 +85,10 @@ export const zh: Record<MessageKey, string> = {
 
   // ---------------------------------------------------------------- 导入材料
   'section.show': '显示原文',
+  'app.material': '原文',
+  'app.material.switch': '是否显示上传的原文',
+  'app.material.on': '显示',
+  'app.material.off': '隐藏',
 
   // Micro-task kinds. These are vocabulary, not data: the learner reads them.
   'kind.read': '阅读',

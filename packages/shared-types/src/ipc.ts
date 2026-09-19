@@ -42,6 +42,7 @@ export const IPC_CHANNELS = {
   getSettings: 'focusloop:settings:get',
   setLocale: 'focusloop:settings:set-locale',
   setTheme: 'focusloop:settings:set-theme',
+  setShowMaterialText: 'focusloop:settings:set-material-text',
   subscribeEvents: 'focusloop:event:subscribe',
   unsubscribeEvents: 'focusloop:event:unsubscribe',
   onEvent: 'focusloop:event:push',
@@ -168,6 +169,10 @@ export interface SetThemeRequest {
   readonly theme: ThemePreference;
 }
 
+export interface SetShowMaterialTextRequest {
+  readonly showMaterialText: boolean;
+}
+
 /** Typed, promise-based API exposed as `window.focusloop`. */
 export interface FocusLoopApi {
   getAppVersion(): Promise<string>;
@@ -209,6 +214,7 @@ export interface FocusLoopApi {
   getSettings(): Promise<AppSettings>;
   setLocale(request: SetLocaleRequest): Promise<AppSettings>;
   setTheme(request: SetThemeRequest): Promise<AppSettings>;
+  setShowMaterialText(request: SetShowMaterialTextRequest): Promise<AppSettings>;
 
   getInsights(request: InsightsRequest): Promise<InsightsSummary>;
 

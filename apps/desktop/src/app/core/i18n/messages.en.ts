@@ -89,6 +89,12 @@ const en = {
   // ------------------------------------------------------ imported material
   // The text a concept was generated from, so the material can be read where the course is.
   'section.show': 'Show the text',
+  // A preference rather than a fixed decision: the tasks stand on their own, and the full text is
+  // there for whoever wants to read it in place.
+  'app.material': 'Material text',
+  'app.material.switch': 'Show the text you imported',
+  'app.material.on': 'Shown',
+  'app.material.off': 'Hidden',
   // Micro-task kinds. These are vocabulary, not data: the learner reads them.
   'kind.read': 'read',
   'kind.practice': 'practice',

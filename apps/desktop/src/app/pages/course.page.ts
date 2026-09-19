@@ -36,11 +36,13 @@ import { findMaterial, findSection } from '../core/material-lookup';
                   }
                 </ul>
               }
-              @if (sectionFor(concept.title); as text) {
-                <details class="material">
-                  <summary>{{ t('section.show') }}</summary>
-                  <p class="material__body">{{ text }}</p>
-                </details>
+              @if (showText()) {
+                @if (sectionFor(concept.title); as text) {
+                  <details class="material">
+                    <summary>{{ t('section.show') }}</summary>
+                    <p class="material__body">{{ text }}</p>
+                  </details>
+                }
               }
             </li>
           }
@@ -99,6 +101,9 @@ export class CoursePage {
     return this.state.courses().find((item) => item.id === id) ?? null;
   });
   private readonly material = computed(() => findMaterial(this.state.materials(), this.courseId()));
+
+  /** The learner decides whether the imported text appears at all. */
+  protected readonly showText = this.state.showMaterialText;
 
   /**
    * The text this concept was generated from, so the learner can read the material where the course

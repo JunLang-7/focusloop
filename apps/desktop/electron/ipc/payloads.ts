@@ -9,6 +9,7 @@ import type {
   ResolveInterventionRequest,
   SetLocaleRequest,
   SetThemeRequest,
+  SetShowMaterialTextRequest,
   SimulatorCommand,
   StartSessionRequest,
   ThemePreference,
@@ -45,6 +46,9 @@ export const payload = {
   }),
   setLocale: (locale: Locale): SetLocaleRequest => ({ locale }),
   setTheme: (theme: ThemePreference): SetThemeRequest => ({ theme }),
+  setShowMaterialText: (showMaterialText: boolean): SetShowMaterialTextRequest => ({
+    showMaterialText,
+  }),
   insights: (range: InsightRange): InsightsRequest => ({ range }),
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,
 } as const;

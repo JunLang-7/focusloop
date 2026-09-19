@@ -42,4 +42,22 @@ export function coerceTheme(value: unknown): ThemePreference {
 export interface AppSettings {
   readonly locale: Locale;
   readonly theme: ThemePreference;
+  /**
+   * Whether a course shows the text it was generated from.
+   *
+   * The material is the learner's own upload, and not everyone wants it in front of them: one
+   * learner reads the concepts and the tasks, another wants the whole section. Which of those is
+   * wanted is not this module's decision, so it is stored rather than assumed.
+   */
+  readonly showMaterialText: boolean;
+}
+
+export const DEFAULT_SHOW_MATERIAL_TEXT = true;
+
+export function coerceShowMaterialText(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  // `app_meta` stores strings, so the persisted form is the word rather than the primitive.
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return DEFAULT_SHOW_MATERIAL_TEXT;
 }

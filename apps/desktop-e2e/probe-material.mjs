@@ -104,6 +104,19 @@ try {
   });
   await shot('02b-course-material-text');
 
+  await step('the learner can turn the material text off and on', async () => {
+    const toggle = window.getByTestId('material-text-toggle');
+    const shown = () => window.locator('details.material').count();
+    await toggle.click();
+    await window.locator('details.material').first().waitFor({ state: 'detached', timeout: 5_000 });
+    if ((await shown()) !== 0) throw new Error('the text stayed on screen with the preference off');
+    await shot('02c-course-material-hidden');
+    await toggle.click();
+    await window.locator('details.material').first().waitFor({ timeout: 5_000 });
+    if ((await shown()) === 0) throw new Error('the text did not come back');
+    return 'hidden, then shown again';
+  });
+
   // ----------------------------------------------------------------- focus
   await step('start session, land on the ready state', async () => {
     await window.getByRole('link', { name: 'Home' }).click();

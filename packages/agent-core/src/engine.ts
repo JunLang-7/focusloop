@@ -25,7 +25,12 @@ import type {
   ThemePreference,
 } from '@focusloop/shared-types';
 import { message } from '@focusloop/shared-types';
-import { DEFAULT_INSIGHT_RANGE, coerceLocale, coerceTheme } from '@focusloop/shared-types';
+import {
+  DEFAULT_INSIGHT_RANGE,
+  coerceLocale,
+  coerceShowMaterialText,
+  coerceTheme,
+} from '@focusloop/shared-types';
 import type { AppSettings, Locale } from '@focusloop/shared-types';
 import {
   DEFAULT_STATE_ENGINE_CONFIG,
@@ -61,6 +66,9 @@ export const LOCALE_KEY = 'locale';
 
 /** The `app_meta` key the theme preference is stored under. */
 export const THEME_KEY = 'theme';
+
+/** The `app_meta` key the "show the imported text" preference is stored under. */
+export const SHOW_MATERIAL_TEXT_KEY = 'show-material-text';
 
 /**
  * A request the engine refuses, carrying the code the caller branches on — so a rejection is a value
@@ -749,6 +757,7 @@ export class FocusLoopEngine {
     return {
       locale: coerceLocale(this.store.getMeta(LOCALE_KEY)),
       theme: coerceTheme(this.store.getMeta(THEME_KEY)),
+      showMaterialText: coerceShowMaterialText(this.store.getMeta(SHOW_MATERIAL_TEXT_KEY)),
     };
   }
 
@@ -759,6 +768,11 @@ export class FocusLoopEngine {
 
   setTheme(theme: ThemePreference): AppSettings {
     this.store.setMeta(THEME_KEY, theme);
+    return this.getSettings();
+  }
+
+  setShowMaterialText(showMaterialText: boolean): AppSettings {
+    this.store.setMeta(SHOW_MATERIAL_TEXT_KEY, showMaterialText ? 'true' : 'false');
     return this.getSettings();
   }
 }

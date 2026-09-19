@@ -1,5 +1,10 @@
 import { Injectable, signal, computed } from '@angular/core';
-import { DEFAULT_INSIGHT_RANGE, DEFAULT_LOCALE, DEFAULT_THEME } from '@focusloop/shared-types';
+import {
+  DEFAULT_INSIGHT_RANGE,
+  DEFAULT_LOCALE,
+  DEFAULT_SHOW_MATERIAL_TEXT,
+  DEFAULT_THEME,
+} from '@focusloop/shared-types';
 import type {
   AppSettings,
   BridgeInfo,
@@ -68,6 +73,12 @@ export class AppStateService {
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
   readonly locale = signal<Locale>(DEFAULT_LOCALE);
   readonly theme = signal<ThemePreference>(DEFAULT_THEME);
+  /**
+   * Whether a course shows the text it was generated from. The learner's own material is not
+   * something to decide for them: the tasks stand on their own, and the full section is there for
+   * whoever wants it.
+   */
+  readonly showMaterialText = signal<boolean>(DEFAULT_SHOW_MATERIAL_TEXT);
   readonly insights = signal<InsightsSummary | null>(null);
   readonly insightRange = signal<InsightRange>(DEFAULT_INSIGHT_RANGE);
   /**
@@ -149,7 +160,11 @@ export class AppStateService {
       return await this.api.getSettings();
     } catch (error) {
       this.lastError.set(error instanceof Error ? error.message : String(error));
-      return { locale: DEFAULT_LOCALE, theme: DEFAULT_THEME };
+      return {
+        locale: DEFAULT_LOCALE,
+        theme: DEFAULT_THEME,
+        showMaterialText: DEFAULT_SHOW_MATERIAL_TEXT,
+      };
     }
   }
 
@@ -165,6 +180,13 @@ export class AppStateService {
     await this.run(async () => {
       const settings = await this.api.setTheme({ theme });
       this.theme.set(settings.theme);
+    });
+  }
+
+  async setShowMaterialText(showMaterialText: boolean): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setShowMaterialText({ showMaterialText });
+      this.showMaterialText.set(settings.showMaterialText);
     });
   }
 
