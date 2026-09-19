@@ -164,6 +164,83 @@ describe('generateCourse', () => {
   });
 });
 
+// Found by importing a real Chinese study document: the summary, the key point and the read
+// instruction all come from one sentence, so a sentence that was cut in the wrong place went
+// wrong in three places at once.
+describe('generateCourse with Chinese material', () => {
+  const chinese = material({
+    title: '通信原理概论',
+    sections: [
+      {
+        id: 'sec-1',
+        heading: '通信原理概论',
+        body: '本材料用于导入与学习流程的实测，每一节对应一个核心概念。',
+        order: 0,
+        depth: 1,
+      },
+      {
+        id: 'sec-2',
+        heading: '模拟调制',
+        body: '模拟调制是把基带信号的频谱搬移到较高的载频上，以便在信道中有效辐射并实现多路复用。调制后信号的带宽决定了它占用的信道资源，调频则以更大的带宽换取更好的输出信噪比，这体现了带宽与信噪比之间可以互换的关系。',
+        order: 1,
+        depth: 2,
+      },
+      {
+        id: 'sec-3',
+        heading: '抽样定理',
+        body: '抽样定理指出，对一个最高频率为 f_H 的带限信号，只要抽样频率不低于 2f_H，就可以由抽样值无失真地恢复原信号。低于这个频率会出现频谱混叠，而量化把连续的幅度取值映射到有限个离散电平上，必然引入量化噪声。',
+        order: 2,
+        depth: 2,
+      },
+      {
+        id: 'sec-4',
+        heading: '信道容量',
+        body: '信道容量是在给定信道上可靠传输时可以达到的最大信息速率，香农公式给出了它的上界。差错控制的基本思路是在信息码元之外附加监督码元，使接收端能够发现甚至纠正错误，用冗余换取可靠性。',
+        order: 3,
+        depth: 2,
+      },
+    ],
+  });
+
+  it('ends the summary at a full-width terminator instead of cutting 200 characters', () => {
+    const { course } = generateCourse(chinese);
+    const concept = course.concepts.find((item) => item.title === '模拟调制');
+    expect(concept?.summary).toBe(
+      '模拟调制是把基带信号的频谱搬移到较高的载频上，以便在信道中有效辐射并实现多路复用。',
+    );
+  });
+
+  it('does not treat the document title as a concept', () => {
+    const { course } = generateCourse(chinese);
+    expect(course.concepts.map((concept) => concept.title)).toEqual([
+      '模拟调制',
+      '抽样定理',
+      '信道容量',
+    ]);
+  });
+
+  it('does not build micro tasks for the document title', () => {
+    const { course } = generateCourse(chinese);
+    expect(course.microTasks.every((task) => !task.title.includes('通信原理概论'))).toBe(true);
+  });
+
+  it('does not repeat the summary as the only key point', () => {
+    const { course } = generateCourse(chinese);
+    for (const concept of course.concepts) {
+      expect(concept.keyPoints).not.toContain(concept.summary);
+    }
+  });
+
+  it('builds the quiz options from whole sentences rather than truncated text', () => {
+    const { course } = generateCourse(chinese);
+    for (const quiz of course.quizzes) {
+      for (const option of quiz.options) {
+        expect(option.endsWith('。')).toBe(true);
+      }
+    }
+  });
+});
+
 describe('generateMicroTasks', () => {
   it('returns the tasks of the generated course', () => {
     expect(generateMicroTasks(material())).toEqual(generateCourse(material()).course.microTasks);
