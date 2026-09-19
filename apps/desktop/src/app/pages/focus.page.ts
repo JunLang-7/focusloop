@@ -1,5 +1,5 @@
-import { Component, computed, inject, signal } from '@angular/core';
-import type { OnDestroy } from '@angular/core';
+import { Component, computed, inject, signal, viewChild } from '@angular/core';
+import type { ElementRef, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import type { MicroTask, MicroTaskKind } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
@@ -21,6 +21,7 @@ import { formatDuration } from '../core/format';
 import { formatSpan } from '../core/insights-view';
 import { KIND_GLYPHS, buildPlan } from '../core/session-plan';
 import { keepsRail, type FocusPhase } from '../core/focus-phase';
+import { PLAN_INITIAL_OPEN, nextPlanOpen, type PlanEvent } from '../core/plan-visibility';
 
 const CLOCK_RADIUS = 86;
 const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
@@ -29,6 +30,15 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
 @Component({
   selector: 'fl-focus',
   standalone: true,
+  /*
+   * Both of these belong to the document rather than to this element. The plan panel is not a
+   * modal, so by the time the learner changes their mind, focus may be anywhere on the page — and a
+   * click that lands outside the panel never reaches it at all.
+   */
+  host: {
+    '(document:keydown.escape)': 'dismissPlan()',
+    '(document:click)': 'onDocumentClick($event)',
+  },
   template: `
     @if (snapshot(); as current) {
       <div class="focus-workspace" [attr.data-phase]="phase()" [attr.data-rail]="railAttr()">
@@ -192,45 +202,64 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
             </section>
           }
 
-          <details class="focus-plan">
-            <summary class="focus-plan__summary" data-testid="focus-plan-toggle">
-              <span>{{ t('focus.showPlan') }}</span>
+          <!--
+            The open state is owned by the component, in core/plan-visibility.ts. While the browser
+            held it, the summary that raised the card was also the only thing that could lower it:
+            Escape did nothing, a click elsewhere did nothing, and starting a step left the card
+            over the task.
+          -->
+          <section class="focus-plan" #planRoot [attr.data-open]="planOpen() ? '' : null">
+            <button
+              type="button"
+              class="focus-plan__summary"
+              #planTrigger
+              data-testid="focus-plan-toggle"
+              aria-controls="focus-plan-panel"
+              [attr.aria-expanded]="planOpen()"
+              (click)="togglePlan()"
+            >
+              <span>{{ planOpen() ? t('focus.hidePlan') : t('focus.showPlan') }}</span>
               @if (plan().blocks.length > 0) {
                 <span class="muted small" data-testid="plan-remaining">{{
                   remaining(plan().totalMinutes)
                 }}</span>
               }
-            </summary>
-            @if (plan().blocks.length === 0) {
-              <p class="muted">{{ t('focus.allDone') }}</p>
-            } @else {
-              <ul class="plan focus-plan__timeline" [style.height.px]="plan().height">
-                @for (block of plan().blocks; track block.id) {
-                  <li
-                    class="plan__block focus-plan__block"
-                    data-testid="plan-block"
-                    [attr.data-kind]="block.kind"
-                    [style.top.px]="block.offset"
-                    [style.height.px]="block.height"
-                  >
-                    <span class="plan__glyph" aria-hidden="true">{{ glyph(block.kind) }}</span
-                    ><span class="plan__title">{{ block.title }}</span
-                    ><span class="muted small plan__estimate">{{
-                      shortEstimate(block.minutes)
-                    }}</span>
-                    <button
-                      type="button"
-                      class="btn btn--small"
-                      data-testid="start-task"
-                      (click)="start(block.id)"
-                    >
-                      {{ t('focus.startTask') }}
-                    </button>
-                  </li>
+            </button>
+
+            @if (planOpen()) {
+              <div class="focus-plan__panel" id="focus-plan-panel">
+                @if (plan().blocks.length === 0) {
+                  <p class="muted">{{ t('focus.allDone') }}</p>
+                } @else {
+                  <ul class="plan focus-plan__timeline" [style.height.px]="plan().height">
+                    @for (block of plan().blocks; track block.id) {
+                      <li
+                        class="plan__block focus-plan__block"
+                        data-testid="plan-block"
+                        [attr.data-kind]="block.kind"
+                        [style.top.px]="block.offset"
+                        [style.height.px]="block.height"
+                      >
+                        <span class="plan__glyph" aria-hidden="true">{{ glyph(block.kind) }}</span
+                        ><span class="plan__title">{{ block.title }}</span
+                        ><span class="muted small plan__estimate">{{
+                          shortEstimate(block.minutes)
+                        }}</span>
+                        <button
+                          type="button"
+                          class="btn btn--small"
+                          data-testid="start-task"
+                          (click)="start(block.id)"
+                        >
+                          {{ t('focus.startTask') }}
+                        </button>
+                      </li>
+                    }
+                  </ul>
                 }
-              </ul>
+              </div>
             }
-          </details>
+          </section>
         </main>
       </div>
     } @else {
@@ -253,6 +282,10 @@ export class FocusPage implements OnDestroy {
   private timerHandle: ReturnType<typeof setInterval> | null = null;
   private timer = signal<FocusTimerState>(createFocusTimer());
   private readonly completedView = signal(false);
+  private readonly planOpenState = signal(PLAN_INITIAL_OPEN);
+  protected readonly planOpen = this.planOpenState.asReadonly();
+  private readonly planRoot = viewChild<ElementRef<HTMLElement>>('planRoot');
+  private readonly planTrigger = viewChild<ElementRef<HTMLButtonElement>>('planTrigger');
 
   protected readonly t = this.i18n.t;
   protected readonly snapshot = this.state.snapshot;
@@ -310,10 +343,38 @@ export class FocusPage implements OnDestroy {
     return this.phase() === 'complete' ? 0 : CLOCK_CIRCUMFERENCE * (1 - this.timer().progress);
   }
 
+  protected togglePlan(): void {
+    this.applyPlanEvent('toggle');
+  }
+
+  /** Escape. Focus goes back to the trigger so the keyboard is not left with nowhere to be. */
+  protected dismissPlan(): void {
+    if (!this.planOpen()) return;
+    this.applyPlanEvent('escape');
+    this.planTrigger()?.nativeElement.focus();
+  }
+
+  /**
+   * A click anywhere outside the plan closes it. The click that opened it is inside `planRoot`,
+   * so it is ignored here rather than immediately closing what it just opened.
+   */
+  protected onDocumentClick(event: MouseEvent): void {
+    if (!this.planOpen()) return;
+    const target = event.target as Node | null;
+    if (target !== null && this.planRoot()?.nativeElement.contains(target) === true) return;
+    this.applyPlanEvent('outside');
+  }
+
+  private applyPlanEvent(event: PlanEvent): void {
+    this.planOpenState.update((isOpen) => nextPlanOpen(isOpen, event));
+  }
+
   protected async startQuick(taskId: string): Promise<void> {
     await this.start(taskId, DEFAULT_FOCUS_MINUTES);
   }
   protected async start(taskId: string, minutes?: number): Promise<void> {
+    // Starting a step uncovers it: the plan is not the learner's to tidy up first.
+    this.applyPlanEvent('start');
     await this.state.dispatch('TASK_STARTED', { taskId });
     const task = this.findTask(taskId);
     this.completedView.set(false);
@@ -339,6 +400,8 @@ export class FocusPage implements OnDestroy {
     this.startInterval();
   }
   protected async complete(taskId: string): Promise<void> {
+    // The next step is previewed without the plan laid back over it.
+    this.applyPlanEvent('finish');
     await this.state.dispatch('TASK_COMPLETED', { taskId });
     this.clearTimer();
     this.timer.set(createFocusTimer());

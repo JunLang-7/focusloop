@@ -135,6 +135,7 @@ const en = {
   'focus.completeEyebrow': 'One step done',
   'focus.completedTitle': 'Nice. Keep the thread.',
   'focus.showPlan': 'Show full plan',
+  'focus.hidePlan': 'Hide the plan',
   'focus.timerAria': 'Focus timer',
   'focus.pause': 'Pause',
   'focus.resume': 'Continue',

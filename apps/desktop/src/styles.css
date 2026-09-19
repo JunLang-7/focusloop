@@ -1783,10 +1783,16 @@ code {
   color: var(--text);
 }
 
+/* One glyph per direction, so the control says what it will do rather than naming only one of the
+   two things it does. */
 .focus-plan__summary::after {
   color: var(--text-muted);
-  content: '→';
+  content: '▾';
   font-size: 16px;
+}
+
+.focus-plan[data-open] .focus-plan__summary::after {
+  content: '▴';
 }
 
 .focus-plan .plan {
@@ -1874,12 +1880,8 @@ body:has(fl-focus .focus-workspace[data-rail]) .content {
   padding: 18px clamp(20px, 5vw, 68px) 96px;
 }
 
-body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:not(:has(.focus-plan__summary)) {
-  display: none;
-}
-
-/* Focus mode keeps the plan summary reachable while the task stays the visual centre. */
-body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:has(.focus-plan__summary) {
+/* Focus mode keeps the plan trigger reachable while the task stays the visual centre. */
+body:has(fl-focus .focus-workspace[data-rail]) .focus-plan {
   display: block;
   align-self: start;
   min-width: 0;
@@ -1887,13 +1889,13 @@ body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:has(.focus-plan__summ
   border: 0;
 }
 
-body:has(fl-focus .focus-workspace[data-rail])
-  .focus-plan:has(.focus-plan__summary):not([open])
-  > :not(.focus-plan__summary) {
-  display: none;
-}
-
-.focus-plan[open] {
+/*
+ * Open means a card over the canvas, and the state is the component's (`core/plan-visibility.ts`)
+ * rather than the browser's. As a `<details>` the panel had exactly one affordance — the summary
+ * that raised it — so Escape, a click elsewhere and starting a step could not lower it, and a
+ * running task sat behind it (#71).
+ */
+.focus-plan[data-open] {
   position: fixed;
   z-index: 12;
   top: 76px;
@@ -1905,10 +1907,6 @@ body:has(fl-focus .focus-workspace[data-rail])
   border: 1px solid var(--border);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-md);
-}
-
-.focus-plan[open] > :not(.focus-plan__summary) {
-  display: block;
 }
 
 body:has(fl-focus .focus-workspace[data-rail]) .simulator {
@@ -1954,9 +1952,8 @@ body:has(fl-focus .focus-workspace[data-rail]) .simulator {
     grid-row: 2;
   }
 
-  .focus-plan {
-    display: none;
-  }
+  /* The plan is not hidden here any more. It is closed by default and opened on demand, so also
+     hiding the trigger left a narrow window with no route to the plan at all (#71). */
 }
 
 @media (max-height: 680px) and (min-width: 901px) {

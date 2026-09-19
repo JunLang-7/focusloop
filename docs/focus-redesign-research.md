@@ -278,7 +278,9 @@ demo 模拟器。
   `core/focus-timer.ts` 的 `progress` 驱动；
 - 暂停与超时：时间环冻结，状态写在环内（`paused` / `time is up`），不弹面板；
 - 完成态：只确认一次，然后只预览下一步，不再铺开剩余列表；
-- 计划抽屉：复用 #24 的比例时间块，默认折叠（`<details>`），摘要里保留剩余总时长；
+- 计划抽屉：复用 #24 的比例时间块，默认折叠，摘要里保留剩余总时长。开关状态由 renderer 持有
+  （`core/plan-visibility.ts`），因此 Escape、点击别处、以及开始或完成一步都会收起它；做成
+  `<details>` 时只有摘要能关掉它，且专注时那张卡片会盖在任务上（#71）；
 - 专注中的外壳：侧栏收成 64px 图标栏，品牌文字、今日统计与设置隐藏。这一层是纯 CSS
   （`styles.css` 的 focus mode 段用 `:has()` 判断 `data-phase`），没有改动 `app.component.ts`。
 

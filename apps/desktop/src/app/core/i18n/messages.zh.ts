@@ -127,6 +127,7 @@ export const zh: Record<MessageKey, string> = {
   'focus.completeEyebrow': '完成了一步',
   'focus.completedTitle': '很好，保持这条思路。',
   'focus.showPlan': '查看完整计划',
+  'focus.hidePlan': '收起计划',
   'focus.timerAria': '专注计时器',
   'focus.pause': '暂停',
   'focus.resume': '继续',

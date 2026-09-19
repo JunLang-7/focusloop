@@ -575,3 +575,49 @@ test('the sidebar folds on click, and focus folds it fully, with a floating reca
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+/*
+ * Last, and it brings its own session, because it finishes by starting a step: any test after it
+ * would inherit a different current task than the one it was written against.
+ */
+test('the plan closes the way a panel closes, and never covers the step it started', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+  await stateIs('FOCUSED');
+
+  const toggle = window.getByTestId('focus-plan-toggle');
+  const plan = window.locator('.plan');
+
+  // Closed until it is asked for. While a step runs, nothing is laid over the task.
+  await expect(plan).toBeHidden();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+  // The trigger raises it.
+  await toggle.click();
+  await expect(plan).toBeVisible();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+
+  // Escape lowers it and hands focus back to the control that raised it. A panel that can be
+  // opened from the keyboard and not closed from it is the trap this replaces: while it was a
+  // `<details>`, the summary was the only affordance that could close it.
+  await window.keyboard.press('Escape');
+  await expect(plan).toBeHidden();
+  await expect(toggle).toBeFocused();
+
+  // A click anywhere else lowers it too.
+  await toggle.click();
+  await expect(plan).toBeVisible();
+  await window.getByTestId('tasks-completed').click();
+  await expect(plan).toBeHidden();
+
+  // And starting a step lowers it without being asked, so the step it just started is not behind
+  // the card — the reason the plan was unusable during a step.
+  await toggle.click();
+  await expect(plan).toBeVisible();
+  await window.locator('.plan').getByTestId('start-task').first().click();
+  await expect(plan).toBeHidden();
+  await expect(window.getByTestId('task-title')).toBeVisible();
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
