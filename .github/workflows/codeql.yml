@@ -1,0 +1,62 @@
+name: Code scanning
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    # Monday, the day the repository's other scheduled visitor (Dependabot) works. The pull
+    # request and push triggers read every reviewed change; the weekly run is the one that
+    # reads what is actually on `main`, however it got there.
+    - cron: '40 4 * * 1'
+
+concurrency:
+  group: code-scanning-${{ github.ref }}
+  cancel-in-progress: true
+
+# The analysis only reads the repository and runs queries. The one thing it writes is the SARIF
+# that becomes the alerts on the Security tab, so that is the one permission granted — on the
+# job, below, not the workflow. A pull request from a fork runs with a read-only token whatever
+# this file says: the scan happens, the upload is skipped, and the scan of the merge that lands
+# the change files the alerts.
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: analyze (javascript-typescript, actions)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      # Results, not code: the SARIF upload is the only thing this job does with a token.
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # Type information is what turns the JavaScript analysis from guesswork into reading: the
+      # queries follow a type through Electron and Angular instead of stopping at the import.
+      # This is the exact command the quality job runs on three platforms.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # `actions` is in the list because the workflows are source too. The hygiene gate pins what
+      # they run; these are the queries that read what they say — a `run:` block expanding
+      # `${{ github.event.* }}` out of a pull request title is a class nothing else in the
+      # repository can see. `build-mode: none`: there is nothing to compile for either language.
+      - uses: github/codeql-action/init@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          languages: javascript-typescript, actions
+
+      - uses: github/codeql-action/analyze@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          category: '/language:javascript-typescript,actions'
