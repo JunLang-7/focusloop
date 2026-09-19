@@ -13,6 +13,7 @@ import type {
   LearningEvent,
   LearningState,
   Locale,
+  MaterialDocument,
   ResumeCardView,
   RuntimeInfo,
   SessionSnapshot,
@@ -51,6 +52,12 @@ export class AppStateService {
 
   readonly runtime = signal<RuntimeInfo | null>(null);
   readonly courses = signal<readonly Course[]>([]);
+  /**
+   * The parsed documents behind imported courses. A course keeps concept summaries and tasks; the
+   * text that was uploaded lives here and nowhere else, so this is what makes the material readable
+   * inside the application instead of only quizzed.
+   */
+  readonly materials = signal<readonly MaterialDocument[]>([]);
   readonly snapshot = signal<SessionSnapshot | null>(null);
   readonly resumeCard = signal<ResumeCardView | null>(null);
   readonly dashboard = signal<DashboardSummary | null>(null);
@@ -87,14 +94,16 @@ export class AppStateService {
 
   async refresh(): Promise<void> {
     await this.run(async () => {
-      const [runtime, courses, snapshot, dashboard] = await Promise.all([
+      const [runtime, courses, materials, snapshot, dashboard] = await Promise.all([
         this.api.getRuntimeInfo(),
         this.api.listCourses(),
+        this.api.listMaterials(),
         this.api.getCurrentSession(),
         this.api.getDashboard(),
       ]);
       this.runtime.set(runtime);
       this.courses.set(courses);
+      this.materials.set(materials);
       this.snapshot.set(snapshot);
       this.dashboard.set(dashboard);
       this.resumeCard.set(
@@ -273,7 +282,19 @@ export class AppStateService {
         conceptsCreated: imported.conceptsCreated,
         microTasksCreated: imported.microTasksCreated,
       };
-      this.courses.set(await this.api.listCourses());
+      /*
+       * Both, not just the courses.
+       *
+       * An import writes a course and the document it came from, and the course only carries
+       * summaries. Reloading the list alone left the new course without its text until the next
+       * launch — the concept cards rendered and the material behind them did not.
+       */
+      const [courses, materials] = await Promise.all([
+        this.api.listCourses(),
+        this.api.listMaterials(),
+      ]);
+      this.courses.set(courses);
+      this.materials.set(materials);
     });
     return result;
   }

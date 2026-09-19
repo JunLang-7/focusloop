@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { kindLabel } from '../core/i18n/labels';
+import { findMaterial, findSection } from '../core/material-lookup';
 
 /** Screen 2 of 5: concepts, micro tasks, and the entry point into a session. */
 @Component({
@@ -34,6 +35,12 @@ import { kindLabel } from '../core/i18n/labels';
                     <li>{{ point }}</li>
                   }
                 </ul>
+              }
+              @if (sectionFor(concept.title); as text) {
+                <details class="material">
+                  <summary>{{ t('section.show') }}</summary>
+                  <p class="material__body">{{ text }}</p>
+                </details>
               }
             </li>
           }
@@ -91,6 +98,15 @@ export class CoursePage {
     const id = this.courseId();
     return this.state.courses().find((item) => item.id === id) ?? null;
   });
+  private readonly material = computed(() => findMaterial(this.state.materials(), this.courseId()));
+
+  /**
+   * The text this concept was generated from, so the learner can read the material where the course
+   * describes it. Returns nothing for the built-in demo course, which has no imported document.
+   */
+  protected sectionFor(conceptTitle: string): string | null {
+    return findSection(this.material(), conceptTitle)?.body ?? null;
+  }
 
   protected kind(value: string): string {
     return kindLabel(value, this.t);

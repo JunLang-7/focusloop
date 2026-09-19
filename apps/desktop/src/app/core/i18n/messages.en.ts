@@ -86,7 +86,9 @@ const en = {
   'course.status.open': 'open',
   'course.notFound': 'Course not found.',
   'course.back': 'Back to home',
-
+  // ------------------------------------------------------ imported material
+  // The text a concept was generated from, so the material can be read where the course is.
+  'section.show': 'Show the text',
   // Micro-task kinds. These are vocabulary, not data: the learner reads them.
   'kind.read': 'read',
   'kind.practice': 'practice',

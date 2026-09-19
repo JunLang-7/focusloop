@@ -91,6 +91,19 @@ try {
   });
   await shot('02-course-page');
 
+  await step('the imported text is readable on the course page', async () => {
+    const details = window.locator('details.material').first();
+    await details.locator('summary').click();
+    const body = (await details.locator('.material__body').innerText()).trim();
+    if (body.length === 0) throw new Error('the section body is empty');
+    const fragment = body.split('\n')[0]?.trim() ?? '';
+    if (!CONTENT.includes(fragment)) {
+      throw new Error(`the text does not come from the material: ${fragment}`);
+    }
+    return `${body.length} characters, matching the source`;
+  });
+  await shot('02b-course-material-text');
+
   // ----------------------------------------------------------------- focus
   await step('start session, land on the ready state', async () => {
     await window.getByRole('link', { name: 'Home' }).click();

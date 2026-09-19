@@ -4,6 +4,7 @@ import type { DashboardSummary } from './dashboard';
 import type { LearningEvent, SessionEndReason } from './events';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { InsightsRequest, InsightsSummary } from './insights';
+import type { MaterialDocument } from './material';
 import type { AppSettings, Locale, ThemePreference } from './settings';
 import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
@@ -175,6 +176,12 @@ export interface FocusLoopApi {
   listCourses(): Promise<readonly Course[]>;
   getCourse(courseId: string): Promise<Course | null>;
   importMaterial(request: ImportMaterialRequest): Promise<ImportMaterialResponse>;
+  /**
+   * The parsed documents behind imported courses. Their sections hold the text that was uploaded,
+   * which is the only place it is kept: a course carries concept summaries and tasks, never the
+   * material itself.
+   */
+  listMaterials(): Promise<readonly MaterialDocument[]>;
 
   startSession(request: StartSessionRequest): Promise<StartSessionResponse>;
   endSession(request: EndSessionRequest): Promise<LearningSession>;
