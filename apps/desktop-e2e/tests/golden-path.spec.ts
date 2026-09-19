@@ -621,3 +621,60 @@ test('the plan closes the way a panel closes, and never covers the step it start
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+/*
+ * Last as well: it finishes by completing a step, which leaves a different current task and a
+ * different count behind than the tests above were written against.
+ */
+test('finishing a step arrives once, and says nothing that accumulates', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+  await stateIs('FOCUSED');
+
+  await window.getByTestId('complete-task').click();
+
+  const confirmation = window.locator('.focus-task--complete');
+  await expect(confirmation).toBeVisible();
+
+  /*
+   * It arrives rather than swapping in — asserted on the computed animation, because a screenshot
+   * cannot tell "animated" from "instant", and this motion is the whole of what #73 asks for.
+   */
+  await expect
+    .poll(() => confirmation.evaluate((el) => getComputedStyle(el).animationName))
+    .toBe('step-done-in');
+  await expect
+    .poll(() =>
+      confirmation.locator('.eyebrow').evaluate((el) => getComputedStyle(el).animationName),
+    )
+    .toBe('step-done-mark');
+
+  /*
+   * The next step is usable from the first frame: the motion is decoration, not a gate.
+   */
+  const next = confirmation.getByTestId('start-task');
+  await expect(next).toBeEnabled();
+
+  /*
+   * And a digit anywhere in here would be a count. Counting, streaks and anything else that
+   * accumulates are what `docs/focus-redesign-research.md` rules out, so the confirmation is
+   * checked for saying one thing and offering the next instead.
+   */
+  expect(await confirmation.innerText()).not.toMatch(/\d/);
+
+  await next.click();
+  await stateIs('FOCUSED');
+
+  // Reduced motion: the same confirmation, arriving at once instead of rising.
+  await window.emulateMedia({ reducedMotion: 'reduce' });
+  await window.getByTestId('complete-task').click();
+  await expect(confirmation).toBeVisible();
+  await expect
+    .poll(() => confirmation.evaluate((el) => getComputedStyle(el).animationName))
+    .toBe('none');
+  await expect(window.getByTestId('task-title')).toBeVisible();
+  await window.emulateMedia({ reducedMotion: 'no-preference' });
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});

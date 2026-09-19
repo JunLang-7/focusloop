@@ -1525,6 +1525,50 @@ code {
   padding-block: clamp(26px, 5vh, 54px) clamp(22px, 3vh, 34px);
 }
 
+/*
+ * Finishing a step is the one moment the app has earned, so it arrives rather than swapping in:
+ * the confirmation rises, and the mark above it lands a beat later.
+ *
+ * This is the whole of the feedback, deliberately. Nothing accumulates — no counter, no streak,
+ * nothing to compare — because `docs/focus-redesign-research.md` names those as the things that
+ * would displace 认知续接, which is what this product is actually for.
+ *
+ * Both motions are transform and opacity only, so neither reflows nor delays the next step: the
+ * control that continues is interactive from the first frame (`backwards` keeps the mark hidden
+ * during its delay instead of flashing it).
+ */
+.focus-task--complete {
+  animation: step-done-in 320ms ease-out;
+}
+
+.focus-task--complete .eyebrow {
+  animation: step-done-mark 420ms ease-out 120ms backwards;
+}
+
+@keyframes step-done-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes step-done-mark {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .focus-task--active {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 280px);
@@ -2008,6 +2052,12 @@ body:has(fl-focus .focus-workspace[data-rail]) .simulator {
 
   .focus-progress-strip__fill {
     transition: none;
+  }
+
+  /* The confirmation still appears, and still says the same thing — it just arrives at once. */
+  .focus-task--complete,
+  .focus-task--complete .eyebrow {
+    animation: none;
   }
 }
 
