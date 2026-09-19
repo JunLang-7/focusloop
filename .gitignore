@@ -13,11 +13,21 @@ release/
 .nx/
 .nx-cache/
 
+# Angular CLI build cache
+# Written by the CLI on every build, so a tracked copy means every local build leaves a modified
+# binary in the tree. Same shape of problem as SHA256SUMS.txt below.
+.angular/
+
 # Test / coverage
 coverage/
 test-results/
 playwright-report/
 blob-report/
+
+# Design-review captures
+# Screenshots are a review aid, not source. `apps/desktop-e2e/capture-ui.mjs` writes to a directory
+# outside the repository on purpose; a local `output/` is where hand-run captures land.
+/output/
 
 # Electron packaging
 apps/desktop/release/
