@@ -30,7 +30,7 @@
     "@types/node": "^22.7.5",
     "@vitest/coverage-v8": "2.1.9",
     "eslint": "^10.10.0",
-    "eslint-config-prettier": "^9.1.0",
+    "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-jsdoc": "^64.5.2",
     "globals": "^15.11.0",
     "nx": "^20.1.0",
