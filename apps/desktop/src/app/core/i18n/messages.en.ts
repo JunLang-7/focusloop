@@ -95,6 +95,18 @@ const en = {
   'app.material.switch': 'Show the text you imported',
   'app.material.on': 'Shown',
   'app.material.off': 'Hidden',
+
+  // ----------------------------------------------------------- course map
+  // The whole course as one picture, and the exercise of putting it back from memory.
+  'map.title': 'Course map',
+  'map.hint': 'What this course is made of, in the order you will meet it.',
+  'map.recall.title': 'Draw it again from memory',
+  'map.recall.hint':
+    'Write the concepts you remember, in your own words. The order does not matter, and you can dictate instead of typing.',
+  'map.recall.label': 'Your map',
+  'map.recall.score': 'You recalled {recalled} of {total}.',
+  'map.recall.done': 'That is the whole map. It stuck.',
+  'map.recall.missed': 'Not back yet',
   // Micro-task kinds. These are vocabulary, not data: the learner reads them.
   'kind.read': 'read',
   'kind.practice': 'practice',

@@ -4,11 +4,13 @@ import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { kindLabel } from '../core/i18n/labels';
 import { findMaterial, findSection } from '../core/material-lookup';
+import { CourseMapComponent } from '../components/course-map.component';
 
 /** Screen 2 of 5: concepts, micro tasks, and the entry point into a session. */
 @Component({
   selector: 'fl-course',
   standalone: true,
+  imports: [CourseMapComponent],
   template: `
     @if (course(); as value) {
       <header class="page-head">
@@ -21,6 +23,8 @@ import { findMaterial, findSection } from '../core/material-lookup';
           {{ t('course.start') }}
         </button>
       </header>
+
+      <fl-course-map [course]="value" [completed]="completedIds()" />
 
       <section>
         <h2 class="section-title">{{ t('course.concepts') }}</h2>
@@ -104,6 +108,10 @@ export class CoursePage {
 
   /** The learner decides whether the imported text appears at all. */
   protected readonly showText = this.state.showMaterialText;
+  /** Ids the session has finished, so the recall exercise knows when the course is complete. */
+  protected readonly completedIds = computed(
+    () => this.state.snapshot()?.session.completedTaskIds ?? [],
+  );
 
   /**
    * The text this concept was generated from, so the learner can read the material where the course

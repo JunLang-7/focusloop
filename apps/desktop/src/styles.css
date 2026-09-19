@@ -1583,6 +1583,49 @@ code {
   white-space: pre-line;
 }
 
+/* The course map. Every position comes from `buildKnowledgeMap`, so the drawing and its tests share
+   one source of truth. The scroll container keeps a 720px drawing legible on a narrow window
+   instead of squashing the labels. */
+.map__scroll {
+  margin-top: 12px;
+  overflow-x: auto;
+}
+
+.map {
+  position: relative;
+}
+
+.map__edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.map__edges line {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.map__node {
+  position: absolute;
+  display: flex;
+  box-sizing: border-box;
+  align-items: center;
+  overflow: hidden;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-elevated);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.map__node--root {
+  justify-content: center;
+  font-weight: 600;
+}
+
 /* Focus mode quietly narrows the shell to a rail. Everything stays in the DOM, so the e2e flow
    and the demo simulator keep their targets.
    Which phases get the rail is a product decision rather than a stylesheet one: it is `keepsRail`

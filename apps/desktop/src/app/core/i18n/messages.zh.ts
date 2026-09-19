@@ -90,6 +90,16 @@ export const zh: Record<MessageKey, string> = {
   'app.material.on': '显示',
   'app.material.off': '隐藏',
 
+  // ---------------------------------------------------------------- 课程地图
+  'map.title': '课程地图',
+  'map.hint': '这门课由什么组成，按你会遇到的顺序排列。',
+  'map.recall.title': '凭记忆再画一遍',
+  'map.recall.hint': '用你自己的话写下还记得的概念。顺序无所谓，也可以不打字、直接用语音输入。',
+  'map.recall.label': '你的地图',
+  'map.recall.score': '你回想起 {recalled} / {total}。',
+  'map.recall.done': '整张地图都想起来了，这次真的记住了。',
+  'map.recall.missed': '还没想起来',
+
   // Micro-task kinds. These are vocabulary, not data: the learner reads them.
   'kind.read': '阅读',
   'kind.practice': '练习',
