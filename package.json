@@ -26,7 +26,7 @@
     "coverage": "pnpm -r --no-bail --filter \"./packages/*\" run test:coverage"
   },
   "devDependencies": {
-    "@eslint/js": "^9.13.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.7.5",
     "@vitest/coverage-v8": "2.1.9",
     "eslint": "^10.10.0",
