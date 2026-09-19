@@ -27,8 +27,8 @@ importers:
         specifier: ^64.5.2
         version: 64.5.2(eslint@10.10.0(jiti@2.7.0))(typescript@5.9.3)
       globals:
-        specifier: ^15.11.0
-        version: 15.15.0
+        specifier: ^17.12.0
+        version: 17.12.0
       nx:
         specifier: ^20.1.0
         version: 20.8.4
@@ -3069,8 +3069,8 @@ packages:
     resolution: {integrity: sha512-PT6XReJ+D07JvGoxQMkT6qji/jVNfX/h364XHZOWeRzy64sSFr+xJ5OX7LI3b4MPQzdL4H8Y8M0xzPpsVMwA8Q==}
     engines: {node: '>=10.0'}
 
-  globals@15.15.0:
-    resolution: {integrity: sha512-7ACyT3wmyp3I61S4fG682L0VA2RGD9otkqGJIwNUMF1SWUombIIk+af1unuDYgMm082aHYwD+mzJvv9Iu8dsgg==}
+  globals@17.12.0:
+    resolution: {integrity: sha512-cezEd/DTyyht9cvSSURyygXPfy04GtWO/5e6ZPvH7fCtjKz9PYOmuawphw1Ctd1f6C+5JypXfGD7ahNMXvevBA==}
     engines: {node: '>=18'}
 
   globalthis@1.0.4:
@@ -7511,7 +7511,7 @@ snapshots:
       serialize-error: 7.0.1
     optional: true
 
-  globals@15.15.0: {}
+  globals@17.12.0: {}
 
   globalthis@1.0.4:
     dependencies:
