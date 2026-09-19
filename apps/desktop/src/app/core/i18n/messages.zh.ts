@@ -21,6 +21,11 @@ export const zh: Record<MessageKey, string> = {
   'app.theme': '主题',
   'app.theme.switch': '切换主题',
 
+  // 边栏折叠。两个方向都是按钮，读屏听到的是动作而不是状态：悬浮按钮、以及边栏收起时边栏
+  // 自己的开关，读作“展开”；边栏停靠时，开关读作“收起”。
+  'app.sidebar.collapse': '收起边栏',
+  'app.sidebar.expand': '展开边栏',
+
   // 侧边栏的常驻摘要。英文要分单复数，中文不分，所以两种形式填一样的措辞。
   'app.today': '今日',
   'app.today.empty': '今天还没有记录。',

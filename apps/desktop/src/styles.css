@@ -166,10 +166,16 @@ ol {
 
 /* ------------------------------------------------------------------ shell */
 
+/*
+ * The collapsed state rewrites the first track, so both states must be structurally
+ * identical (`px` + `minmax(0, 1fr)`) for `grid-template-columns` to interpolate —
+ * which is what makes the fold feel like a fold instead of a layout swap.
+ */
 .shell {
   display: grid;
-  grid-template-columns: 232px 1fr;
+  grid-template-columns: 232px minmax(0, 1fr);
   height: 100vh;
+  transition: grid-template-columns 180ms ease;
 }
 
 .sidebar {
@@ -179,6 +185,63 @@ ol {
   padding: 20px 16px;
   background: var(--bg-elevated);
   border-right: 1px solid var(--border);
+  /* `min-width: 0` is what lets the grid track reach zero; without it the sidebar's
+     min-content width would keep the column open while the shell folded. */
+  min-width: 0;
+  overflow: hidden;
+  transition: opacity 140ms ease;
+  /*
+   * Both columns are named, never auto-placed. Ordering the columns by document order would
+   * be fine right up until the peek lifts the sidebar out of flow onto the window: the
+   * content then becomes the first in-flow child and is handed the *first* track, the folded
+   * 0px one. It keeps its own padding and the fold's reservation, and lays itself out in the
+   * sliver between them — the peek came out as a column of one letter per line, or as a
+   * screen with nothing on it at all, beside a sidebar that had not moved. Naming the
+   * columns makes the content's track independent of who is in flow.
+   */
+  grid-area: 1 / 1;
+}
+
+/*
+ * The states in which the sidebar is folded away entirely: the user closed it, or a
+ * focus commitment is running and the user has not recalled it. The grid keeps both
+ * tracks (the first collapses to 0) and `visibility: hidden` takes the sidebar out of
+ * the tab order and the accessibility tree, which `opacity: 0` alone would not.
+ */
+.shell.is-collapsed,
+body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) {
+  grid-template-columns: 0px minmax(0, 1fr);
+}
+
+.shell.is-collapsed .sidebar,
+body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .sidebar {
+  visibility: hidden;
+  opacity: 0;
+  border-right-width: 0;
+  /*
+   * The track is 0px wide, the padding is not: 16px either side would leave a 32px sliver
+   * of clipped nav labels standing in the content's gutter for as long as the fold's fade
+   * lasts. Zeroed inline, the folded box is exactly nothing, so no phase of the fade can
+   * paint — the sidebar either has its 232px or it is not on screen.
+   */
+  padding-inline: 0;
+  /* Delay the visibility flip until the fade has finished; the reverse needs no delay. */
+  transition:
+    opacity 140ms ease,
+    visibility 0s linear 140ms;
+}
+
+/*
+ * The header button is hidden in the focus-folded layout, because there the shell is not
+ * what folded: the focus screen is, and the floating button in the corner is the way back.
+ * Left visible it would read "collapse" and then pin the panel open on the click. The one
+ * exception is a sidebar the learner collapsed themselves — that toggle is honest in any
+ * phase, so it stays.
+ */
+body:has(fl-focus .focus-workspace[data-rail])
+  .shell:not(.is-forced-open):not(.is-collapsed)
+  .sidebar__toggle {
+  display: none;
 }
 
 .brand {
@@ -207,6 +270,43 @@ ol {
 .brand__text small {
   color: var(--text-muted);
   font-size: 11px;
+}
+
+/*
+ * The sidebar's own control. It sits at the end of the brand row so the muscle memory is
+ * "top of the sidebar", and it stays a quiet glyph: folding is a spatial action, and a
+ * labelled button would spend a whole row of the 232px saying so. The icon is the sidebar
+ * itself — a panel outline with its own edge drawn in, the shape every editor uses for this
+ * — because the button goes a different way in each state; the label carries the direction
+ * (see `toggleKey` in the component), and the focus-folded layout hides the button rather
+ * than let it announce a direction it cannot take.
+ */
+.sidebar__toggle {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.sidebar__toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+}
+
+.sidebar__toggle:hover {
+  background: var(--bg-soft);
+  color: var(--text);
 }
 
 .nav {
@@ -370,6 +470,8 @@ body:has(.simulator) .content {
 }
 
 .content {
+  /* Named against the sidebar's column — see the note on `.sidebar`. */
+  grid-area: 1 / 2;
   overflow-y: auto;
   padding: 24px 28px 96px;
   display: flex;
@@ -386,6 +488,139 @@ body:has(.simulator) .content {
   width: 100%;
   max-width: var(--measure);
   margin-inline: auto;
+}
+
+/*
+ * The recall button for a folded sidebar — the part that makes the fold Codex-like
+ * rather than a panel that simply vanished. Fixed to the top-left corner, where the
+ * sidebar used to begin, carrying the brand mark so the corner still reads as "the
+ * app's controls live here".
+ *
+ * It is a grid child of `.shell`, but `position: fixed` removes it from flow, so the
+ * collapsed grid cannot move or squish it. It is hidden by default and shown by the
+ * same folded-state selectors that hide the sidebar, so the two can never disagree.
+ *
+ * It sits exactly where the docked brand mark sits, 20px down and 16px in, because the
+ * peeked panel arrives underneath it carrying its own mark: one tile in the same place
+ * is the handoff, and the pointer hovering it never notices the panel appear.
+ */
+.sidebar-fab {
+  position: fixed;
+  z-index: 25; /* above the simulator bar (20), below the agent panel (30) and dialogs (40) */
+  top: 20px;
+  left: 16px;
+  display: none;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-end));
+  color: var(--on-accent);
+  font-weight: 700;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+}
+
+.sidebar-fab:hover {
+  filter: brightness(1.08);
+}
+
+.shell.is-collapsed .sidebar-fab,
+body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .sidebar-fab {
+  display: grid;
+  animation: sidebar-fab-in 160ms ease-out;
+}
+
+/*
+ * Hover-peek: resting the pointer on the recall button slides the folded sidebar out
+ * over the content, and moving away takes it back. The grid stays folded — a peek is
+ * a look, not a reflow, and with both columns named the content cannot even be tempted
+ * into the vacated track. Only the sidebar's own box is lifted out of the grid onto the
+ * window, exactly where it used to stand, with a shadow to read as floating above the
+ * page.
+ */
+.shell.is-collapsed.is-peeking .sidebar,
+body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open).is-peeking .sidebar {
+  position: fixed;
+  z-index: 26; /* above the simulator (20), below the agent panel (30) and dialogs (40) */
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 232px;
+  /* The panel is the sidebar again, so it takes the folded state's padding back. */
+  padding-inline: 16px;
+  visibility: visible;
+  opacity: 1;
+  border-right-width: 1px;
+  /*
+   * The same opaque surface the docked sidebar has, plus a shadow to read as floating.
+   * A veil — translucent over a backdrop blur — was the first try, and it is the wrong
+   * trade: the covered text stays legible enough to fight the panel's own labels, and the
+   * blur smears whatever is under it. This is a cover, not a swap: the column is untouched,
+   * and the panel is the sidebar standing in front of it.
+   */
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  transition: opacity 120ms ease;
+}
+
+/*
+ * The button stays under the pointer that opened the peek. The peek closes on
+ * `mouseleave`, so hiding the anchor the moment the panel appears would hand the pointer
+ * to a different element mid-hover — the fold then shuts itself under the cursor, which
+ * is what made the peek flicker open and closed. It only needs lifting above the panel,
+ * and the panel's own mark stepping aside so the corner is one tile, not two.
+ *
+ * Both are keyed to the folded states rather than to `is-peeking` alone: a peek the user
+ * is still holding when the focus screen ends on its own would otherwise keep the lift and
+ * the hidden mark in a sidebar that is docked again — a blank corner where the brand was.
+ */
+.shell.is-collapsed.is-peeking .sidebar-fab,
+body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open).is-peeking .sidebar-fab {
+  z-index: 27; /* above the peeked panel (26), below the agent panel (30) and dialogs (40) */
+}
+
+.shell.is-collapsed.is-peeking .sidebar .brand__mark,
+body:has(fl-focus .focus-workspace[data-rail])
+  .shell:not(.is-forced-open).is-peeking
+  .sidebar
+  .brand__mark {
+  visibility: hidden;
+}
+
+@keyframes sidebar-fab-in {
+  from {
+    opacity: 0;
+    transform: scale(0.92);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/*
+ * Reserve the fab's corner: with the sidebar gone, the content's own left padding is
+ * small enough for a page heading to slide under the button.
+ */
+.shell.is-collapsed .content {
+  padding-left: 62px;
+}
+
+/*
+ * On focus, reserve the whole column the open sidebar occupied — its 232px track plus
+ * the base 24px padding. The fold hides the sidebar's chrome, not the workspace's
+ * place: the stage never reflows into the freed space, so the peeked panel can only
+ * ever slide over the empty gutter, and the countdown stays exactly where it was —
+ * through the peek, and through pinning the panel back open.
+ */
+body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .content {
+  padding-left: 256px;
 }
 
 /* ----------------------------------------------------------------- blocks */
@@ -1626,64 +1861,14 @@ code {
   font-weight: 600;
 }
 
-/* Focus mode quietly narrows the shell to a rail. Everything stays in the DOM, so the e2e flow
-   and the demo simulator keep their targets.
-   Which phases get the rail is a product decision rather than a stylesheet one: it is `keepsRail`
-   in core/focus-phase.ts, and the component marks the canvas with `data-rail`. This block used to
-   list `active` and `paused` by hand, which released the rail the moment the timer ran out or a
-   step was finished — putting the Today summary, the language switch and the theme switch back in
-   front of someone who had just been asked to keep going. */
-body:has(fl-focus .focus-workspace[data-rail]) .shell {
-  grid-template-columns: 64px minmax(0, 1fr);
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .sidebar {
-  align-items: center;
-  gap: 0;
-  overflow: hidden;
-  padding-inline: 10px;
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .brand__text,
-body:has(fl-focus .focus-workspace[data-rail]) .today,
-body:has(fl-focus .focus-workspace[data-rail]) .sidebar__footer {
-  display: none;
-}
-
-/* Keep a compact navigation rail available in focus mode. The labels remain
-   in the accessibility tree while the rail uses a quiet glyph treatment. */
-body:has(fl-focus .focus-workspace[data-rail]) .nav {
-  display: flex;
-  width: 100%;
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .nav a {
-  display: grid;
-  place-items: center;
-  flex: 0 0 36px;
-  width: 36px;
-  height: 36px;
-  padding: 0;
-  font-size: 0;
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .nav a::before {
-  color: currentColor;
-  font-size: 18px;
-  line-height: 1;
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .nav a[href$='/home']::before {
-  content: '⌂';
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .nav a[href$='/focus']::before {
-  content: '◎';
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .nav a[href$='/dashboard']::before {
-  content: '▦';
-}
+/*
+ * Focus mode folds the whole sidebar away — no icon rail, no 64px column. The folded-state
+ * selectors near the top of the shell section do the work, keyed on `data-rail`: the same
+ * `keepsRail` policy in core/focus-phase.ts that used to decide how wide the rail was now decides
+ * whether there is chrome at all, so "which phase keeps the shell narrow" is still written down in
+ * exactly one place. The nav stays reachable — the floating button opens the sidebar for as long as
+ * the learner wants it — and leaving the focus screen hands the choice back to `auto`.
+ */
 
 body:has(fl-focus .focus-workspace[data-rail]) .content {
   padding: 18px clamp(20px, 5vw, 68px) 96px;
@@ -1796,22 +1981,6 @@ body:has(fl-focus .focus-workspace[data-rail]) .simulator {
 }
 
 @media (max-width: 600px) {
-  body:has(fl-focus .focus-workspace[data-rail]) .shell {
-    grid-template-columns: 52px minmax(0, 1fr);
-  }
-
-  body:has(fl-focus .focus-workspace[data-rail]) .sidebar {
-    display: flex;
-    align-items: center;
-    padding-inline: 8px;
-  }
-
-  body:has(fl-focus .focus-workspace[data-rail]) .nav a {
-    flex-basis: 36px;
-    width: 36px;
-    height: 36px;
-  }
-
   .focus-stage__topbar {
     padding-inline: 0;
   }

@@ -23,6 +23,12 @@ const en = {
   'app.theme': 'Theme',
   'app.theme.switch': 'Switch theme',
 
+  // The sidebar fold. Both are buttons, so a screen reader needs the verb rather than the
+  // state: the floating button, and the sidebar's own toggle whenever the sidebar is
+  // folded, say "show"; the toggle says "collapse" while the sidebar is docked.
+  'app.sidebar.collapse': 'Collapse sidebar',
+  'app.sidebar.expand': 'Show sidebar',
+
   // The persistent sidebar summary. Deliberately not the dashboard's wording:
   // this one has to read at 11px in a 232px column.
   'app.today': 'Today',
