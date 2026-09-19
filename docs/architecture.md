@@ -301,6 +301,44 @@ or reset the dashboard's selection on every event. That is also why its fetch do
 `run()`: a decoration that fails to load must not raise an error banner over the page the learner is
 actually using, and a stale summary is the right failure mode.
 
+**The sidebar folds completely, and a floating button recalls it.** A running focus commitment used
+to narrow the sidebar to a 64px icon rail; that is the worst of both worlds — the column still costs
+its space and the icons cost legibility. The shell now folds the sidebar to a zero-width track,
+`visibility: hidden` takes it out of the tab order and the accessibility tree, and a small fixed
+button carrying the brand mark appears in the top-left corner to bring it back — the same corner the
+sidebar used to start in. Three pure transitions in `core/sidebar-state.ts` decide it: the sidebar's
+own toggle folds it; the floating button recalls it, even mid-focus; and leaving the focus screen
+forgets a recall but keeps a deliberate collapse, so the next commitment folds the sidebar away
+again. Which phase the focus screen is in is never stored in the shell: the stylesheet reads it
+straight from the DOM with the same `body:has(fl-focus ...)` selectors the focus styling uses, so two
+components cannot disagree about when the fold happens. The grid animates between
+`232px minmax(0, 1fr)` and `0px minmax(0, 1fr)` — structurally identical track lists, because
+`grid-template-columns` only interpolates between values of the same shape.
+
+The two columns are **named**, never auto-placed, and that is load-bearing rather than stylistic. A
+peek lifts the sidebar out of the grid onto the window, and a grid that assigns its columns by
+document order then hands the content the _first_ track — the folded one. The page kept its own
+padding and the fold's reservation, so a peek came out as a column of one letter per line, or as a
+screen with nothing on it at all, next to a sidebar that had not moved. Naming the columns makes the
+content's track independent of who is in flow.
+
+Hovering the recall button peeks the sidebar out without pinning it: the panel lifts out of the
+folded grid onto the window, opaque as the docked sidebar and lifted with a shadow, so the content
+it covers keeps its column and never reflows. Moving the pointer away folds it back after a short
+delay; clicking the peeked panel — or the button, for keyboard users — pins it open in the ordinary
+grid. The button itself stays visible during the peek, lifted above the
+panel and hidden in favour of the panel's own mark: the peek opens on the button's `mouseenter` and
+closes on its `mouseleave`, so an anchor that vanished under the pointer would hand the hover to
+another element mid-gesture and fold the panel shut under the cursor. Peek state is pure pointer
+state: never stored, and cancelled by navigation. On the focus screen the fold
+also leaves the workspace's column in place — `padding-left: 256px`, the open grid's 232px track plus
+the base padding — so the stage never reflows into the freed space and the peeked panel can only ever
+cover the empty gutter: the countdown neither moves nor disappears behind the glass. The panel's own
+header control is a toggle rather than a collapse button: its label and what a press does both follow
+the mode, while its icon stays the sidebar glyph — a panel outline with its own edge drawn in, the
+shape every editor uses for this — and the focus-folded layout hides it, where the shell is not what
+folded and the floating button is the way back.
+
 **The content column is capped.** `.content > *` carries `--measure` (1120px) plus
 `margin-inline: auto`. Putting it on the children rather than on the scroller keeps the scrollbar on
 the window edge, and it catches the error banner too, which should line up with the cards. Below the

@@ -1,6 +1,15 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
-import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import type { Subscription } from 'rxjs';
+import { filter } from 'rxjs';
+import {
+  SIDEBAR_INITIAL_MODE,
+  collapseSidebar,
+  expandSidebar,
+  leaveFocusScreen,
+  type SidebarMode,
+} from './core/sidebar-state';
 import {
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
@@ -27,6 +36,13 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
 };
 
 /**
+ * How long the peeked sidebar lingers after the pointer leaves. Long enough that the
+ * gap between the recall button and the sidebar's own controls does not flicker it
+ * shut, short enough that "move away and it is gone" still reads as instant.
+ */
+const PEEK_CLOSE_DELAY_MS = 150;
+
+/**
  * The shell every screen renders inside: navigation, the sidebar's ambient summary, the language and
  * theme controls, and the single subscription to events the main process pushes.
  */
@@ -42,14 +58,43 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
     SimulatorBarComponent,
   ],
   template: `
-    <div class="shell">
-      <aside class="sidebar">
+    <div
+      class="shell"
+      [class.is-collapsed]="sidebar() === 'collapsed'"
+      [class.is-forced-open]="sidebar() === 'open'"
+      [class.is-peeking]="peeking()"
+    >
+      <aside
+        class="sidebar"
+        (mouseenter)="keepPeek()"
+        (mouseleave)="peekEnd()"
+        (click)="pinIfPeeking()"
+      >
         <div class="brand">
           <span class="brand__mark">FL</span>
           <div class="brand__text">
             <strong>FocusLoop</strong>
             <small>{{ t('app.tagline') }}</small>
           </div>
+          <button
+            type="button"
+            class="sidebar__toggle"
+            data-testid="sidebar-toggle"
+            [attr.aria-label]="t(toggleKey())"
+            [title]="t(toggleKey())"
+            (click)="toggle()"
+          >
+            <!--
+              The sidebar glyph — a panel outline with its own edge drawn in — rather than
+              an arrow. An arrow has to point somewhere, and this control goes a different
+              way in each state; the label carries that direction (see toggleKey below)
+              while the icon stays the thing the button acts on.
+            -->
+            <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+              <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" />
+              <path d="M6.25 2.5v11" />
+            </svg>
+          </button>
         </div>
 
         <nav class="nav">
@@ -173,6 +218,26 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
         }
         <router-outlet />
       </main>
+
+      <!--
+        The recall button. It is a grid child but position: fixed takes it out of flow,
+        so the collapsed grid cannot move it. Visibility is CSS-driven — the same
+        body:has(...) wiring that hides the sidebar decides when this exists — so the
+        shell never needs to know which phase the focus screen is in. Hovering it peeks
+        the sidebar out as an overlay; clicking it pins the sidebar open.
+      -->
+      <button
+        type="button"
+        class="sidebar-fab"
+        data-testid="sidebar-expand"
+        [attr.aria-label]="t('app.sidebar.expand')"
+        [title]="t('app.sidebar.expand')"
+        (mouseenter)="peekStart()"
+        (mouseleave)="peekEnd()"
+        (click)="expand()"
+      >
+        <span aria-hidden="true">FL</span>
+      </button>
     </div>
 
     <fl-agent-panel />
@@ -183,7 +248,10 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
 export class AppComponent implements OnInit, OnDestroy {
   private readonly stateService = inject(AppStateService);
   private readonly i18n = inject(I18nService);
+  private readonly router = inject(Router);
   private unsubscribe: (() => void) | null = null;
+  private routerSubscription: Subscription | null = null;
+  private peekTimer: ReturnType<typeof setTimeout> | null = null;
 
   protected readonly state = this.stateService.state;
   protected readonly runtime = this.stateService.runtime;
@@ -195,8 +263,34 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly themeKeys = THEME_KEYS;
   protected readonly today = this.stateService.todayInsights;
 
+  /**
+   * Whether the sidebar is folded away. The focus screen drives its half of this from
+   * the DOM (`body:has(...)` in the stylesheet), so the shell only stores what the user
+   * asked for and never needs to know which phase the focus timer is in.
+   */
+  protected readonly sidebar = signal<SidebarMode>(SIDEBAR_INITIAL_MODE);
+
+  /**
+   * Whether the folded sidebar is currently peeking out as an overlay. Pure pointer
+   * state — it exists only while the mouse is on (or just left) the recall button, so
+   * it is never stored, never persisted, and meaningless to keyboard users, whose route
+   * to the sidebar is clicking the button to pin it open.
+   */
+  protected readonly peeking = signal(false);
+
   /** Only the states today actually contains, largest first. */
   protected readonly ribbon = computed(() => visibleShares(this.today()?.stateShares ?? []));
+
+  /**
+   * The sidebar's own header button is a toggle, not a collapse button: docked it folds the
+   * sidebar away, and folded it pins the hovered panel open. The label follows the mode, so
+   * the button cannot announce the opposite of what a press does — a button that says
+   * "collapse" in a panel that only goes the other way is how the peek reads as broken. The
+   * icon is the sidebar itself, which is the same thing in both directions.
+   */
+  protected readonly toggleKey = computed<MessageKey>(() =>
+    this.sidebar() === 'collapsed' ? 'app.sidebar.expand' : 'app.sidebar.collapse',
+  );
 
   /** The OS preference, re-read whenever it changes, used only for `system`. */
   private readonly prefersLight = signal(false);
@@ -238,12 +332,99 @@ export class AppComponent implements OnInit, OnDestroy {
     });
     void this.stateService.refresh();
     this.unsubscribe = this.stateService.subscribeToEvents();
+
+    /*
+     * A recall made through the floating button is a request for this focus session, not
+     * a standing preference. Leaving the focus screen hands the choice back to `auto`,
+     * so the next session folds the sidebar away again. A deliberate `collapsed` is left
+     * alone — the user pressed collapse, not recall.
+     */
+    this.routerSubscription = this.router.events
+      .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
+      .subscribe(() => {
+        // A peek never survives a navigation: the click that moved screens was the
+        // pointer's whole intent.
+        this.endPeek();
+        if (!this.router.url.startsWith('/focus')) {
+          this.sidebar.update(leaveFocusScreen);
+        }
+      });
   }
 
   ngOnDestroy(): void {
     this.unsubscribe?.();
+    this.routerSubscription?.unsubscribe();
+    this.clearPeekTimer();
     this.syncLocale.destroy();
     this.syncTheme.destroy();
+  }
+
+  protected collapse(): void {
+    this.endPeek();
+    this.sidebar.update(collapseSidebar);
+  }
+
+  /** The header button's press, in whichever direction the sidebar is currently in. */
+  protected toggle(): void {
+    if (this.sidebar() === 'collapsed') {
+      this.expand();
+      return;
+    }
+    this.collapse();
+  }
+
+  protected expand(): void {
+    this.endPeek();
+    this.sidebar.update(expandSidebar);
+  }
+
+  /*
+   * Hover-peek, the Codex pattern: resting the pointer on the recall button slides the
+   * folded sidebar out over the content, and moving away takes it back. Two timings
+   * matter and both are borrowed from prior art (the Obsidian quick-peek plugin): the
+   * peek opens immediately, because the button is a deliberate target — but closing
+   * waits PEEK_CLOSE_DELAY_MS, so the gap between leaving the button and entering the
+   * overlay, and the small gaps between the sidebar's own controls, do not flicker it
+   * shut.
+   *
+   * The button only opens the peek; the sidebar itself only cancels or schedules the
+   * close. `mouseenter` on a visible sidebar must never set `peeking`, or a click on
+   * the sidebar in its ordinary state would count as a peek and misroute pinning.
+   */
+  protected peekStart(): void {
+    this.clearPeekTimer();
+    this.peeking.set(true);
+  }
+
+  /** Entering the sidebar means the pointer made it out of the button: hold it open. */
+  protected keepPeek(): void {
+    this.clearPeekTimer();
+  }
+
+  protected peekEnd(): void {
+    if (!this.peeking()) return;
+    this.clearPeekTimer();
+    this.peekTimer = setTimeout(() => {
+      this.peeking.set(false);
+      this.peekTimer = null;
+    }, PEEK_CLOSE_DELAY_MS);
+  }
+
+  /** A click anywhere in a peeked sidebar pins it open — hover is a look, a click is a keep. */
+  protected pinIfPeeking(): void {
+    if (this.peeking()) this.expand();
+  }
+
+  private endPeek(): void {
+    this.clearPeekTimer();
+    this.peeking.set(false);
+  }
+
+  private clearPeekTimer(): void {
+    if (this.peekTimer !== null) {
+      clearTimeout(this.peekTimer);
+      this.peekTimer = null;
+    }
   }
 
   protected stateLabel(): string {

@@ -4,6 +4,20 @@ All notable changes to FocusLoop are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Desktop shell: the sidebar folds completely.** The sidebar's own toggle collapses it; a small
+  floating brand button in the top-left corner recalls it — during focus too. While a focus
+  commitment runs, the sidebar now folds away entirely instead of shrinking to a 64px icon rail,
+  and leaving the focus screen forgets a recall but keeps a deliberate collapse. Hovering the
+  recall button peeks the sidebar out over the untouched content — the fold gives the content its
+  own column and keeps it, so the panel can only ever cover it — and moving the pointer away folds
+  it back; clicking the peeked panel pins it open. On the focus screen the fold leaves the
+  workspace's column in place, so the peeked panel only ever slides over the gutter it vacated and
+  the countdown never reflows under it.
+
 ## [0.1.0-demo] — 2026-09-17
 
 The first demonstrable end-to-end slice. FocusLoop does not diagnose ADHD; it tracks the learning
