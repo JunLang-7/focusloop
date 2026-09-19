@@ -76,6 +76,7 @@ const en = {
   'home.import.action': 'Import',
   'home.import.placeholder': 'notes.md',
   'home.import.result': '{title}: {concepts} concepts, {tasks} micro tasks',
+  'home.import.needFileName': 'Give the file a name first.',
 
   // --------------------------------------------------------------- course
   'course.eyebrow': 'Course',

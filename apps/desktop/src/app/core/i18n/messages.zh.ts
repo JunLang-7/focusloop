@@ -71,6 +71,7 @@ export const zh: Record<MessageKey, string> = {
   'home.import.action': '导入',
   'home.import.placeholder': '笔记.md',
   'home.import.result': '{title}：{concepts} 个概念，{tasks} 个微任务',
+  'home.import.needFileName': '请先给文件起个名字。',
 
   // --------------------------------------------------------------- course
   'course.eyebrow': '课程',

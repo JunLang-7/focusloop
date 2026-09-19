@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
@@ -77,6 +77,7 @@ import { formatDuration } from '../core/format';
           <span>{{ t('home.import.fileName') }}</span>
           <input
             type="text"
+            data-testid="import-file-name"
             [placeholder]="t('home.import.placeholder')"
             [value]="fileName()"
             (input)="onFileName($event)"
@@ -86,12 +87,29 @@ import { formatDuration } from '../core/format';
           <span>{{ t('home.import.content') }}</span>
           <textarea rows="6" [value]="content()" (input)="onContent($event)"></textarea>
         </label>
+        <!--
+          The button is disabled rather than allowed to fail. An empty file name used to reach the
+          IPC boundary and come back as a validation error naming the channel and the field, which
+          is the main process describing its own contract rather than telling the learner what to
+          do about it. The rule is applied here, where the mistake is, and the reason is stated
+          next to the control instead of in a banner.
+        -->
         <div class="row">
-          <button type="button" class="btn" (click)="importMaterial()">
+          <button
+            type="button"
+            class="btn"
+            data-testid="import-submit"
+            [disabled]="!canImport()"
+            (click)="importMaterial()"
+          >
             {{ t('home.import.action') }}
           </button>
-          @if (importSummary(); as summary) {
-            <span class="muted small">{{ summary }}</span>
+          @if (!canImport()) {
+            <span class="muted small" data-testid="import-needs-name">{{
+              t('home.import.needFileName')
+            }}</span>
+          } @else if (importSummary(); as summary) {
+            <span class="muted small" data-testid="import-summary">{{ summary }}</span>
           }
         </div>
       </div>
@@ -108,6 +126,12 @@ export class HomePage {
   protected readonly snapshot = this.state.snapshot;
   protected readonly importSummary = signal<string | null>(null);
   protected readonly fileName = signal('notes.md');
+  /**
+   * A name of nothing but spaces is still nothing. The main process rejects an empty `fileName`
+   * (`asString` in `electron/ipc/validate.ts`), and the renderer applies the same rule before
+   * sending rather than letting the learner meet it as a channel error.
+   */
+  protected readonly canImport = computed(() => this.fileName().trim().length > 0);
   protected readonly content = signal(
     '# Rotations\n\nA rotation restructures three nodes while preserving the in-order sequence.\n\n## Left rotation\n\nA left rotation moves the pivot down and to the right.\n',
   );

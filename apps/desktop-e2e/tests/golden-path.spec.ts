@@ -709,3 +709,39 @@ test('finishing a step arrives once, and says nothing that accumulates', async (
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+/*
+ * Last, and it needs nothing that came before it: the import form lives on Home and the check is
+ * about a control's state rather than a session.
+ */
+test('the import form asks for a file name instead of failing on the channel', async () => {
+  await clickSidebarLink('Home');
+
+  const name = window.getByTestId('import-file-name');
+  const submit = window.getByTestId('import-submit');
+  const reason = window.getByTestId('import-needs-name');
+
+  // The field arrives holding one, so the button starts usable.
+  await expect(submit).toBeEnabled();
+
+  // Clearing it disables the button and states why, rather than letting an empty name travel to
+  // the main process and come back as a validation error naming the IPC channel.
+  await name.fill('');
+  await expect(submit).toBeDisabled();
+  await expect(reason).toBeVisible();
+
+  // Whitespace is not a name either.
+  await name.fill('   ');
+  await expect(submit).toBeDisabled();
+
+  await name.fill('notes.md');
+  await expect(submit).toBeEnabled();
+  await expect(reason).toBeHidden();
+
+  // And the import it guards actually goes through: no channel error, and a result to show.
+  await submit.click();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+  await expect(window.getByTestId('import-summary')).toBeVisible();
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
