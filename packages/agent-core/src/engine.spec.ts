@@ -262,6 +262,110 @@ describe('FocusLoopEngine', () => {
     });
   });
 
+  describe('stuck reasons (AG2)', () => {
+    it('answers a reasoned help request through the engine, not only in the policy package', () => {
+      /*
+       * `docs/testing.md` asks agent-core to prove every policy rule *through the engine*, and the
+       * reason is that the policy's inputs are assembled here — `recentEvents` and `shownInterventions`
+       * come from this layer. A rule can therefore be correct in the policy package and never fire in a
+       * real session, which is exactly what a unit test of the policy cannot notice.
+       */
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const response = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'tired' },
+      });
+
+      expect(response.decision?.action).toBe('BREAK');
+    });
+
+    it('does not answer a second reasoned request that this session has already had an answer to', () => {
+      // The request stays the most recent event after it is answered, so without the "already answered"
+      // test the same request would be answered on every subsequent dispatch.
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const first = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'too-big' },
+      });
+      const second = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'missing-task' },
+      });
+
+      expect(first.decision?.action).toBe('SIMPLIFY');
+      expect(second.decision?.action).not.toBe('SIMPLIFY');
+    });
+
+    it('records which request the answer answered', () => {
+      /*
+       * The link between the answer and the request, as the store actually keeps it. The policy's own
+       * test asserts the decision carries the id; this asserts the round trip — decision → saved
+       * intervention → read back — because that is the part a wrong column name would break, and it is
+       * the only thing standing between the learner and the same request being answered for ever.
+       */
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const response = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'tired' },
+      });
+
+      const request = ctx.engine.listEvents(session.id).at(-1);
+      expect(request?.type).toBe('HELP_REQUESTED');
+
+      const shown = ctx.engine
+        .listInterventions(session.id)
+        .filter((item) => item.action !== 'RESUME');
+      expect(shown).toHaveLength(1);
+      expect(shown[0]?.answersRequestId).toBe(request?.id);
+      expect(shown[0]?.id).toBe(response.interventionId);
+    });
+
+    it('records the answer even when something else is shown in the same millisecond', () => {
+      /*
+       * The collision that made the fix in the previous test incomplete.
+       *
+       * `saveIntervention` inserts and ignores a duplicate id, so two interventions sharing a session,
+       * a millisecond and an action are one row. A state rule that shows a break and a `tired` request
+       * that asks for one are both `BREAK`, and the clock is frozen in these tests, so they are the
+       * same millisecond by construction rather than by contrivance. Whichever row loses, the request
+       * is never recorded as answered — and then the answer is emitted on every later dispatch for
+       * ever, which the session budget cannot stop because no new row is ever stored. The request id is
+       * part of the intervention id so that the two rows cannot be the same row.
+       */
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const overload = ctx.engine.simulate({ command: 'overload', sessionId: session.id });
+      expect(overload.decision?.action).toBe('BREAK');
+
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'tired' },
+      });
+      expect(asked.decision?.action).toBe('BREAK');
+
+      const request = ctx.engine
+        .listEvents(session.id)
+        .filter((event) => event.type === 'HELP_REQUESTED')
+        .at(-1);
+      const answer = ctx.engine
+        .listInterventions(session.id)
+        .find((item) => item.id === asked.interventionId);
+
+      // The row survived, and it names the request. Dropped, it would be `undefined` here.
+      expect(answer).toBeDefined();
+      expect(answer?.answersRequestId).toBe(request?.id);
+    });
+  });
+
   describe('session lifecycle', () => {
     it('refuses to start a session for an unknown course', () => {
       expect(() => ctx.engine.startSession('missing')).toThrow(EngineError);

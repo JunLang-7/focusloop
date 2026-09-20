@@ -81,6 +81,59 @@ describe('parseDispatchRequest', () => {
     expect(parsed.at).toBe('2026-01-01T00:00:00.000Z');
     expect(parsed.eventId).toBe('ext-1');
   });
+
+  /**
+   * The one payload the boundary understands rather than merely carries.
+   *
+   * The policy acts on `reason`, so a value the renderer got wrong must not reach the event log at
+   * all — the later `isStuckReason` guard protects the decision, not the learner's stored history.
+   */
+  describe('HELP_REQUESTED', () => {
+    const help = { ...valid, type: 'HELP_REQUESTED' };
+
+    it('accepts a request with a known reason', () => {
+      const payload = { taskId: 't1', reason: 'too-big' };
+      expect(parseDispatchRequest(CHANNEL, { ...help, payload }).payload).toEqual(payload);
+    });
+
+    it('accepts a request with no reason, which is how "they did not say" is spelled', () => {
+      const payload = { taskId: 't1' };
+      expect(parseDispatchRequest(CHANNEL, { ...help, payload }).payload).toEqual(payload);
+    });
+
+    it('rejects a reason it does not know', () => {
+      const error = expectFailure(() =>
+        parseDispatchRequest(CHANNEL, { ...help, payload: { taskId: 't1', reason: 'bored' } }),
+      );
+      expect(error.message).toContain('known stuck reason');
+    });
+
+    it('rejects an explicit null reason', () => {
+      // The absence has one spelling. Accepting `null` as well would make "did they say?" ambiguous
+      // at exactly the boundary where the ambiguity has to end.
+      expectFailure(() =>
+        parseDispatchRequest(CHANNEL, { ...help, payload: { taskId: 't1', reason: null } }),
+      );
+    });
+
+    it('rejects a task id that is not a string', () => {
+      expectFailure(() =>
+        parseDispatchRequest(CHANNEL, { ...help, payload: { taskId: 7, reason: 'tired' } }),
+      );
+      // `null` is a second spelling of absent, and unlike the reason above it *would* have been let
+      // through and written to the log, because `asOptionalString` reads null as "not there".
+      expectFailure(() =>
+        parseDispatchRequest(CHANNEL, { ...help, payload: { taskId: null, reason: 'tired' } }),
+      );
+    });
+
+    it('leaves other event types opaque', () => {
+      // The check is per-type on purpose: a boundary that validated every payload would have to be
+      // updated with each new event, and would reject the ones it had not been told about.
+      const payload = { reason: 'bored' };
+      expect(parseDispatchRequest(CHANNEL, { ...valid, payload }).payload).toEqual(payload);
+    });
+  });
 });
 
 describe('parseStartSession', () => {

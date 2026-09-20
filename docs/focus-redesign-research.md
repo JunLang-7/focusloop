@@ -289,8 +289,9 @@ demo 模拟器。
 
 尚未实现，留给后续 issue：
 
-- 「卡住了」在画布内给出「提示 / 拆小 / 休息」三选一：现在仍只派发 `HELP_REQUESTED`，由既有
-  intervention policy 与浮层面板呈现；
+- 「卡住了」在画布内的三选一（提示 / 拆小 / 休息）：只实现了一半。画布内现在先问「哪一种卡住」
+  （六种，AG2），由 intervention policy 按理由决定给提示、拆小还是休息——学习者选的是**原因**，
+  不是动作。让学习者直接挑动作仍未实现；
 - 恢复卡改成画布内的「续接状态」：现在仍是模态对话框；
 - 领域层暴露 task-level `taskStartedAt`，以及 `TASK_PAUSED / TASK_RESUMED`：本轮的承诺是
   renderer 本地状态，离开页面即失效，不写入事件日志；

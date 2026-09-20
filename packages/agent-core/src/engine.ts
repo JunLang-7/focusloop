@@ -611,7 +611,19 @@ export class FocusLoopEngine {
 
     const intervention = createIntervention(
       {
-        id: `intervention:${session.id}:${now}:${decision.action}`,
+        /*
+         * The request being answered is part of the identity, and has to be.
+         *
+         * `saveIntervention` inserts and ignores a duplicate id, so two interventions that share a
+         * session, a millisecond and an action are one row — and if the answer's row is the one that
+         * is dropped, the request is never recorded as answered and the same answer is emitted on
+         * every later dispatch. Two answers in the same millisecond for the same action are exactly
+         * what this produces: a tick that lands on OVERLOADED (`BREAK`) during a `tired` request
+         * (`BREAK`) is the ordinary case, not a contrived one.
+         */
+        id: `intervention:${session.id}:${now}:${decision.action}${
+          decision.answersRequestId === undefined ? '' : `:${decision.answersRequestId}`
+        }`,
         sessionId: session.id,
         at: now,
       },

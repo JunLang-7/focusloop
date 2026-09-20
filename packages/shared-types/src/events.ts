@@ -1,4 +1,5 @@
 import type { LearningState } from './state';
+import type { StuckReason } from './stuck';
 
 /** Where an event came from. Never used to infer content, only provenance. */
 export type LearningEventSource = 'user' | 'extension' | 'simulator' | 'system' | 'agent';
@@ -37,7 +38,20 @@ export type SessionStartedEvent = LearningEventBase<
 >;
 export type TaskStartedEvent = LearningEventBase<'TASK_STARTED', { taskId: string }>;
 export type TaskCompletedEvent = LearningEventBase<'TASK_COMPLETED', { taskId: string }>;
-export type HelpRequestedEvent = LearningEventBase<'HELP_REQUESTED', { taskId?: string }>;
+export type HelpRequestedEvent = LearningEventBase<
+  'HELP_REQUESTED',
+  {
+    taskId?: string;
+    /**
+     * Why the learner says they are stuck, when they have said.
+     *
+     * Optional on purpose: the button can be pressed before a reason is given, and events written
+     * before this field existed are still read back out of the store. An absent reason means "they did
+     * not say", which is different from any of the reasons and has to stay distinguishable.
+     */
+    reason?: StuckReason;
+  }
+>;
 export type QuizCorrectEvent = LearningEventBase<
   'QUIZ_CORRECT',
   { taskId: string; quizId: string }

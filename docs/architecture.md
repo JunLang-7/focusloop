@@ -201,12 +201,15 @@ type InterventionAction =
 Order of evaluation:
 
 1. Session budget exhausted → `NO_ACTION`.
-2. A resume was dismissed recently → `NO_ACTION`.
-3. Interrupted and awaiting resume → `RESUME` (never rate limited; this is why the product exists).
-4. State rules: `OVERLOADED` → `BREAK`; `CONFUSED` → `HINT`/`EXAMPLE`;
+2. The learner pressed "I'm stuck" and said why → the action and the wording for that kind of stuck.
+   Above both back-offs below, because both exist to stop the agent speaking _unasked_ and a press is
+   the opposite of that; a request with no reason said falls through to the state rules instead.
+3. A resume was dismissed recently → `NO_ACTION`.
+4. Interrupted and awaiting resume → `RESUME` (never rate limited; this is why the product exists).
+5. State rules: `OVERLOADED` → `BREAK`; `CONFUSED` → `HINT`/`EXAMPLE`;
    `INITIATION_FRICTION` → `MICRO_START`; a task far past its estimate → `SIMPLIFY`; a single wrong
    answer → `QUESTION`; `DISTRACTED` → `NO_ACTION`.
-5. Cooldown, _unless_ the candidate action is more urgent than the last one shown.
+6. Cooldown, _unless_ the candidate action is more urgent than the last one shown.
 
 `NO_ACTION` is a first-class answer. An agent that cannot stay quiet is not usable by the people
 this is built for.

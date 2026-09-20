@@ -11,6 +11,7 @@
  */
 
 export * from './state';
+export * from './stuck';
 export * from './events';
 export * from './session';
 export * from './material';

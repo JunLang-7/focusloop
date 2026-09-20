@@ -998,6 +998,12 @@ textarea:focus {
  *
  * Bottom-left, which nothing else occupies: the simulator bar spans the bottom edge and the plan sheet
  * is pinned to the bottom centre, so this sits in the corner rather than competing for their place.
+ *
+ * Laid over the product, it must not take clicks aimed at the product. The collapsed box is 520px
+ * wide and its `<details>` swallows every press inside that, which is how it came to sit on top of
+ * the import form's submit button and stop it working — a development tool breaking the screen it is
+ * supposed to be looking at. So the box itself is transparent to the pointer and only the two things
+ * a learner actually aims at take events back: the summary that opens it, and the open panel.
  */
 .agent-context {
   position: fixed;
@@ -1013,6 +1019,7 @@ textarea:focus {
   background: var(--bg-elevated);
   box-shadow: var(--shadow-lg);
   font-size: 13px;
+  pointer-events: none;
 }
 
 /* The simulator bar spans the bottom edge, so the panel clears its height while it is there. */
@@ -1020,9 +1027,19 @@ body:has(.simulator) .agent-context {
   bottom: 72px;
 }
 
+.agent-context[open] {
+  pointer-events: auto;
+}
+
+/*
+ * Only as wide as its own label. Stretched across the box, the collapsed summary is a 520px target
+ * for a press the learner meant for whatever is underneath.
+ */
 .agent-context__summary {
+  width: max-content;
   color: var(--text-muted);
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .agent-context__grid {
@@ -1861,6 +1878,33 @@ code {
 
 .focus-controls .btn--ghost {
   color: var(--focus-ink-quiet);
+}
+
+/*
+ * The reason chooser: a group inside the control row rather than a row of its own.
+ *
+ * It takes a line to itself, because seven labelled buttons beside Pause, +1 minute and Complete is
+ * a wall rather than a choice — and it has to bring its own gap, because as one flex item inside
+ * `.focus-controls` the buttons would otherwise sit flush against each other, which reads as one
+ * long string of text.
+ */
+.stuck-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  flex-basis: 100%;
+  padding-top: 2px;
+}
+
+/* Focused programmatically when it opens, so it must not draw as a control the learner selected. */
+.stuck-reasons:focus {
+  outline: none;
+}
+
+.stuck-reasons:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 4px;
 }
 
 .focus-progress-strip {

@@ -122,6 +122,25 @@ interface InterventionRow {
   reason_key: string;
   reason_params: string;
   shown_at: string;
+  answers_request_id: string | null;
+}
+
+function mapIntervention(row: InterventionRow): Intervention {
+  return {
+    id: row.id,
+    sessionId: row.session_id,
+    at: row.at,
+    state: row.state as LearningState,
+    action: row.action as Intervention['action'],
+    reason: {
+      key: row.reason_key as DomainMessageKey,
+      params: parseJson<Record<string, string>>(row.reason_params, {}),
+    },
+    shownAt: row.shown_at,
+    // A null column and a row from before the column existed both mean "answers no request", which is
+    // what an absent field means to the policy.
+    ...(row.answers_request_id === null ? {} : { answersRequestId: row.answers_request_id }),
+  };
 }
 
 interface OutcomeRow {
@@ -540,8 +559,9 @@ export class FocusLoopStore {
     this.db
       .prepare(
         `INSERT INTO interventions
-           (id, session_id, at, state, action, reason_key, reason_params, shown_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+           (id, session_id, at, state, action, reason_key, reason_params, shown_at,
+            answers_request_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT(id) DO NOTHING;`,
       )
       .run(
@@ -553,43 +573,21 @@ export class FocusLoopStore {
         intervention.reason.key,
         JSON.stringify(intervention.reason.params),
         intervention.shownAt,
+        intervention.answersRequestId ?? null,
       );
   }
 
   getIntervention(interventionId: string): Intervention | null {
     const row = this.db.prepare('SELECT * FROM interventions WHERE id = ?;').get(interventionId) as
       InterventionRow | undefined;
-    if (row === undefined) return null;
-    return {
-      id: row.id,
-      sessionId: row.session_id,
-      at: row.at,
-      state: row.state as LearningState,
-      action: row.action as Intervention['action'],
-      reason: {
-        key: row.reason_key as DomainMessageKey,
-        params: parseJson<Record<string, string>>(row.reason_params, {}),
-      },
-      shownAt: row.shown_at,
-    };
+    return row === undefined ? null : mapIntervention(row);
   }
 
   listInterventions(sessionId: string): Intervention[] {
     const rows = this.db
       .prepare('SELECT * FROM interventions WHERE session_id = ? ORDER BY at ASC;')
       .all(sessionId) as InterventionRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      sessionId: row.session_id,
-      at: row.at,
-      state: row.state as LearningState,
-      action: row.action as Intervention['action'],
-      reason: {
-        key: row.reason_key as DomainMessageKey,
-        params: parseJson<Record<string, string>>(row.reason_params, {}),
-      },
-      shownAt: row.shown_at,
-    }));
+    return rows.map(mapIntervention);
   }
 
   saveOutcome(outcome: InterventionOutcome): void {

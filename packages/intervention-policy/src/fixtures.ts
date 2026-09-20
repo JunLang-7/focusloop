@@ -29,6 +29,7 @@ export function eventWith(
 export function interventionWith(
   shownAt: string,
   action: Intervention['action'] = 'HINT',
+  answersRequestId?: string,
 ): Intervention {
   return {
     id: `intervention-${shownAt}`,
@@ -38,6 +39,7 @@ export function interventionWith(
     action,
     reason: { key: 'reason.confused.hint', params: {} },
     shownAt,
+    ...(answersRequestId === undefined ? {} : { answersRequestId }),
   };
 }
 

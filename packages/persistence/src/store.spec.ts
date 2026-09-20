@@ -312,6 +312,24 @@ describe('FocusLoopStore', () => {
       expect(store.getIntervention('i1')).toEqual(intervention('i1', T0));
     });
 
+    it('round-trips the request an intervention answers', () => {
+      // The column is what makes "has this request been answered" readable after a restart rather than
+      // guessed at from timestamps, so losing it silently would restore the bug it exists to remove.
+      store.saveIntervention({
+        ...intervention('i3', T0),
+        answersRequestId: 'HELP_REQUESTED:2026-01-01T00:00:00.000Z',
+      });
+      expect(store.getIntervention('i3')?.answersRequestId).toBe(
+        'HELP_REQUESTED:2026-01-01T00:00:00.000Z',
+      );
+    });
+
+    it('reads an intervention that answers nothing as having no request', () => {
+      // Every intervention the agent showed unasked, and every row written before the column existed.
+      store.saveIntervention(intervention('i4', T0));
+      expect(store.getIntervention('i4')?.answersRequestId).toBeUndefined();
+    });
+
     it('preserves interpolation params', () => {
       store.saveIntervention({
         ...intervention('i2', T0),

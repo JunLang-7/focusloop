@@ -217,6 +217,19 @@ export const MIGRATIONS: readonly Migration[] = [
         ON CONFLICT(key) DO NOTHING;
     `,
   },
+  {
+    id: '0003-intervention-answers-request',
+    sql: `
+      -- Which help request an intervention was produced in answer to, when it answers one.
+      --
+      -- Without it the only evidence that a request has been dealt with is that *something* was shown
+      -- at or after it, which is not the same claim: an intervention shown in the same millisecond for
+      -- an unrelated reason reads as an answer and the learner's press goes unanswered. Nullable
+      -- because most interventions answer nothing — the agent speaking up unasked is the common case —
+      -- and because rows written before this column existed answer nothing, which is how they read.
+      ALTER TABLE interventions ADD COLUMN answers_request_id TEXT;
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

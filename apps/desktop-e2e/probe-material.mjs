@@ -145,15 +145,17 @@ try {
 
   await step('plan drawer opens', async () => {
     await window.getByTestId('focus-plan-toggle').click();
-    await window.locator('.focus-plan[open]').waitFor();
+    await window.locator('.focus-plan[data-open]').waitFor();
   });
   await shot('07-focus-plan-drawer');
   await step('plan drawer closes', () => window.getByTestId('focus-plan-toggle').click());
 
   // ------------------------------------------------------- stuck -> agent
-  await step('stuck opens a suggestion', async () => {
+  await step('stuck asks which kind, and the answer decides the suggestion', async () => {
     await window.getByRole('button', { name: "I'm stuck" }).click();
-    await window.locator('.agent').waitFor({ timeout: 10_000 });
+    // The first press only opens the chooser; the reason is what the policy acts on.
+    await window.getByTestId('stuck-tired').click();
+    await window.locator('.agent[data-action="BREAK"]').waitFor({ timeout: 10_000 });
   });
   await shot('08-focus-stuck-agent');
   await step('dismiss the suggestion', async () => {
