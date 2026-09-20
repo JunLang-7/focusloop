@@ -35,6 +35,7 @@ const shot = async (window, name) => {
     const frame = await window.screenshot();
     if (previous !== null && frame.equals(previous)) {
       writeFileSync(join(OUT, `${name}.png`), frame);
+      captured += 1;
       return;
     }
     previous = frame;
@@ -42,10 +43,12 @@ const shot = async (window, name) => {
   }
   // A screen that animates forever never settles; its last frame is still better than no file.
   unsettled += 1;
+  captured += 1;
   writeFileSync(join(OUT, `${name}.png`), previous);
 };
 
 let unsettled = 0;
+let captured = 0;
 
 try {
   const window = await app.firstWindow();
@@ -130,6 +133,16 @@ try {
   await window.getByTestId('task-title').waitFor();
   await window.waitForTimeout(300);
   await shot(window, '01b-focus-active-en');
+
+  /*
+   * The developer inspector, opened on purpose. It is a disclosure and it is empty until a session
+   * is running, so this is the only point in the walk where a screenshot of it means anything — and
+   * a screenshot of a collapsed disclosure says nothing about what is inside it.
+   */
+  await window.getByTestId('agent-context-toggle').click();
+  await window.waitForTimeout(300);
+  await shot(window, '01e-agent-context-en');
+  await window.getByTestId('agent-context-toggle').click();
 
   await window.getByTestId('complete-task').click();
   await window.getByTestId('sim-overload').click();
@@ -223,7 +236,9 @@ try {
   const theme = await window.evaluate(() => document.documentElement.dataset.theme);
   const lightBody = await window.evaluate(() => getComputedStyle(document.body).backgroundColor);
   process.stdout.write(
-    `\nCAPTURED 18 screens, error banners: ${banners}, unsettled: ${unsettled}\n` +
+    `\nCAPTURED ${String(captured)} files: ${String(captured - unsettled)} settled, ` +
+      `${String(unsettled)} written from a frame that never settled\n` +
+      `  error banners: ${String(banners)}\n` +
       `  theme=${theme} body=${lightBody}\n` +
       `  theme=dark body=${darkBody}\n`,
   );

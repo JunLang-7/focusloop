@@ -260,6 +260,17 @@ const en = {
   'agent.action.BREAK': 'Take a short break',
   'agent.action.RESUME': 'Resume where you left off',
   'agent.action.NO_ACTION': 'No suggestion right now',
+  'agent.inspector.title': 'What the agent sees',
+  'agent.inspector.state': 'State',
+  'agent.inspector.concept': 'Concept',
+  'agent.inspector.task': 'Task',
+  'agent.inspector.material': 'Material',
+  'agent.inspector.events': 'Recent events',
+  'agent.inspector.omitted': 'Not included',
+  'agent.inspector.none': 'No session is running.',
+  'agent.inspector.of': 'of',
+  'agent.inspector.truncated': 'truncated',
+  'agent.inspector.chars': 'chars',
 
   // ----------------------------------------------------------- simulator
   'sim.aria': 'Demo event simulator',

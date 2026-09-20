@@ -208,6 +208,23 @@ export function createHandlers(service: FocusLoopService) {
       parse: parseInsightsRequest,
       handle: (request) => engine.getInsights(request.range),
     }),
+    /*
+     * Registered in every build, unlike `simulate`, and deliberately so.
+     *
+     * The developer panel that displays this is absent from a packaged build, but the channel is not a
+     * privilege boundary: everything it returns — the courses, the material, the event log, the
+     * checkpoint — is already reachable through channels that exist in every build anyway.
+     *
+     * Gating it the way `simulate` does would also be worse than useless here. `AppStateService.refresh`
+     * calls this inside a `Promise.all`, where one rejection takes the whole refresh down and leaves
+     * the application with no settings read at all. Throwing to protect data that is not secret would
+     * buy a broken launch screen.
+     */
+    defineHandler({
+      channel: IPC_CHANNELS.getAgentContext,
+      parse: parseNoArgs,
+      handle: () => engine.getAgentContext(),
+    }),
   ] as const;
 }
 

@@ -53,6 +53,48 @@ export default tseslint.config(
   },
   {
     /*
+     * The renderer is sandboxed: `contextIsolation`, `nodeIntegration: false`, `sandbox: true`. It
+     * cannot resolve `node:` anything, which means it cannot resolve the workspace packages that
+     * reach for it either.
+     *
+     * `@focusloop/agent-core` is the one that caught somebody out — its entrypoint re-exports the
+     * engine, which imports `node:crypto`. The typecheck did refuse that import, but only because the
+     * renderer's tsconfig happens to carry no node types. That is an accident of configuration, not a
+     * stated boundary, and it would stop refusing the day somebody added `"types": ["node"]`.
+     *
+     * `shared-types` is the one package allowed through: types, constants, and the few pure
+     * derivations both sides must agree on. No I/O, no dependencies, no state.
+     */
+    files: ['apps/desktop/src/**/*.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['@focusloop/*', '!@focusloop/shared-types'],
+              message:
+                'The renderer may only import @focusloop/shared-types. Anything else reaches node:, which a sandboxed renderer cannot resolve.',
+            },
+            {
+              /*
+               * The rule above bans the workspace packages, not the actual problem. `tsconfig.base.json`
+               * carries `"types": ["node"]` and only `apps/desktop/tsconfig.app.json` overrides it to
+               * empty, so the day somebody removes that override a renderer file could import
+               * `node:crypto` and neither the typecheck nor the rule above would object. This is the
+               * prohibition the first one stands in for.
+               */
+              group: ['node:*'],
+              message:
+                'A sandboxed renderer cannot resolve node: modules. The tsconfig only appears to enforce this.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    /*
      * Two documentation rules, chosen because they are the two that pay here.
      *
      * An exported class states what it is for. Exported functions are deliberately not included:

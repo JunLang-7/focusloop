@@ -3,7 +3,7 @@ import { Router } from '@angular/router';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { kindLabel } from '../core/i18n/labels';
-import { findMaterial, findSection } from '../core/material-lookup';
+import { findMaterialForCourse, findSectionForConcept } from '@focusloop/shared-types';
 import { CourseMapComponent } from '../components/course-map.component';
 
 /** Screen 2 of 5: concepts, micro tasks, and the entry point into a session. */
@@ -104,7 +104,9 @@ export class CoursePage {
     const id = this.courseId();
     return this.state.courses().find((item) => item.id === id) ?? null;
   });
-  private readonly material = computed(() => findMaterial(this.state.materials(), this.courseId()));
+  private readonly material = computed(() =>
+    findMaterialForCourse(this.state.materials(), this.courseId()),
+  );
 
   /** The learner decides whether the imported text appears at all. */
   protected readonly showText = this.state.showMaterialText;
@@ -118,7 +120,7 @@ export class CoursePage {
    * describes it. Returns nothing for the built-in demo course, which has no imported document.
    */
   protected sectionFor(conceptTitle: string): string | null {
-    return findSection(this.material(), conceptTitle)?.body ?? null;
+    return findSectionForConcept(this.material(), conceptTitle)?.body ?? null;
   }
 
   protected kind(value: string): string {

@@ -1,3 +1,4 @@
+import type { AgentContextReport } from './agent-context';
 import type { Course } from './course';
 import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
@@ -34,6 +35,7 @@ export const IPC_CHANNELS = {
   dismissResume: 'focusloop:resume:dismiss',
   getDashboard: 'focusloop:dashboard:get',
   getInsights: 'focusloop:insights:get',
+  getAgentContext: 'focusloop:agent:context',
   listOutcomes: 'focusloop:outcome:list',
   resolveIntervention: 'focusloop:intervention:resolve',
   simulateEvent: 'focusloop:simulator:dispatch',
@@ -217,6 +219,14 @@ export interface FocusLoopApi {
   setShowMaterialText(request: SetShowMaterialTextRequest): Promise<AppSettings>;
 
   getInsights(request: InsightsRequest): Promise<InsightsSummary>;
+  /**
+   * What the agent would be given about the current moment, and what it would not.
+   *
+   * Built in the main process because that is where the course, the material and the event log are.
+   * The renderer only displays it — importing `@focusloop/agent-core` there would drag the engine,
+   * and `node:crypto`, into a sandboxed page that has neither.
+   */
+  getAgentContext(): Promise<AgentContextReport>;
 
   /** Returns an unsubscribe function. */
   onEvent(listener: (event: LearningEvent) => void): () => void;

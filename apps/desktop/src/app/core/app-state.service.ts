@@ -20,6 +20,7 @@ import type {
   Locale,
   MaterialDocument,
   ResumeCardView,
+  AgentContextReport,
   RuntimeInfo,
   SessionSnapshot,
   ThemePreference,
@@ -71,6 +72,14 @@ export class AppStateService {
   readonly lastError = signal<string | null>(null);
   readonly busy = signal(false);
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
+  /**
+   * What the agent would be given about the current moment, and what it would not (AG1).
+   *
+   * Built in the main process, where the course, the material and the log are. This is a display
+   * copy: the developer inspector shows it and nothing here re-derives it, because a debug view that
+   * computes its own version eventually shows something the agent never receives.
+   */
+  readonly agentContext = signal<AgentContextReport | null>(null);
   readonly locale = signal<Locale>(DEFAULT_LOCALE);
   readonly theme = signal<ThemePreference>(DEFAULT_THEME);
   /**
@@ -105,18 +114,20 @@ export class AppStateService {
 
   async refresh(): Promise<void> {
     await this.run(async () => {
-      const [runtime, courses, materials, snapshot, dashboard] = await Promise.all([
+      const [runtime, courses, materials, snapshot, dashboard, agentContext] = await Promise.all([
         this.api.getRuntimeInfo(),
         this.api.listCourses(),
         this.api.listMaterials(),
         this.api.getCurrentSession(),
         this.api.getDashboard(),
+        this.api.getAgentContext(),
       ]);
       this.runtime.set(runtime);
       this.courses.set(courses);
       this.materials.set(materials);
       this.snapshot.set(snapshot);
       this.dashboard.set(dashboard);
+      this.agentContext.set(agentContext);
       this.resumeCard.set(
         snapshot === null ? null : await this.api.getResumeCard(snapshot.session.id),
       );
@@ -358,6 +369,12 @@ export class AppStateService {
     const snapshot = await this.api.getCurrentSession();
     this.snapshot.set(snapshot);
     this.dashboard.set(await this.api.getDashboard());
+    /*
+     * Rebuilt on every event, not only on refresh: the inspector exists to be watched while a
+     * session runs, so a copy that only updated at launch would show the empty state for the whole
+     * of the one moment it is useful.
+     */
+    this.agentContext.set(await this.api.getAgentContext());
     if (snapshot !== null) {
       this.resumeCard.set(await this.api.getResumeCard(snapshot.session.id));
       this.recentEvents.set(await this.api.listEvents(snapshot.session.id));

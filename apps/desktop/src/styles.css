@@ -991,6 +991,75 @@ textarea:focus {
   cursor: pointer;
 }
 
+/* ------------------------------------------------- agent context inspector */
+
+/*
+ * Developer-mode only, and collapsed to one line until it is asked for.
+ *
+ * Bottom-left, which nothing else occupies: the simulator bar spans the bottom edge and the plan sheet
+ * is pinned to the bottom centre, so this sits in the corner rather than competing for their place.
+ */
+.agent-context {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 11;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(60vh, 460px);
+  overflow: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+}
+
+/* The simulator bar spans the bottom edge, so the panel clears its height while it is there. */
+body:has(.simulator) .agent-context {
+  bottom: 72px;
+}
+
+.agent-context__summary {
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.agent-context__grid {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 4px 10px;
+  margin: 10px 0;
+}
+
+.agent-context__grid dt {
+  color: var(--text-muted);
+}
+
+.agent-context__grid dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.agent-context__text {
+  max-height: 120px;
+  overflow: auto;
+  margin: 0 0 10px;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: pre-wrap;
+}
+
+.agent-context__omissions {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
 /* ---------------------------------------------------------------- buttons */
 
 .btn {

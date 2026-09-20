@@ -188,6 +188,80 @@ describe('FocusLoopEngine', () => {
     });
   });
 
+  describe('agent context', () => {
+    /*
+     * `buildAgentContext` is covered directly in its own spec. These cover `getAgentContext`, which had
+     * no test at all — and which is the only place the material lookup, the event log and the
+     * checkpoint are joined up. A regression in that wiring would have been invisible.
+     */
+    it('has nothing to be about before a session starts', () => {
+      const report = ctx.engine.getAgentContext();
+
+      expect(report.context).toBeNull();
+      expect(report.omissions[0]?.field).toBe('session');
+    });
+
+    it('gathers the course, the material and the log for the running session', () => {
+      ctx.engine.importMaterial(
+        'notes.md',
+        '# Sorting\n\n' + 'a'.repeat(200) + '\n\n## Merge sort\n\n' + 'b'.repeat(200),
+      );
+      const imported = ctx.engine.listCourses().find((course) => course.id !== DEMO_COURSE_ID);
+      const { session } = ctx.engine.startSession(imported!.id);
+
+      /*
+       * A task has to be under way before there is a concept, and therefore before there is a section
+       * to excerpt. That is the design, not an accident: before the learner has started anything, the
+       * agent is told nothing about the material rather than being handed the first section of it.
+       */
+      const firstTask = imported!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: firstTask.id },
+      });
+      const checkpoint = ctx.engine.createCheckpoint(session.id);
+
+      const report = ctx.engine.getAgentContext();
+
+      expect(report.context?.session.sessionId).toBe(session.id);
+      expect(report.context?.task.taskId).toBe(firstTask.id);
+      /*
+       * Asserted against a real checkpoint. The commit that added these tests claimed they covered
+       * "the only place the material lookup, the event log and the checkpoint are joined up" while no
+       * assertion read the checkpoint at all — a regression passing `null` through would have left
+       * every other line here green, and the resume capability would lose its input silently.
+       */
+      expect(report.context?.checkpoint?.id).toBe(checkpoint.id);
+      // The point of the wiring test: a real document is found, and its text reaches the agent.
+      expect(report.context?.material.materialId).not.toBeNull();
+      expect(report.context?.material.text.length).toBeGreaterThan(0);
+      expect(report.context?.recentEvents.length).toBeGreaterThan(0);
+      expect(report.context?.recentEvents.every((event) => event.sessionId === session.id)).toBe(
+        true,
+      );
+      expect(report.context?.task.totalSteps).toBeGreaterThan(0);
+    });
+
+    it('has no section to give before a task is under way, and says so', () => {
+      ctx.engine.importMaterial('notes.md', '# Sorting\n\n' + 'a'.repeat(200));
+      const imported = ctx.engine.listCourses().find((course) => course.id !== DEMO_COURSE_ID);
+      const { session } = ctx.engine.startSession(imported!.id);
+
+      const report = ctx.engine.getAgentContext();
+
+      // The document is found, so the wiring ran; there is simply nothing to excerpt yet.
+      expect(report.context?.session.sessionId).toBe(session.id);
+      expect(report.context?.material.materialId).not.toBeNull();
+      expect(report.context?.material.text).toBe('');
+      expect(report.omissions).toContainEqual({
+        field: 'material',
+        detail: 'no concept is current, so no section was chosen',
+      });
+    });
+  });
+
   describe('session lifecycle', () => {
     it('refuses to start a session for an unknown course', () => {
       expect(() => ctx.engine.startSession('missing')).toThrow(EngineError);

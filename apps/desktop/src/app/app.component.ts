@@ -26,6 +26,7 @@ import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/in
 import { applyTheme, resolveTheme } from './core/theme';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
+import { AgentContextPanelComponent } from './components/agent-context-panel.component';
 import { SimulatorBarComponent } from './components/simulator-bar.component';
 
 /** The theme preference is a closed vocabulary too. */
@@ -55,6 +56,7 @@ const PEEK_CLOSE_DELAY_MS = 150;
     RouterLinkActive,
     ResumeCardComponent,
     AgentPanelComponent,
+    AgentContextPanelComponent,
     SimulatorBarComponent,
   ],
   template: `
@@ -242,6 +244,7 @@ const PEEK_CLOSE_DELAY_MS = 150;
 
     <fl-agent-panel />
     <fl-resume-card />
+    <fl-agent-context-panel />
     <fl-simulator-bar />
   `,
 })

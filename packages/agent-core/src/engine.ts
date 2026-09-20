@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type {
+  AgentContextReport,
   Course,
   DashboardSummary,
   DispatchEventRequest,
@@ -24,7 +25,8 @@ import type {
   StartSessionResponse,
   ThemePreference,
 } from '@focusloop/shared-types';
-import { message } from '@focusloop/shared-types';
+import { findMaterialForCourse, message } from '@focusloop/shared-types';
+import { buildAgentContext } from './agent-context';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
@@ -240,6 +242,43 @@ export class FocusLoopEngine {
     const record = this.store.getActiveSession();
     if (record === null) return null;
     return this.snapshot(record);
+  }
+
+  /**
+   * What the agent would be given about the current moment, and what it would not (AG1).
+   *
+   * This belongs here rather than in the renderer. The builder needs the course, the material and the
+   * event log, and the renderer has none of them directly — it has only what it was sent. Assembling
+   * the context in the renderer would also mean the debug view could show something the agent never
+   * receives, which is the one failure an inspector must not have.
+   */
+  getAgentContext(): AgentContextReport {
+    const snapshot = this.getCurrentSession();
+    if (snapshot === null) {
+      return buildAgentContext({
+        session: null,
+        progress: null,
+        course: null,
+        courseCount: this.listCourses().length,
+        material: null,
+        events: [],
+        checkpoint: null,
+        learningState: 'READY',
+      });
+    }
+
+    const { session } = snapshot;
+    const course = this.getCourse(session.courseId);
+    return buildAgentContext({
+      session,
+      progress: snapshot.progress,
+      course,
+      courseCount: this.listCourses().length,
+      material: findMaterialForCourse(this.listMaterials(), session.courseId),
+      events: this.listEvents(session.id),
+      checkpoint: this.getLatestCheckpoint(session.id),
+      learningState: session.state,
+    });
   }
 
   getSessionProgress(sessionId: string) {

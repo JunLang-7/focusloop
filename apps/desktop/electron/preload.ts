@@ -70,6 +70,7 @@ const api: FocusLoopApi = {
       payload.simulatorCommand(command.command, command.sessionId),
     ),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getBridgeInfo, payload.none()),
+  getAgentContext: () => ipcRenderer.invoke(IPC_CHANNELS.getAgentContext, payload.none()),
 
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings, payload.none()),
   setLocale: (request) =>
