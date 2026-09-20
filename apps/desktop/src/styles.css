@@ -950,6 +950,47 @@ textarea:focus {
   outline-offset: -1px;
 }
 
+/* ------------------------------------------------------------ file picker */
+
+/*
+ * The picker is a label dressed as a button. An `<input type="file">` cannot be styled and cannot be
+ * replaced, so it is stretched across the label and made transparent: the label is what a person
+ * presses, and the input underneath is what the chooser — and a test — needs to find. It keeps a real
+ * box instead of being hidden, because an element with no box is not in the accessibility tree and
+ * cannot be reached by anything looking for it by role.
+ */
+.pick {
+  position: relative;
+}
+
+.pick__input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* The ring belongs on the thing that looks pressable, not on the invisible input inside it. */
+.pick:has(.pick__input:focus-visible) {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: -1px;
+}
+
+/*
+ * Pasting is the fallback now, so it takes no room until it is asked for and introduces itself in one
+ * muted line rather than as a second full form sitting beside the first.
+ */
+.paste-fallback > summary {
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
 /* ---------------------------------------------------------------- buttons */
 
 .btn {

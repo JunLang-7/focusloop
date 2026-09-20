@@ -745,3 +745,49 @@ test('the import form asks for a file name instead of failing on the channel', a
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+test('a file on the machine can be imported without typing any of it out', async () => {
+  await clickSidebarLink('Home');
+
+  const picker = window.getByTestId('import-pick-file');
+  const name = window.getByTestId('import-file-name');
+  const notice = window.getByTestId('import-pick-notice');
+  const submit = window.getByTestId('import-submit');
+
+  /*
+   * The file chooser itself cannot be driven from here — it belongs to the operating system — but the
+   * input it hangs off can be, and that input is the part the app is responsible for. This is the
+   * journey that did not exist before: there was no way to bring a file in short of opening it
+   * elsewhere, selecting all of it, and pasting it back into the textarea.
+   */
+  await picker.setInputFiles({
+    name: 'rotations.md',
+    mimeType: 'text/markdown',
+    buffer: Buffer.from(
+      '# Rotations\n\nA rotation restructures three nodes while preserving the in-order sequence.\n\n## Left rotation\n\nA left rotation moves the pivot down and to the right.\n',
+    ),
+  });
+
+  // Both the name and the text came out of the file, so neither had to be typed.
+  await expect(name).toHaveValue('rotations.md');
+  await expect(notice).toBeHidden();
+
+  await submit.click();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+  await expect(window.getByTestId('import-summary')).toBeVisible();
+
+  /*
+   * A file that is not text is turned away where it was chosen, in words, and changes nothing: the
+   * course that was just imported is still the one waiting to be imported. Left to the parser this
+   * would have become a course with no concepts in it, which reads as success.
+   */
+  await picker.setInputFiles({
+    name: 'archive.zip',
+    mimeType: 'application/zip',
+    buffer: Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x00, 0x01]),
+  });
+
+  await expect(notice).toBeVisible();
+  await expect(name).toHaveValue('rotations.md');
+  await expect(window.getByTestId('import-summary')).toBeVisible();
+});

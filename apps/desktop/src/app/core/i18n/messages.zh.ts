@@ -72,6 +72,12 @@ export const zh: Record<MessageKey, string> = {
   'home.import.placeholder': '笔记.md',
   'home.import.result': '{title}：{concepts} 个概念，{tasks} 个微任务',
   'home.import.needFileName': '请先给文件起个名字。',
+  'home.import.pick': '选择文件',
+  'home.import.pasteSummary': '或者直接粘贴文本',
+  'home.import.reject.tooLarge': '这个文件超过 {limit}。',
+  'home.import.reject.empty': '这个文件是空的。',
+  'home.import.reject.notText': '这个文件不是纯文本。',
+  'home.import.reject.unreadable': '这个文件读不出来。',
 
   // --------------------------------------------------------------- course
   'course.eyebrow': '课程',

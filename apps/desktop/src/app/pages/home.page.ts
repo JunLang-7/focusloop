@@ -4,6 +4,7 @@ import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { STATE_KEYS } from '../core/i18n/labels';
 import { formatDuration } from '../core/format';
+import { describeLimit, readImportFile, type ImportFileOutcome } from '../core/import-file';
 
 /** Screen 1 of 5: continue, browse courses, import material. */
 @Component({
@@ -73,6 +74,29 @@ import { formatDuration } from '../core/format';
       <h2 class="section-title">{{ t('home.import.title') }}</h2>
       <div class="card">
         <p class="muted small">{{ t('home.import.hint') }}</p>
+        <!--
+          The picker is the way in; typing the file out by hand is the fallback.
+
+          It used to be the only way in, which is why this card was mostly a textarea: importing a
+          file you already had meant opening it somewhere else, selecting all of it, and pasting it
+          back. A picker was also easier to leave out than to add — the file chooser belongs to the
+          operating system, so nothing in the renderer could be told to open it.
+        -->
+        <div class="row">
+          <label class="btn btn--primary pick">
+            {{ t('home.import.pick') }}
+            <input
+              class="pick__input"
+              type="file"
+              data-testid="import-pick-file"
+              accept=".txt,.md,.markdown,text/plain,text/markdown"
+              (change)="onPickFile($event)"
+            />
+          </label>
+          @if (pickNotice(); as notice) {
+            <span class="muted small" data-testid="import-pick-notice">{{ notice }}</span>
+          }
+        </div>
         <label class="field">
           <span>{{ t('home.import.fileName') }}</span>
           <input
@@ -83,10 +107,13 @@ import { formatDuration } from '../core/format';
             (input)="onFileName($event)"
           />
         </label>
-        <label class="field">
-          <span>{{ t('home.import.content') }}</span>
-          <textarea rows="6" [value]="content()" (input)="onContent($event)"></textarea>
-        </label>
+        <details class="paste-fallback">
+          <summary>{{ t('home.import.pasteSummary') }}</summary>
+          <label class="field">
+            <span>{{ t('home.import.content') }}</span>
+            <textarea rows="6" [value]="content()" (input)="onContent($event)"></textarea>
+          </label>
+        </details>
         <!--
           The button is disabled rather than allowed to fail. An empty file name used to reach the
           IPC boundary and come back as a validation error naming the channel and the field, which
@@ -125,6 +152,12 @@ export class HomePage {
   protected readonly courses = this.state.courses;
   protected readonly snapshot = this.state.snapshot;
   protected readonly importSummary = signal<string | null>(null);
+  /**
+   * Why the file that was just picked was not taken. Kept apart from `importSummary`, because the two
+   * answer different questions — what the import produced, and why there is nothing to import yet —
+   * and one slot let each overwrite the other.
+   */
+  protected readonly pickNotice = signal<string | null>(null);
   protected readonly fileName = signal('notes.md');
   /**
    * A name of nothing but spaces is still nothing. The main process rejects an empty `fileName`
@@ -159,6 +192,54 @@ export class HomePage {
 
   protected onContent(event: Event): void {
     this.content.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  /**
+   * Reads the picked file here, in the renderer.
+   *
+   * No IPC: `importMaterial(fileName, content)` takes text and always has, and an `<input
+   * type="file">` hands the renderer a `File` it can read itself. Opening the file in the main
+   * process would have meant a new channel, a filesystem read the renderer could aim, and a second
+   * place for translated words — all to reach the same two strings.
+   */
+  protected onPickFile(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    /*
+     * Cleared so that picking the same file twice runs twice. Without this the second pick fires no
+     * `change` event at all, so a learner who fixed the file on disk and chose it again would watch
+     * nothing happen and conclude the button was broken.
+     */
+    input.value = '';
+    if (file === undefined) return;
+    void readImportFile(file).then((result) => this.applyPickedFile(result));
+  }
+
+  private applyPickedFile(result: ImportFileOutcome): void {
+    if (result.outcome === 'picked') {
+      this.fileName.set(result.fileName);
+      this.content.set(result.content);
+      this.importSummary.set(null);
+      this.pickNotice.set(null);
+      return;
+    }
+
+    // Nothing is changed on a refusal: the previous file stays in the form, so a mis-click is not
+    // also a loss.
+    this.pickNotice.set(this.rejectionFor(result));
+  }
+
+  private rejectionFor(result: Exclude<ImportFileOutcome, { outcome: 'picked' }>): string {
+    switch (result.outcome) {
+      case 'too-large':
+        return this.t('home.import.reject.tooLarge', { limit: describeLimit(result.limitBytes) });
+      case 'empty':
+        return this.t('home.import.reject.empty');
+      case 'not-text':
+        return this.t('home.import.reject.notText');
+      case 'unreadable':
+        return this.t('home.import.reject.unreadable');
+    }
   }
 
   protected openCourse(courseId: string): void {

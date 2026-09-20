@@ -77,6 +77,12 @@ const en = {
   'home.import.placeholder': 'notes.md',
   'home.import.result': '{title}: {concepts} concepts, {tasks} micro tasks',
   'home.import.needFileName': 'Give the file a name first.',
+  'home.import.pick': 'Choose a file',
+  'home.import.pasteSummary': 'Or paste the text instead',
+  'home.import.reject.tooLarge': 'That file is over {limit}.',
+  'home.import.reject.empty': 'That file has nothing in it.',
+  'home.import.reject.notText': 'That file is not plain text.',
+  'home.import.reject.unreadable': 'That file could not be read.',
 
   // --------------------------------------------------------------- course
   'course.eyebrow': 'Course',
