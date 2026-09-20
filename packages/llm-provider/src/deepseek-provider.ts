@@ -49,7 +49,7 @@ export class DeepSeekProvider implements AIProvider {
     }
     this.apiKey = apiKey;
     this.model = options.model ?? DEFAULT_MODEL;
-    this.baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+    this.baseUrl = trimTrailingSlashes(options.baseUrl ?? DEFAULT_BASE_URL);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     this.now = options.now ?? (() => Date.now());
@@ -137,4 +137,12 @@ function mapStatusToReason(status: number): 'unauthorized' | 'rate-limited' | 'b
   if (status === 401 || status === 403) return 'unauthorized';
   if (status === 429) return 'rate-limited';
   return 'bad-response';
+}
+
+function trimTrailingSlashes(value: string): string {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') {
+    end -= 1;
+  }
+  return end === value.length ? value : value.slice(0, end);
 }

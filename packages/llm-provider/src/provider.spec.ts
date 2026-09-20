@@ -63,6 +63,19 @@ describe('DeepSeekProvider configuration', () => {
     expect(provider?.offline).toBe(false);
     expect(provider?.model).toBe('deepseek-chat');
   });
+
+  it('normalizes a configured base URL by trimming trailing slashes', async () => {
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ model: 'deepseek-chat', choices: [{ message: { content: 'hello' } }] }),
+    );
+    const provider = new DeepSeekProvider({
+      apiKey: 'k',
+      baseUrl: 'https://api.deepseek.com///',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await provider.complete({ prompt: 'hi' });
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('https://api.deepseek.com/v1/chat/completions');
+  });
 });
 
 describe('DeepSeekProvider requests', () => {
