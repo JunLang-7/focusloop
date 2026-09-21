@@ -184,6 +184,8 @@ flowchart LR
 
 More detail: [`docs/architecture.md`](docs/architecture.md) · [`docs/privacy.md`](docs/privacy.md)
 
+Agent capability planning: [`docs/wiki/README.md`](docs/wiki/README.md)
+
 ---
 
 ## Install
