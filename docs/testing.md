@@ -28,6 +28,25 @@ It is a review aid, not a test: nothing asserts on the images.
 pulled into the unit run by accident. `pnpm e2e` is the slow loop — it builds the desktop app as a
 dependency, launches Electron and drives the real UI.
 
+## Hermetic launch
+
+Every Electron process the suite and its helper scripts start (`golden-path.spec.ts`,
+`capture-ui.mjs`, `monitor-ui.mjs`, `probe-material.mjs`) builds its child environment with
+`hermeticEnv()` in `apps/desktop-e2e/hermetic-env.mjs`: `process.env` passes through so PATH and
+DISPLAY survive, and provider credentials are deleted. Without that, a developer machine that
+exports `FOCUSLOOP_DEEPSEEK_API_KEY` would run the golden path against the real provider — spending
+the key on tests and making the offline claim untestable where it matters. CI is inert only because
+the secret is absent there, by accident rather than by design.
+
+The first e2e test asserts the run-mode indicator reports the mock provider in offline mode, so a
+credential that leaks back into the launch env fails the suite instead of quietly invalidating the
+claim. Future provider credentials join the `PROVIDER_CREDENTIALS` list in that one module; that is
+the only place the suite decides what a child process may not see.
+
+Nothing in the suite reaches a network provider. The DeepSeek adapter is tested against an injected
+`fetch` (see "What is intentionally not tested"), and production only constructs it when a key is
+present — which `hermeticEnv()` guarantees it is not.
+
 ## The pyramid, and why it is shaped this way
 
 ```text
@@ -151,7 +170,8 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 The golden path, in the real application:
 
 ```text
-launch → demo course → start session → start task → complete task
+launch (hermetic env: no provider key) → assert offline mock indicator
+      → demo course → start session → start task → complete task
       → simulate distraction → simulate return → INTERRUPTED
       → resume card visible → Continue → RESUMING
       → dashboard shows 1 interruption and a measured resume latency
@@ -184,4 +204,5 @@ returns after the threshold')`, not `it('tests reduceState')`.
   matters.
 - Electron's own behaviour.
 - Anything requiring the network. The DeepSeek adapter is tested against an injected `fetch`, so its
-  status mapping, timeout, and key handling are proven without a single real request.
+  status mapping, timeout, and key handling are proven without a single real request. The e2e suite
+  never has a key to use: see "Hermetic launch".
