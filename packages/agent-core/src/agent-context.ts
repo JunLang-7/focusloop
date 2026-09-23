@@ -1,19 +1,26 @@
 import {
   AGENT_CONTEXT_LIMITS,
+  DOMAIN_MESSAGE_KEYS,
   findSectionForConcept,
+  isLearningState,
   type AgentContext,
+  type AgentContextCheckpoint,
+  type AgentContextEvent,
   type AgentContextOmission,
   type AgentContextReport,
   type Concept,
   type Course,
   type LearningCheckpoint,
   type LearningEvent,
+  type LearningEventSource,
   type LearningSession,
   type LearningState,
   type MaterialDocument,
   type MaterialExcerpt,
   type MicroTask,
   type SessionProgress,
+  type SessionEndReason,
+  type StuckReason,
 } from '@focusloop/shared-types';
 
 /**
@@ -94,7 +101,7 @@ export function buildAgentContext(source: AgentContextSource): AgentContextRepor
     material,
     learningState: source.learningState,
     recentEvents,
-    checkpoint: source.checkpoint,
+    checkpoint: projectCheckpoint(source.checkpoint, omissions),
   };
 
   return { context, omissions };
@@ -186,18 +193,306 @@ function excerptMaterial(
   };
 }
 
+function projectCheckpoint(
+  checkpoint: LearningCheckpoint | null,
+  omissions: AgentContextOmission[],
+): AgentContextCheckpoint | null {
+  if (checkpoint === null) return null;
+  if (!isRecord(checkpoint)) return rejectCheckpoint(omissions);
+
+  let reduced = false;
+  const boundedText = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    if (value.length <= AGENT_CONTEXT_LIMITS.checkpointTextCharacters) return value;
+    reduced = true;
+    return value.slice(0, AGENT_CONTEXT_LIMITS.checkpointTextCharacters);
+  };
+  const boundedList = (value: unknown): readonly string[] | null => {
+    if (!Array.isArray(value)) return null;
+    const strings = value.filter((item): item is string => typeof item === 'string');
+    if (strings.length !== value.length || strings.length > AGENT_CONTEXT_LIMITS.checkpointItems) {
+      reduced = true;
+    }
+    return strings
+      .slice(0, AGENT_CONTEXT_LIMITS.checkpointItems)
+      .map((item) => boundedText(item) ?? '');
+  };
+
+  const conceptTitle = boundedText(checkpoint['conceptTitle']);
+  const goal = boundedText(checkpoint['goal']);
+  const mastered = boundedList(checkpoint['mastered']);
+  const unresolved = boundedList(checkpoint['unresolved']);
+  const currentTaskTitle = boundedText(checkpoint['currentTaskTitle']);
+  const currentStep = checkpoint['currentStep'];
+  const frictionState = checkpoint['frictionState'];
+  const createdAt = checkpoint['createdAt'];
+  const action = checkpoint['nextBestAction'];
+
+  if (
+    conceptTitle === null ||
+    goal === null ||
+    mastered === null ||
+    unresolved === null ||
+    currentTaskTitle === null ||
+    typeof currentStep !== 'number' ||
+    !Number.isInteger(currentStep) ||
+    currentStep < 0 ||
+    !isLearningState(frictionState) ||
+    !isIsoTimestamp(createdAt) ||
+    !isRecord(action) ||
+    !isDomainMessageKey(action['key']) ||
+    !isRecord(action['params'])
+  ) {
+    return rejectCheckpoint(omissions);
+  }
+
+  const params: Record<string, string> = {};
+  const entries = Object.entries(action['params']);
+  if (entries.length > AGENT_CONTEXT_LIMITS.checkpointParams) reduced = true;
+  for (const [key, value] of entries.slice(0, AGENT_CONTEXT_LIMITS.checkpointParams)) {
+    if (!/^[A-Za-z][A-Za-z0-9_-]{0,63}$/.test(key) || typeof value !== 'string') {
+      reduced = true;
+      continue;
+    }
+    params[key] = boundedText(value) ?? '';
+  }
+
+  if (reduced) {
+    omissions.push({
+      field: 'checkpoint',
+      detail: 'checkpoint text, list items or message parameters were reduced to context limits',
+    });
+  }
+
+  return {
+    conceptTitle,
+    goal,
+    mastered,
+    unresolved,
+    currentTaskTitle,
+    currentStep,
+    frictionState,
+    nextBestAction: { key: action['key'], params },
+    createdAt,
+  };
+}
+
+function rejectCheckpoint(omissions: AgentContextOmission[]): null {
+  omissions.push({ field: 'checkpoint', detail: 'the checkpoint was invalid and is not included' });
+  return null;
+}
+
+function isDomainMessageKey(
+  value: unknown,
+): value is AgentContextCheckpoint['nextBestAction']['key'] {
+  return typeof value === 'string' && (DOMAIN_MESSAGE_KEYS as readonly string[]).includes(value);
+}
+
 function takeRecentEvents(
   events: readonly LearningEvent[],
   omissions: AgentContextOmission[],
-): readonly LearningEvent[] {
-  if (events.length <= AGENT_CONTEXT_LIMITS.events) return [...events];
+): readonly AgentContextEvent[] {
+  const projected: AgentContextEvent[] = [];
+  let rejected = 0;
+  for (const event of events) {
+    const safe = projectEvent(event);
+    if (safe === null) rejected += 1;
+    else projected.push(safe);
+  }
 
-  const kept = events.slice(-AGENT_CONTEXT_LIMITS.events);
+  if (rejected > 0) {
+    omissions.push({
+      field: 'events',
+      detail: `${String(rejected)} invalid ${rejected === 1 ? 'event is' : 'events are'} not included`,
+    });
+  }
+
+  if (projected.length <= AGENT_CONTEXT_LIMITS.events) return projected;
+
+  const kept = projected.slice(-AGENT_CONTEXT_LIMITS.events);
   omissions.push({
     field: 'events',
-    detail: notIncluded(events.length - kept.length, 'earlier', 'event'),
+    detail: notIncluded(projected.length - kept.length, 'earlier', 'event'),
   });
   return kept;
+}
+
+/**
+ * Project a persisted event into the agent's closed event contract.
+ *
+ * Event rows are read from SQLite as untrusted JSON and are typed at the persistence boundary for
+ * convenience. This function is therefore intentionally defensive: it checks the discriminant,
+ * common metadata and every value that is allowed through, then creates a fresh object containing
+ * no caller-controlled keys beyond the allowlist.
+ */
+const invalidOptional = Symbol('invalid optional event field');
+
+function projectEvent(event: unknown): AgentContextEvent | null {
+  if (!isRecord(event)) return null;
+
+  const type = event['type'];
+  const at = event['at'];
+  const source = event['source'];
+  const payload = event['payload'];
+  if (
+    !isLearningEventType(type) ||
+    !isIsoTimestamp(at) ||
+    !isLearningEventSource(source) ||
+    !isRecord(payload)
+  ) {
+    return null;
+  }
+
+  const common = { at, source } as const;
+  switch (type) {
+    case 'SESSION_STARTED':
+      // SESSION_STARTED may contain course/session ids and TAB_LEFT may contain an origin. Neither
+      // is part of the agent contract, so both are deliberately represented by an empty payload.
+      return { ...common, type, payload: {} };
+    case 'TAB_LEFT':
+      return { ...common, type, payload: {} };
+    case 'TASK_STARTED':
+    case 'TASK_COMPLETED': {
+      const taskId = stringField(payload, 'taskId');
+      return taskId === null ? null : { ...common, type, payload: { taskId } };
+    }
+    case 'HELP_REQUESTED': {
+      const taskId = optionalStringField(payload, 'taskId');
+      const reason = optionalStuckReason(payload, 'reason');
+      if (taskId === invalidOptional || reason === invalidOptional) return null;
+
+      const safePayload: { taskId?: string; reason?: StuckReason } = {};
+      if (taskId !== undefined) safePayload.taskId = taskId;
+      if (reason !== undefined) safePayload.reason = reason;
+      return { ...common, type, payload: safePayload } as AgentContextEvent;
+    }
+    case 'QUIZ_CORRECT':
+    case 'QUIZ_INCORRECT': {
+      const taskId = stringField(payload, 'taskId');
+      const quizId = stringField(payload, 'quizId');
+      return taskId === null || quizId === null
+        ? null
+        : { ...common, type, payload: { taskId, quizId } };
+    }
+    case 'TAB_RETURNED': {
+      const awayMs = nonNegativeFiniteNumber(payload['awayMs']);
+      return awayMs === null ? null : { ...common, type, payload: { awayMs } };
+    }
+    case 'IDLE_STARTED': {
+      const taskId = optionalStringField(payload, 'taskId');
+      return taskId === invalidOptional
+        ? null
+        : taskId === undefined
+          ? { ...common, type, payload: {} }
+          : { ...common, type, payload: { taskId } };
+    }
+    case 'IDLE_ENDED': {
+      const idleMs = nonNegativeFiniteNumber(payload['idleMs']);
+      return idleMs === null ? null : { ...common, type, payload: { idleMs } };
+    }
+    case 'RESUME_REQUESTED':
+    case 'RESUME_DISMISSED':
+      return { ...common, type, payload: {} };
+    case 'SESSION_ENDED': {
+      const reason = sessionEndReason(payload['reason']);
+      return reason === null ? null : { ...common, type, payload: { reason } };
+    }
+    default:
+      return null;
+  }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isLearningEventType(value: unknown): value is LearningEvent['type'] {
+  return (
+    value === 'SESSION_STARTED' ||
+    value === 'TASK_STARTED' ||
+    value === 'TASK_COMPLETED' ||
+    value === 'HELP_REQUESTED' ||
+    value === 'QUIZ_CORRECT' ||
+    value === 'QUIZ_INCORRECT' ||
+    value === 'TAB_LEFT' ||
+    value === 'TAB_RETURNED' ||
+    value === 'IDLE_STARTED' ||
+    value === 'IDLE_ENDED' ||
+    value === 'RESUME_REQUESTED' ||
+    value === 'RESUME_DISMISSED' ||
+    value === 'SESSION_ENDED'
+  );
+}
+
+function isLearningEventSource(value: unknown): value is LearningEventSource {
+  return (
+    value === 'user' ||
+    value === 'extension' ||
+    value === 'simulator' ||
+    value === 'system' ||
+    value === 'agent'
+  );
+}
+
+function stringField(payload: Record<string, unknown>, field: string): string | null {
+  const value = payload[field];
+  return isBoundedEventString(value) ? value : null;
+}
+
+function optionalStringField(
+  payload: Record<string, unknown>,
+  field: string,
+): string | undefined | typeof invalidOptional {
+  const value = payload[field];
+  if (value === undefined) return undefined;
+  return isBoundedEventString(value) ? value : invalidOptional;
+}
+
+function isBoundedEventString(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= AGENT_CONTEXT_LIMITS.eventStringCharacters
+  );
+}
+
+function isIsoTimestamp(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length <= 32 &&
+    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/.test(value) &&
+    Number.isFinite(Date.parse(value))
+  );
+}
+
+function optionalStuckReason(
+  payload: Record<string, unknown>,
+  field: string,
+): StuckReason | undefined | typeof invalidOptional {
+  const value = payload[field];
+  if (value === undefined) return undefined;
+  return isStuckReason(value) ? value : invalidOptional;
+}
+
+function isStuckReason(value: unknown): value is StuckReason {
+  return (
+    value === 'cannot-start' ||
+    value === 'do-not-understand' ||
+    value === 'too-big' ||
+    value === 'went-wrong' ||
+    value === 'cannot-recall' ||
+    value === 'tired'
+  );
+}
+
+function nonNegativeFiniteNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+function sessionEndReason(value: unknown): SessionEndReason | null {
+  return value === 'user' || value === 'completed' || value === 'timeout' || value === 'crashed'
+    ? value
+    : null;
 }
 
 /**

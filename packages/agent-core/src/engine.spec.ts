@@ -232,16 +232,77 @@ describe('FocusLoopEngine', () => {
        * "the only place the material lookup, the event log and the checkpoint are joined up" while no
        * assertion read the checkpoint at all — a regression passing `null` through would have left
        * every other line here green, and the resume capability would lose its input silently.
+       *
+       * The report carries the bounded projection, not the persistence record: same facts the agent
+       * needs, none of the ids that would widen the boundary.
        */
-      expect(report.context?.checkpoint?.id).toBe(checkpoint.id);
+      expect(report.context?.checkpoint).toMatchObject({
+        currentTaskTitle: checkpoint.currentTaskTitle,
+        currentStep: checkpoint.currentStep,
+        frictionState: checkpoint.frictionState,
+      });
+      expect(report.context?.checkpoint).not.toHaveProperty('id');
+      expect(report.context?.checkpoint).not.toHaveProperty('sessionId');
       // The point of the wiring test: a real document is found, and its text reaches the agent.
       expect(report.context?.material.materialId).not.toBeNull();
       expect(report.context?.material.text.length).toBeGreaterThan(0);
       expect(report.context?.recentEvents.length).toBeGreaterThan(0);
-      expect(report.context?.recentEvents.every((event) => event.sessionId === session.id)).toBe(
-        true,
-      );
+      expect(
+        report.context?.recentEvents.every((event) => !('sessionId' in event) && !('id' in event)),
+      ).toBe(true);
       expect(report.context?.task.totalSteps).toBeGreaterThan(0);
+    });
+
+    it('projects hostile stored event payloads before returning the shared context report', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TAB_LEFT',
+        source: 'extension',
+        payload: {
+          origin: 'https://private.example',
+          url: 'https://private.example/private?token=secret',
+          formValue: 'FORM_SECRET',
+        },
+      });
+
+      const report = ctx.engine.getAgentContext();
+      const serialized = JSON.stringify(report);
+
+      expect(report.context?.recentEvents.length).toBeGreaterThan(0);
+      expect(report.context?.recentEvents.at(-1)).toMatchObject({ type: 'TAB_LEFT' });
+      expect(report.context?.recentEvents.at(-1)?.payload).toEqual({});
+      expect(serialized).not.toContain('FORM_SECRET');
+      expect(serialized).not.toContain('token=secret');
+    });
+
+    it('assembles context only from the active course when other courses contain private text', () => {
+      ctx.engine.importMaterial(
+        'other.md',
+        '# Other course\n\n## Private section\n\nOTHER_COURSE_SECRET '.repeat(12),
+      );
+      ctx.engine.importMaterial(
+        'current.md',
+        '# Current course\n\n## Current section\n\nCURRENT_COURSE_TEXT '.repeat(12),
+      );
+      const current = ctx.engine.listCourses().find((course) => course.title === 'Current course');
+      expect(current).toBeDefined();
+
+      const { session } = ctx.engine.startSession(current!.id);
+      const task = current!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: task.id },
+      });
+
+      const report = ctx.engine.getAgentContext();
+      const serialized = JSON.stringify(report);
+
+      expect(serialized).toContain('CURRENT_COURSE_TEXT');
+      expect(serialized).not.toContain('OTHER_COURSE_SECRET');
+      expect(report.omissions.some((item) => item.field === 'courses')).toBe(true);
     });
 
     it('has no section to give before a task is under way, and says so', () => {

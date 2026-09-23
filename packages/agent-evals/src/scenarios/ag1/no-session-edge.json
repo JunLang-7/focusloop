@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-no-session-edge",
+  "capability": "AG1",
+  "kind": "edge",
+  "description": "No active session produces an explicit empty context.",
+  "input": { "case": "no-session" },
+  "expected": [
+    { "type": "equals", "path": "context", "value": null },
+    { "type": "equals", "path": "omissions[0].field", "value": "session" }
+  ],
+  "forbidden": []
+}

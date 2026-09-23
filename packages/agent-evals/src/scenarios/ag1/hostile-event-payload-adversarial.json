@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-hostile-event-payload-adversarial",
+  "capability": "AG1",
+  "kind": "adversarial",
+  "description": "Only the per-event allowlist survives a hostile stored payload.",
+  "input": { "case": "hostile-event" },
+  "expected": [
+    {
+      "type": "allowed-keys",
+      "path": "context.recentEvents[0]",
+      "keys": ["type", "at", "source", "payload"]
+    },
+    {
+      "type": "allowed-keys",
+      "path": "context.recentEvents[0].payload",
+      "keys": ["taskId"]
+    },
+    {
+      "type": "allowed-keys",
+      "path": "context.recentEvents[1].payload",
+      "keys": []
+    }
+  ],
+  "forbidden": [{ "type": "forbidden-value", "value": "HOSTILE_PAYLOAD_SECRET" }]
+}

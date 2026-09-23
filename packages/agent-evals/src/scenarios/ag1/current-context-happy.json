@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-current-context-happy",
+  "capability": "AG1",
+  "kind": "happy",
+  "description": "The current task, concept and bounded material are available.",
+  "input": { "case": "current" },
+  "expected": [
+    {
+      "type": "allowed-keys",
+      "path": "context",
+      "keys": [
+        "session",
+        "concept",
+        "task",
+        "material",
+        "learningState",
+        "recentEvents",
+        "checkpoint"
+      ]
+    },
+    { "type": "equals", "path": "context.task.taskId", "value": "t1" },
+    { "type": "equals", "path": "context.concept.title", "value": "Rotations" },
+    { "type": "equals", "path": "context.material.heading", "value": "Rotations" }
+  ],
+  "forbidden": [{ "type": "forbidden-value", "value": "OTHER_COURSE_SECRET" }]
+}

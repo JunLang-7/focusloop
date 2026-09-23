@@ -1,7 +1,8 @@
-import type { LearningCheckpoint } from './checkpoint';
 import type { MicroTaskKind } from './course';
-import type { LearningEvent } from './events';
+import type { LearningEventSource, SessionEndReason, LearningEventType } from './events';
+import type { StuckReason } from './stuck';
 import type { LearningState } from './state';
+import type { LocalizedMessage } from './messages';
 
 /**
  * What the agent is allowed to know about the current moment.
@@ -16,14 +17,12 @@ import type { LearningState } from './state';
  * the source is assembled by the caller, so this describes the shape of what is handed over, not the
  * policy for choosing it.
  *
- * The checkpoint is the one field passed through whole. It is already a summary of where the learner
- * got to, and trimming it would damage the thing the resume capability exists to restore. It is named
- * here rather than left implicit, because "everything is bounded" would otherwise be a claim this
- * file does not make good on.
+ * The persisted checkpoint is projected into a bounded cognitive summary. Persistence identifiers do
+ * not help the agent reason, and learner-authored goal or task text must not create an unbounded route
+ * around the material and event budgets.
  *
- * A note on naming: the design notes call the checkpoint a `CognitiveCheckpoint`. The continuity
- * package already stores exactly that object as `LearningCheckpoint`, so this reuses it. Two names
- * for one thing is how a domain drifts.
+ * The persistence model remains `LearningCheckpoint`; `AgentContextCheckpoint` is deliberately a
+ * separate projection so adding a database field cannot silently widen the agent boundary.
  */
 
 /** A bounded piece of the imported material — never the document. */
@@ -62,6 +61,54 @@ export interface TaskContext {
   readonly totalSteps: number;
 }
 
+/**
+ * The event representation that may cross the agent boundary.
+ *
+ * This is deliberately not `LearningEvent`: event ids, session ids and the source payload are
+ * persistence concerns, and several persisted payloads contain fields that must never be shown to
+ * an agent. The builder projects a domain event into this closed, per-type allowlist.
+ */
+type AgentContextEventBase<TType extends LearningEventType, TPayload> = {
+  readonly type: TType;
+  readonly at: string;
+  readonly source: LearningEventSource;
+  readonly payload: TPayload;
+};
+
+type EmptyAgentContextPayload = Record<string, never>;
+
+/** Events and payload fields that are safe for the agent context. */
+export type AgentContextEvent =
+  | AgentContextEventBase<'SESSION_STARTED', EmptyAgentContextPayload>
+  | AgentContextEventBase<'TASK_STARTED', { readonly taskId: string }>
+  | AgentContextEventBase<'TASK_COMPLETED', { readonly taskId: string }>
+  | AgentContextEventBase<
+      'HELP_REQUESTED',
+      { readonly taskId?: string; readonly reason?: StuckReason }
+    >
+  | AgentContextEventBase<'QUIZ_CORRECT', { readonly taskId: string; readonly quizId: string }>
+  | AgentContextEventBase<'QUIZ_INCORRECT', { readonly taskId: string; readonly quizId: string }>
+  | AgentContextEventBase<'TAB_LEFT', EmptyAgentContextPayload>
+  | AgentContextEventBase<'TAB_RETURNED', { readonly awayMs: number }>
+  | AgentContextEventBase<'IDLE_STARTED', { readonly taskId?: string }>
+  | AgentContextEventBase<'IDLE_ENDED', { readonly idleMs: number }>
+  | AgentContextEventBase<'RESUME_REQUESTED', EmptyAgentContextPayload>
+  | AgentContextEventBase<'RESUME_DISMISSED', EmptyAgentContextPayload>
+  | AgentContextEventBase<'SESSION_ENDED', { readonly reason: SessionEndReason }>;
+
+/** The bounded cognitive summary exposed to an agent, without persistence identifiers. */
+export interface AgentContextCheckpoint {
+  readonly conceptTitle: string;
+  readonly goal: string;
+  readonly mastered: readonly string[];
+  readonly unresolved: readonly string[];
+  readonly currentTaskTitle: string;
+  readonly currentStep: number;
+  readonly frictionState: LearningState;
+  readonly nextBestAction: LocalizedMessage;
+  readonly createdAt: string;
+}
+
 export interface AgentContext {
   readonly session: SessionContext;
   readonly concept: ConceptContext;
@@ -69,8 +116,8 @@ export interface AgentContext {
   readonly material: MaterialExcerpt;
   readonly learningState: LearningState;
   /** The most recent events, oldest first. A window, never the whole log. */
-  readonly recentEvents: readonly LearningEvent[];
-  readonly checkpoint: LearningCheckpoint | null;
+  readonly recentEvents: readonly AgentContextEvent[];
+  readonly checkpoint: AgentContextCheckpoint | null;
 }
 
 /**
@@ -81,7 +128,14 @@ export interface AgentContext {
  * from one that forgot them, and the difference matters the first time an answer is wrong.
  */
 export interface AgentContextOmission {
-  readonly field: 'events' | 'material' | 'courses' | 'session';
+  /**
+   * Which part of the input this is about.
+   *
+   * `'checkpoint'` was added when the persisted checkpoint became a bounded projection: a rejected
+   * or reduced checkpoint is none of the other three, and reporting it as events or material would
+   * say something untrue about why it was dropped.
+   */
+  readonly field: 'events' | 'material' | 'courses' | 'session' | 'checkpoint';
   readonly detail: string;
 }
 
@@ -103,4 +157,9 @@ export interface AgentContextReport {
 export const AGENT_CONTEXT_LIMITS = {
   materialCharacters: 1200,
   events: 12,
+  /** Upper bound for any identifier copied from an event payload. */
+  eventStringCharacters: 256,
+  checkpointTextCharacters: 320,
+  checkpointItems: 6,
+  checkpointParams: 4,
 } as const;

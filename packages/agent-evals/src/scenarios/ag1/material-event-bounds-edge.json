@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-material-and-event-bounds-edge",
+  "capability": "AG1",
+  "kind": "edge",
+  "description": "Material and recent events stay inside their declared bounds.",
+  "input": { "case": "bounds" },
+  "expected": [
+    { "type": "max-length", "path": "context.material.text", "max": 1200 },
+    { "type": "max-items", "path": "context.recentEvents", "max": 12 },
+    {
+      "type": "equals",
+      "path": "context.recentEvents[0].at",
+      "value": "2026-09-20T00:00:08.000Z"
+    }
+  ],
+  "forbidden": []
+}

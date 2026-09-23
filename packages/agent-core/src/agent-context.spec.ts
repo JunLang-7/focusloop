@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   AGENT_CONTEXT_LIMITS,
   type Course,
+  type LearningCheckpoint,
   type LearningEvent,
   type LearningSession,
   type MaterialDocument,
@@ -231,8 +232,8 @@ describe('buildAgentContext', () => {
     // The literal, for the same reason as the material bound above.
     expect(kept).toHaveLength(12);
     // Newest last, so "what just happened" is at the end where it is read.
-    expect(kept.at(-1)?.id).toBe('e19');
-    expect(kept[0]?.id).toBe('e8');
+    expect(kept.at(-1)?.at).toBe('2026-09-20T00:00:19.000Z');
+    expect(kept[0]?.at).toBe('2026-09-20T00:00:08.000Z');
     expect(report.omissions).toContainEqual({
       field: 'events',
       detail: '8 earlier events are not included',
@@ -281,4 +282,302 @@ describe('buildAgentContext', () => {
       detail: 'no material is attached to this course, so there is nothing to ground an answer in',
     });
   });
+
+  it('projects and bounds the checkpoint instead of exposing its persistence record', () => {
+    const long = 'x'.repeat(AGENT_CONTEXT_LIMITS.checkpointTextCharacters + 80);
+    const checkpoint: LearningCheckpoint = {
+      id: 'CHECKPOINT_ID_SECRET',
+      sessionId: 'CHECKPOINT_SESSION_SECRET',
+      conceptId: 'CHECKPOINT_CONCEPT_ID_SECRET',
+      conceptTitle: long,
+      goal: long,
+      mastered: Array.from({ length: 8 }, (_unused, index) => `mastered-${String(index)}-${long}`),
+      unresolved: Array.from(
+        { length: 8 },
+        (_unused, index) => `unresolved-${String(index)}-${long}`,
+      ),
+      currentTaskId: 'CHECKPOINT_TASK_ID_SECRET',
+      currentTaskTitle: long,
+      currentStep: 2,
+      frictionState: 'CONFUSED',
+      nextBestAction: {
+        key: 'action.read.summarise',
+        params: {
+          title: long,
+          second: long,
+          third: long,
+          fourth: long,
+          fifth: long,
+        },
+      },
+      createdAt: '2026-09-20T00:00:00.000Z',
+    };
+
+    const report = buildAgentContext(source({ checkpoint }));
+    const projected = report.context?.checkpoint;
+    const serialized = JSON.stringify(projected);
+
+    expect(projected?.conceptTitle).toHaveLength(AGENT_CONTEXT_LIMITS.checkpointTextCharacters);
+    expect(projected?.mastered).toHaveLength(AGENT_CONTEXT_LIMITS.checkpointItems);
+    expect(projected?.mastered.every((item) => item.length <= 320)).toBe(true);
+    expect(projected?.unresolved).toHaveLength(AGENT_CONTEXT_LIMITS.checkpointItems);
+    expect(Object.keys(projected?.nextBestAction.params ?? {})).toHaveLength(
+      AGENT_CONTEXT_LIMITS.checkpointParams,
+    );
+    expect(serialized).not.toContain('CHECKPOINT_ID_SECRET');
+    expect(serialized).not.toContain('CHECKPOINT_SESSION_SECRET');
+    expect(serialized).not.toContain('CHECKPOINT_CONCEPT_ID_SECRET');
+    expect(serialized).not.toContain('CHECKPOINT_TASK_ID_SECRET');
+    expect(report.omissions).toContainEqual({
+      field: 'checkpoint',
+      detail: 'checkpoint text, list items or message parameters were reduced to context limits',
+    });
+  });
+
+  it('rejects an invalid checkpoint instead of projecting half of it', () => {
+    const checkpoint = {
+      id: 'cp-invalid',
+      sessionId: 's1',
+      conceptId: 'k1',
+      conceptTitle: 'Rotations',
+      goal: 'Understand rotations',
+      mastered: [],
+      unresolved: ['Rotations'],
+      currentTaskId: 't1',
+      currentTaskTitle: 'Read rotations',
+      currentStep: 1,
+      frictionState: 'NOT_A_STATE',
+      nextBestAction: { key: 'action.read.summarise', params: {} },
+      createdAt: '2026-09-20T00:00:00.000Z',
+    } as unknown as LearningCheckpoint;
+
+    const report = buildAgentContext(source({ checkpoint }));
+
+    expect(report.context?.checkpoint).toBeNull();
+    expect(report.omissions).toContainEqual({
+      field: 'checkpoint',
+      detail: 'the checkpoint was invalid and is not included',
+    });
+  });
+
+  it('drops malformed nextBestAction params rather than forwarding them', () => {
+    const checkpoint: LearningCheckpoint = {
+      id: 'cp-params',
+      sessionId: 's1',
+      conceptId: 'k1',
+      conceptTitle: 'Rotations',
+      goal: 'Understand rotations',
+      mastered: [],
+      unresolved: [],
+      currentTaskId: 't1',
+      currentTaskTitle: 'Read rotations',
+      currentStep: 1,
+      frictionState: 'FOCUSED',
+      nextBestAction: {
+        key: 'action.read.summarise',
+        params: { 'bad key!': 'nope', good: 42 as unknown as string },
+      },
+      createdAt: '2026-09-20T00:00:00.000Z',
+    };
+
+    const report = buildAgentContext(source({ checkpoint }));
+
+    expect(report.context?.checkpoint?.nextBestAction.params).toEqual({});
+    expect(report.omissions).toContainEqual({
+      field: 'checkpoint',
+      detail: 'checkpoint text, list items or message parameters were reduced to context limits',
+    });
+  });
+
+  it('projects the event allowlist and strips persistence and sensitive payload fields', () => {
+    const rawEvents = [
+      rawEvent('SESSION_STARTED', { courseId: 'course-secret', sessionId: 'session-secret' }),
+      rawEvent('TASK_STARTED', { taskId: 't1', url: 'https://secret.test', token: 'secret' }),
+      rawEvent('TASK_COMPLETED', { taskId: 't1', pageTitle: 'Private page' }),
+      rawEvent('HELP_REQUESTED', {
+        taskId: 't1',
+        reason: 'too-big',
+        path: '/private',
+        query: '?secret=1',
+      }),
+      rawEvent('QUIZ_CORRECT', { taskId: 't1', quizId: 'q1', apiKey: 'secret' }),
+      rawEvent('QUIZ_INCORRECT', { taskId: 't1', quizId: 'q1', cookie: 'secret' }),
+      rawEvent('TAB_LEFT', {
+        origin: 'https://secret.test',
+        url: 'https://secret.test/private',
+        path: '/private',
+        query: '?secret=1',
+        token: 'secret',
+        apiKey: 'secret',
+        cookie: 'secret',
+        formValue: 'secret',
+        clipboard: 'secret',
+        pageTitle: 'Private page',
+      }),
+      rawEvent('TAB_RETURNED', { awayMs: 30_000, clipboard: 'secret' }),
+      rawEvent('IDLE_STARTED', { taskId: 't1', formValue: 'secret' }),
+      rawEvent('IDLE_ENDED', { idleMs: 45_000, pageTitle: 'Private page' }),
+      rawEvent('RESUME_REQUESTED', { checkpointId: 'cp1', url: 'https://secret.test' }),
+      rawEvent('RESUME_DISMISSED', { checkpointId: 'cp1', query: '?secret=1' }),
+      rawEvent('SESSION_ENDED', { reason: 'user', apiKey: 'secret' }),
+    ];
+    const report = buildAgentContext(source({ events: rawEvents }));
+
+    expect(report.context?.recentEvents).toEqual([
+      { type: 'TASK_STARTED', at: rawEvents[1]?.at, source: 'user', payload: { taskId: 't1' } },
+      { type: 'TASK_COMPLETED', at: rawEvents[2]?.at, source: 'user', payload: { taskId: 't1' } },
+      {
+        type: 'HELP_REQUESTED',
+        at: rawEvents[3]?.at,
+        source: 'user',
+        payload: { taskId: 't1', reason: 'too-big' },
+      },
+      {
+        type: 'QUIZ_CORRECT',
+        at: rawEvents[4]?.at,
+        source: 'user',
+        payload: { taskId: 't1', quizId: 'q1' },
+      },
+      {
+        type: 'QUIZ_INCORRECT',
+        at: rawEvents[5]?.at,
+        source: 'user',
+        payload: { taskId: 't1', quizId: 'q1' },
+      },
+      { type: 'TAB_LEFT', at: rawEvents[6]?.at, source: 'user', payload: {} },
+      { type: 'TAB_RETURNED', at: rawEvents[7]?.at, source: 'user', payload: { awayMs: 30_000 } },
+      { type: 'IDLE_STARTED', at: rawEvents[8]?.at, source: 'user', payload: { taskId: 't1' } },
+      { type: 'IDLE_ENDED', at: rawEvents[9]?.at, source: 'user', payload: { idleMs: 45_000 } },
+      {
+        type: 'RESUME_REQUESTED',
+        at: rawEvents[10]?.at,
+        source: 'user',
+        payload: {},
+      },
+      {
+        type: 'RESUME_DISMISSED',
+        at: rawEvents[11]?.at,
+        source: 'user',
+        payload: {},
+      },
+      { type: 'SESSION_ENDED', at: rawEvents[12]?.at, source: 'user', payload: { reason: 'user' } },
+    ]);
+    expect(report.context?.recentEvents).not.toContainEqual(
+      expect.objectContaining({ type: 'SESSION_STARTED' }),
+    );
+    expect(report.omissions).toContainEqual({
+      field: 'events',
+      detail: '1 earlier event is not included',
+    });
+  });
+
+  it('has an explicit projection for every learning event type', () => {
+    const cases: readonly {
+      type: string;
+      input: Record<string, unknown>;
+      output: Record<string, unknown>;
+    }[] = [
+      { type: 'SESSION_STARTED', input: { courseId: 'c1', sessionId: 's1' }, output: {} },
+      { type: 'TASK_STARTED', input: { taskId: 't1' }, output: { taskId: 't1' } },
+      { type: 'TASK_COMPLETED', input: { taskId: 't1' }, output: { taskId: 't1' } },
+      {
+        type: 'HELP_REQUESTED',
+        input: { taskId: 't1', reason: 'too-big' },
+        output: { taskId: 't1', reason: 'too-big' },
+      },
+      {
+        type: 'QUIZ_CORRECT',
+        input: { taskId: 't1', quizId: 'q1' },
+        output: { taskId: 't1', quizId: 'q1' },
+      },
+      {
+        type: 'QUIZ_INCORRECT',
+        input: { taskId: 't1', quizId: 'q1' },
+        output: { taskId: 't1', quizId: 'q1' },
+      },
+      { type: 'TAB_LEFT', input: { origin: 'https://private.test' }, output: {} },
+      { type: 'TAB_RETURNED', input: { awayMs: 30_000 }, output: { awayMs: 30_000 } },
+      { type: 'IDLE_STARTED', input: {}, output: {} },
+      { type: 'IDLE_ENDED', input: { idleMs: 45_000 }, output: { idleMs: 45_000 } },
+      {
+        type: 'RESUME_REQUESTED',
+        input: { checkpointId: 'cp1' },
+        output: {},
+      },
+      {
+        type: 'RESUME_DISMISSED',
+        input: { checkpointId: 'cp1' },
+        output: {},
+      },
+      { type: 'SESSION_ENDED', input: { reason: 'user' }, output: { reason: 'user' } },
+    ];
+
+    for (const eventCase of cases) {
+      const report = buildAgentContext(
+        source({ events: [rawEvent(eventCase.type, eventCase.input)] }),
+      );
+      expect(report.context?.recentEvents, eventCase.type).toEqual([
+        {
+          type: eventCase.type,
+          at: '2026-09-20T00:00:00.000Z',
+          source: 'user',
+          payload: eventCase.output,
+        },
+      ]);
+    }
+  });
+
+  it('drops malformed and unknown events without mutating the event log', () => {
+    const rawEvents = [
+      rawEvent('TASK_STARTED', { taskId: 't1', clipboard: 'secret' }),
+      rawEvent('UNKNOWN_EVENT', { taskId: 't1' }),
+      rawEvent('TAB_RETURNED', { awayMs: Number.NaN }),
+      rawEvent('TAB_RETURNED', { awayMs: -1 }),
+      rawEvent('IDLE_ENDED', { idleMs: Number.POSITIVE_INFINITY }),
+      rawEvent('IDLE_ENDED', { idleMs: -1 }),
+      rawEvent('TASK_COMPLETED', { taskId: 42 }),
+      rawEvent('TASK_COMPLETED', {
+        taskId: 'x'.repeat(AGENT_CONTEXT_LIMITS.eventStringCharacters + 1),
+      }),
+      rawEvent('SESSION_ENDED', { reason: 'not-a-reason' }),
+      {
+        ...rawEvent('TASK_STARTED', { taskId: 't-invalid-time' }),
+        at: 'not-a-timestamp',
+      } as unknown as LearningEvent,
+      rawEvent('TASK_STARTED', { taskId: 't2' }),
+    ];
+    const before = structuredClone(rawEvents);
+    const report = buildAgentContext(source({ events: rawEvents }));
+
+    expect(report.context?.recentEvents).toEqual([
+      {
+        type: 'TASK_STARTED',
+        at: rawEvents[0]?.at,
+        source: 'user',
+        payload: { taskId: 't1' },
+      },
+      {
+        type: 'TASK_STARTED',
+        at: rawEvents[10]?.at,
+        source: 'user',
+        payload: { taskId: 't2' },
+      },
+    ]);
+    expect(report.omissions).toContainEqual({
+      field: 'events',
+      detail: '9 invalid events are not included',
+    });
+    expect(rawEvents).toEqual(before);
+  });
 });
+
+function rawEvent(type: string, payload: Record<string, unknown>): LearningEvent {
+  return {
+    id: `event-${type}-${String(Object.keys(payload).length)}`,
+    sessionId: 's1',
+    at: '2026-09-20T00:00:00.000Z',
+    type,
+    source: 'user',
+    payload,
+  } as unknown as LearningEvent;
+}
