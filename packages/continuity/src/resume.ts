@@ -191,7 +191,16 @@ export function evaluateResumeOutcome(input: EvaluateResumeOutcomeInput): Resume
     if (event.sessionId !== input.checkpoint.sessionId) continue;
 
     let countsHere = false;
-    if (
+    if (event.type === 'HELP_REQUESTED') {
+      // A help request is a stall signal even when older events omit taskId (or
+      // the learner asks from a different task). Only current-task requests are
+      // also re-engagement evidence.
+      stallEventIds.push(event.id);
+      countsHere = true;
+      if (isCurrentTaskEvent(event, input.checkpoint.currentTaskId)) {
+        reengageEventIds.push(event.id);
+      }
+    } else if (
       REENGAGE_EVENT_TYPES.has(event.type) &&
       isCurrentTaskEvent(event, input.checkpoint.currentTaskId)
     ) {
@@ -199,9 +208,6 @@ export function evaluateResumeOutcome(input: EvaluateResumeOutcomeInput): Resume
       countsHere = true;
       if (PROGRESS_EVENT_TYPES.has(event.type)) {
         progressEventIds.push(event.id);
-      }
-      if (event.type === 'HELP_REQUESTED') {
-        stallEventIds.push(event.id);
       }
     } else if (event.type === 'TAB_LEFT' || event.type === 'IDLE_STARTED') {
       stallEventIds.push(event.id);

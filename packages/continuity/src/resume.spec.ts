@@ -393,6 +393,18 @@ describe('evaluateResumeOutcome', () => {
     expect(result.status).toBe('observed');
   });
 
+  it('counts a help request without taskId as stalledAgain', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [ev('e-help-legacy', 'HELP_REQUESTED', '2026-01-01T00:02:00.000Z', {})],
+      now: '2026-01-01T00:03:00.000Z',
+    });
+    expect(result.stalledAgain).toBe(true);
+    expect(result.reengaged).toBe(false);
+    expect(result.status).toBe('observed');
+  });
+
   it('counts each event id once and ignores another session', () => {
     const result = evaluateResumeOutcome({
       checkpoint,
