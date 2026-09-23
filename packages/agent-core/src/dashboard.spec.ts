@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import type { LearningSession } from '@focusloop/shared-types';
-import { buildDashboardSummary, formatDuration, formatLatency } from './dashboard';
+import type {
+  LearningCheckpoint,
+  LearningEvent,
+  LearningSession,
+  ResumeCardTiming,
+} from '@focusloop/shared-types';
+import {
+  buildDashboardSummary,
+  emptyResumeOutcomeSummary,
+  formatDuration,
+  formatLatency,
+  summarizeResumeOutcomes,
+} from './dashboard';
 import { demoCourse } from './demo-course';
 
 const T0 = '2026-01-01T00:00:00.000Z';
@@ -17,6 +28,122 @@ function session(overrides: Partial<LearningSession> = {}): LearningSession {
   };
 }
 
+function checkpoint(id: string): LearningCheckpoint {
+  return {
+    id,
+    sessionId: 's1',
+    conceptId: 'c1',
+    conceptTitle: 'Rotations',
+    goal: 'Learn',
+    mastered: [],
+    unresolved: [],
+    currentTaskId: 'rbt-t1',
+    currentTaskTitle: 'Read rotations',
+    currentStep: 1,
+    frictionState: 'FOCUSED',
+    nextBestAction: { key: 'action.read.summarise', params: {} },
+    createdAt: T0,
+  };
+}
+
+function helpEvent(at: string, id = 'e-help'): LearningEvent {
+  return {
+    id,
+    sessionId: 's1',
+    at,
+    type: 'HELP_REQUESTED',
+    source: 'user',
+    payload: { taskId: 'rbt-t1', reason: 'tired' },
+  } as LearningEvent;
+}
+
+function completeEvent(at: string): LearningEvent {
+  return {
+    id: 'e-done',
+    sessionId: 's1',
+    at,
+    type: 'TASK_COMPLETED',
+    source: 'user',
+    payload: { taskId: 'rbt-t1' },
+  } as LearningEvent;
+}
+
+describe('summarizeResumeOutcomes', () => {
+  const acceptedAt = '2026-01-01T00:01:00.000Z';
+  const timing: ResumeCardTiming = {
+    checkpointId: 'cp-1',
+    shownAt: T0,
+    acceptedAt,
+  };
+
+  it('counts accept-then-help-again as reengaged without progressed', () => {
+    const summary = summarizeResumeOutcomes({
+      timings: [timing],
+      checkpoints: [checkpoint('cp-1')],
+      events: [helpEvent('2026-01-01T00:01:30.000Z')],
+      now: '2026-01-01T00:02:00.000Z',
+    });
+
+    expect(summary).toMatchObject({
+      accepted: 1,
+      reengaged: 1,
+      progressed: 0,
+      stalledAgain: 1,
+      pending: 0,
+    });
+    expect(summary.reengageRate).toBe(1);
+    expect(summary.progressRate).toBe(0);
+  });
+
+  it('keeps pending out of both rate denominators', () => {
+    const pendingTiming: ResumeCardTiming = {
+      checkpointId: 'cp-2',
+      shownAt: T0,
+      acceptedAt: '2026-01-01T00:04:30.000Z',
+    };
+    const summary = summarizeResumeOutcomes({
+      timings: [timing, pendingTiming],
+      checkpoints: [checkpoint('cp-1'), checkpoint('cp-2')],
+      events: [completeEvent('2026-01-01T00:02:00.000Z')],
+      now: '2026-01-01T00:05:00.000Z',
+    });
+
+    expect(summary.pending).toBe(1);
+    expect(summary.reengageRate).toBe(1);
+    expect(summary.progressRate).toBe(1);
+    expect(summary.accepted).toBe(2);
+  });
+
+  it('does not double-count a session end as expired', () => {
+    const summary = summarizeResumeOutcomes({
+      timings: [timing],
+      checkpoints: [checkpoint('cp-1')],
+      events: [],
+      sessionEndedAt: '2026-01-01T00:02:00.000Z',
+      now: '2026-01-01T00:10:00.000Z',
+    });
+    expect(summary.stalledAgain).toBe(1);
+    expect(summary.expired).toBe(0);
+    expect(summary.reengaged).toBe(0);
+  });
+
+  it('excludes dismissed cards from every denominator', () => {
+    const summary = summarizeResumeOutcomes({
+      timings: [
+        {
+          checkpointId: 'cp-1',
+          shownAt: T0,
+          dismissedAt: '2026-01-01T00:01:00.000Z',
+        },
+      ],
+      checkpoints: [checkpoint('cp-1')],
+      events: [],
+      now: '2026-01-01T00:10:00.000Z',
+    });
+    expect(summary).toEqual(emptyResumeOutcomeSummary());
+  });
+});
+
 describe('buildDashboardSummary', () => {
   it('returns an empty summary with the full action list when there is no session', () => {
     const summary = buildDashboardSummary({
@@ -29,6 +156,8 @@ describe('buildDashboardSummary', () => {
     expect(summary.sessionId).toBeNull();
     expect(summary.interventionOutcomes.length).toBeGreaterThan(0);
     expect(summary.averageResumeLatencyMs).toBeNull();
+    expect(summary.resumeOutcomes.reengageRate).toBeNull();
+    expect(summary.resumeOutcomes.progressRate).toBeNull();
   });
 
   it('measures the running duration while the session is open', () => {
@@ -107,6 +236,28 @@ describe('buildDashboardSummary', () => {
       now: T0,
     });
     expect(summary.sessionDurationMs).toBe(0);
+  });
+
+  it('rebuilds resume outcomes from timings, checkpoints and events', () => {
+    const summary = buildDashboardSummary({
+      session: session(),
+      course: demoCourse(),
+      outcomes: [],
+      checkpointCount: 1,
+      resumeTimings: [
+        { checkpointId: 'cp-1', shownAt: T0, acceptedAt: '2026-01-01T00:01:00.000Z' },
+      ],
+      checkpoints: [checkpoint('cp-1')],
+      events: [helpEvent('2026-01-01T00:01:30.000Z')],
+      now: '2026-01-01T00:02:00.000Z',
+    });
+    expect(summary.resumeOutcomes).toMatchObject({
+      reengaged: 1,
+      progressed: 0,
+      stalledAgain: 1,
+      reengageRate: 1,
+      progressRate: 0,
+    });
   });
 });
 

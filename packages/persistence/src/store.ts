@@ -662,6 +662,23 @@ export class FocusLoopStore {
     };
   }
 
+  listResumeTimings(sessionId: string): ResumeCardTiming[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM resume_cards
+         WHERE session_id = ?
+         ORDER BY shown_at ASC, checkpoint_id ASC;`,
+      )
+      .all(sessionId) as ResumeCardRow[];
+    return rows.map((row) => ({
+      checkpointId: row.checkpoint_id,
+      shownAt: row.shown_at,
+      acceptedAt: row.accepted_at ?? undefined,
+      dismissedAt: row.dismissed_at ?? undefined,
+      resumeLatencyMs: row.resume_latency_ms ?? undefined,
+    }));
+  }
+
   markResumeDecided(
     checkpointId: string,
     decision: 'accepted' | 'dismissed',

@@ -175,6 +175,9 @@ importers:
       '@focusloop/agent-core':
         specifier: workspace:*
         version: link:../agent-core
+      '@focusloop/continuity':
+        specifier: workspace:*
+        version: link:../continuity
       '@focusloop/shared-types':
         specifier: workspace:*
         version: link:../shared-types

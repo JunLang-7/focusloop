@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@focusloop/agent-core": "workspace:*",
+    "@focusloop/continuity": "workspace:*",
     "@focusloop/shared-types": "workspace:*"
   },
   "scripts": {

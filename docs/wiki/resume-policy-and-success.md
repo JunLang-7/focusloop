@@ -1,8 +1,8 @@
-# AG5 Resume 三档与成功指标
+# AG5 Resume 三档与结果指标
 
 ## 本阶段目标
 
-在不调用模型、不增加事件类型、不复制聚合数据的前提下，让 Resume Card 根据真实离开时长选择恢复强度，并回答“接受恢复后，学习者是否真的继续了当前任务”。
+在不调用模型、不增加事件类型、不复制聚合数据的前提下，让 Resume Card 根据真实离开时长选择恢复强度，并回答三个分开的问题：接受恢复后是否**再参与**、是否**真的进步**、是否**再次停滞**。
 
 本阶段不包含 Tutor/救援卡点摘要、adaptive task 恢复、长期记忆或材料章节跳转。
 
@@ -18,35 +18,47 @@
 
 gap 优先取最新有效 `TAB_RETURNED.awayMs` 或 `IDLE_ENDED.idleMs`。时间 tick 已生成卡片但尚无返回事件时，使用最近的 `TAB_LEFT` 或 `IDLE_STARTED` 到建卡时刻的差值。负数、非有限数和非法时间不进入计算。
 
-## Success 口径
+> 三档卡片 UI 若尚未合入 main，不影响下方结果指标——指标只依赖 timing、checkpoint 与事件。
+
+## 结果指标口径（原「成功率」改名）
 
 成功窗口为接受卡片后的 5 分钟，表示为 `(acceptedAt, acceptedAt + 5min]`。
 
-只有同一 Session、同一 checkpoint task 的以下事件可作为成功证据：
+同一 Session、同一 checkpoint task 的证据分为三类，**互不合并成一个 success 标志**：
 
-- `TASK_STARTED`
-- `TASK_COMPLETED`
-- `QUIZ_CORRECT` / `QUIZ_INCORRECT`
-- `HELP_REQUESTED`
+| 指标           | 含义             | 窗口内证据                                                                          |
+| -------------- | ---------------- | ----------------------------------------------------------------------------------- |
+| `reengaged`    | 当前任务行为恢复 | `TASK_STARTED`、`TASK_COMPLETED`、`QUIZ_*`、`HELP_REQUESTED`                        |
+| `progressed`   | 真正往前走       | `TASK_COMPLETED`、`QUIZ_CORRECT`                                                    |
+| `stalledAgain` | 短期回退         | 再次 `HELP_REQUESTED`、再次打断（`TAB_LEFT`/`IDLE_STARTED`）、或窗口内 Session 结束 |
 
-窗口内出现至少一条有效证据为 `succeeded`；已接受但窗口尚未结束为 `pending`；窗口结束仍无证据为 `expired`。已拒绝和尚未作出选择的卡片不进入成功率分母。重复 event id 只计算一次。
+汇总类型为 `ResumeOutcomeSummary`（字段 `reengaged` / `progressed` / `stalledAgain` / `expired` / `pending`，比率 `reengageRate` / `progressRate`）。**不再存在** `succeeded` / `rate` / `resumeSuccess` 这类把再参与称作成功的名字。
 
-汇总口径：
+- 窗口内有再参与或停滞证据 → 计入对应计数，`status = observed`。
+- 窗口关闭仍无证据 → `expired`。
+- Session 在窗口内结束 → `stalledAgain`，**不是**静默 `expired`。
+- 已拒绝（`dismissed`）与尚未决定的卡片不进入分母。
+- `pending` 不进入任何比率分母。
+- 同一 checkpoint 只评估一次；重复 event id 只计一次。
+- 一张卡可以同时 `reengaged` 与 `stalledAgain`（接受后立刻再求助即是如此）。
 
 ```text
-rate = succeeded / (succeeded + expired)
+evaluated = accepted - pending
+reengageRate = reengaged / evaluated   （evaluated = 0 时为 null）
+progressRate = progressed / evaluated
 ```
 
-`pending` 不进入分母，避免把仍在观察窗口内的恢复提前判失败。
+**验收场景**（`packages/agent-evals`）：`ag5-accept-then-help-again` — 接受后窗口内立刻再次求助，断言 `reengaged = true` 且 `progressed = false`；旧口径会把它算成成功。
 
 ## 数据与重启一致性
 
-不新增数据库迁移。`ResumeCardTiming`、`LearningCheckpoint` 和现有学习事件已经包含重算所需事实。Dashboard 每次从这些事实派生 `accepted/succeeded/expired/pending/rate`，因此应用重启后结果保持一致，也不会出现持久化聚合值与事件日志漂移。
+不新增数据库迁移（`listResumeTimings` 只读已有 `resume_cards` 行）。`ResumeCardTiming`、`LearningCheckpoint` 和现有学习事件已经包含重算所需事实。Dashboard 每次从这些事实派生 `accepted/reengaged/progressed/stalledAgain/expired/pending` 与两个比率，因此应用重启后结果保持一致，也不会出现持久化聚合值与事件日志漂移。
 
 ## 验收边界
 
 - 1 分钟和 10 分钟为 Short；15 分钟为 Medium；24 小时为 Long。
 - Long 必须显示 30 秒回忆提示；Short 不展开两列历史列表。
 - 时钟倒退、非法时间和缺失 gap 不崩溃。
-- 其他任务、其他 Session、窗口外和接受瞬间之前的事件不计成功。
+- 其他任务、其他 Session、窗口外和接受瞬间之前的事件不计证据。
+- 接受后立刻再次求助：`reengaged` 而非 `progressed`。
 - AG10 JSON 场景直接调用生产 `@focusloop/continuity` 纯函数，不维护第二套参考策略。
