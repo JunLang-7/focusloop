@@ -12,10 +12,14 @@
  * is the one place the suite decides what a child process is not allowed to see.
  */
 const PROVIDER_CREDENTIALS = ['FOCUSLOOP_DEEPSEEK_API_KEY'];
+const BLOCKED_ENV_NAMES = new Set(PROVIDER_CREDENTIALS.map((key) => key.toUpperCase()));
 
-export function hermeticEnv() {
-  const env = { ...process.env, FOCUSLOOP_DEV: '1' };
-  for (const key of PROVIDER_CREDENTIALS) delete env[key];
+export function hermeticEnv(sourceEnv = process.env) {
+  const env = { ...sourceEnv, FOCUSLOOP_DEV: '1' };
   // Electron's launch env is Record<string, string>; drop any undefined leftovers from process.env.
-  return Object.fromEntries(Object.entries(env).filter(([, value]) => value !== undefined));
+  return Object.fromEntries(
+    Object.entries(env).filter(
+      ([key, value]) => value !== undefined && !BLOCKED_ENV_NAMES.has(key.toUpperCase()),
+    ),
+  );
 }
