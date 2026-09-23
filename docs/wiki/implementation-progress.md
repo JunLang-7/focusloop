@@ -61,7 +61,9 @@
 - `@focusloop/continuity`：41 项测试通过；`@focusloop/agent-core`：230 项测试通过；`@focusloop/persistence`：48 项测试通过。
 - `@focusloop/agent-evals`：12 项测试通过，其中 AG5 场景重复运行结果一致。
 - 全仓库 typecheck、lint、build、文档、Prettier 和 diff whitespace 校验通过。
-- Desktop E2E 在启动应用前被当前 Electron/Playwright 组合阻断：Electron 拒绝 Playwright 注入的 `--remote-debugging-port=0`；没有执行到产品断言，单独作为测试基础设施问题处理。
+- Desktop E2E **可以**启动 Electron 并执行产品断言，不是“启动前被阻断”。此前“Electron 拒绝
+  `--remote-debugging-port=0`、未执行到任何产品断言”的记录有误；本切片验收时本地套件曾有一条
+  用例失败，归因与修复见 #107。
 
 ### 下一切片
 

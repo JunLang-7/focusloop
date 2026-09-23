@@ -169,6 +169,28 @@ There is no `test` target for this project on purpose. When there was one it ran
 `pnpm test`, which meant the unit run tried to launch Electron without a build — CI could never go
 green.
 
+## Local runs vs CI
+
+`pnpm e2e` builds the desktop app, launches Electron, and runs every product assertion on a
+developer machine. It is **not** blocked before it can start: an earlier note claiming Electron
+rejected Playwright's `--remote-debugging-port=0` was wrong (measured; see #107 and
+`docs/wiki/implementation-progress.md`).
+
+CI's `golden path` job runs the same suite on Windows and macOS. When a local run disagrees with
+CI, treat the local failure as real until proven otherwise — a green check that disagrees with a
+developer's machine trains people to ignore both.
+
+Two machine-sensitive spots are handled in the suite itself rather than by widening timeouts:
+
+- **Import form hydration.** An unbound `<button>` is enabled by default, so a test can pass
+  `toBeEnabled` and `fill` before Angular has attached `(input)`. The import test waits for the
+  field's initial value and the button label first (the precondition the flow always assumed).
+- **Teardown.** `afterAll` closes the app and removes the profile best-effort, so one failing test
+  reports one failure — not a second `rmSync` error on top of it.
+
+If a local failure persists after those, reproduce with `trace: 'retain-on-failure'` (already on)
+and read `test-results/*/error-context.md` before changing the product.
+
 ## Conventions
 
 - Test files live next to the code as `*.spec.ts`.

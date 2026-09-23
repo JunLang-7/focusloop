@@ -38,8 +38,23 @@ test.beforeAll(async () => {
 });
 
 test.afterAll(async () => {
-  await app?.close();
-  if (userDataDir !== undefined) rmSync(userDataDir, { recursive: true, force: true });
+  /*
+   * Teardown must not report a second failure when a test has already failed. A locked or
+   * half-closed profile directory turns one real defect into two red results, which is how
+   * every future failure gets harder to read (#107).
+   */
+  try {
+    await app?.close();
+  } catch {
+    // Best-effort: the app may already be gone if a test tore it down mid-flight.
+  }
+  if (userDataDir !== undefined) {
+    try {
+      rmSync(userDataDir, { recursive: true, force: true });
+    } catch {
+      // Leftover temp dir beats a second failure that hides the first.
+    }
+  }
 });
 
 /** The state chip's visible text is translated; the raw state is a data attribute. */
@@ -721,7 +736,20 @@ test('the import form asks for a file name instead of failing on the channel', a
   const submit = window.getByTestId('import-submit');
   const reason = window.getByTestId('import-needs-name');
 
-  // The field arrives holding one, so the button starts usable.
+  /*
+   * Wait for the form to finish binding, not merely for the button to look enabled.
+   *
+   * An unbound `<button>` is enabled by default, so `toBeEnabled` can pass before Angular
+   * has applied `[value]`, `[disabled]`, or `(input)`. Filling in that window writes into
+   * a control nothing is listening to: the signal keeps `notes.md`, the first change
+   * detection restores the value, and the button never disables. That race is why this
+   * test went red locally while CI stayed green — the test before it leaves the renderer
+   * busy enough that a machine-dependent amount of work lands between navigation and
+   * fill. Waiting for the value and the label is the precondition this test always
+   * assumed ("the field arrives holding one"), not a widened timeout.
+   */
+  await expect(name).toHaveValue('notes.md');
+  await expect(submit).toHaveText('Import');
   await expect(submit).toBeEnabled();
 
   // Clearing it disables the button and states why, rather than letting an empty name travel to
