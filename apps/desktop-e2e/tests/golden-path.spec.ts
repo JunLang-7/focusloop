@@ -8,6 +8,7 @@ import {
   type ElectronApplication,
   type Page,
 } from '@playwright/test';
+import { hermeticEnv } from '../hermetic-env.mjs';
 
 const DESKTOP_MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs');
 
@@ -25,7 +26,7 @@ let userDataDir: string;
 async function launch(): Promise<{ app: ElectronApplication; window: Page }> {
   const launched = await electron.launch({
     args: [DESKTOP_MAIN, `--user-data-dir=${userDataDir}`],
-    env: { ...process.env, FOCUSLOOP_DEV: '1' },
+    env: hermeticEnv(),
   });
   const firstWindow = await launched.firstWindow();
   await firstWindow.waitForLoadState('domcontentloaded');
@@ -135,6 +136,21 @@ async function contentBox(): Promise<{ left: number; width: number }> {
     return { left: Math.round(rect.left), width: Math.round(rect.width) };
   });
 }
+
+/*
+ * First on purpose: everything below claims to exercise the offline path, and that claim is only
+ * true when no provider credential reached the child process. The run-mode indicator is the
+ * product's own answer to "which model is speaking" — without `hermeticEnv()` clearing the key,
+ * a developer machine that exports `FOCUSLOOP_DEEPSEEK_API_KEY` would show network mode and this
+ * test would fail rather than silently spend their key.
+ */
+test('the suite exercises the offline mock, never a real provider', async () => {
+  const footer = window.locator('.footer__meta');
+  await expect(footer).toBeVisible();
+  // The model name is locale-independent; the mode label is the English default of a fresh profile.
+  await expect(footer).toContainText('focusloop-mock-v1');
+  await expect(footer).toContainText('offline mode');
+});
 
 test('golden path: learn, get interrupted, resume, see the outcome', async () => {
   // 1. The app boots into Home with the built-in demo course.
