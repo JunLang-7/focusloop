@@ -80,15 +80,40 @@ export const INTERVENTION_REASON_CODES = [
 
 export type InterventionReasonCode = (typeof INTERVENTION_REASON_CODES)[number];
 
+/** Learner-facing tutor fallback codes. The renderer owns their wording. */
+export const TUTOR_UNAVAILABLE_MESSAGE_KEYS = [
+  'tutor.unavailable.no-question',
+  'tutor.unavailable.request-too-long',
+  'tutor.unavailable.no-model',
+  'tutor.unavailable.provider-failed',
+] as const;
+
+export const TUTOR_REJECTION_MESSAGE_KEYS = [
+  'tutor.rejection.unparseable',
+  'tutor.rejection.unexpected-part',
+  'tutor.rejection.missing-part',
+  'tutor.rejection.unquoted-confirmation',
+  'tutor.rejection.not-from-the-material',
+] as const;
+
+export type TutorFallbackMessageKey =
+  (typeof TUTOR_UNAVAILABLE_MESSAGE_KEYS)[number] | (typeof TUTOR_REJECTION_MESSAGE_KEYS)[number];
+
 /** Every message the domain can emit. The renderer must translate all of them. */
 export type DomainMessageKey =
-  NextActionKey | ResumeMessageKey | RescueMessageKey | InterventionReasonCode;
+  | NextActionKey
+  | ResumeMessageKey
+  | RescueMessageKey
+  | InterventionReasonCode
+  | TutorFallbackMessageKey;
 
 export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...NEXT_ACTION_KEYS,
   ...RESUME_MESSAGE_KEYS,
   ...RESCUE_MESSAGE_KEYS,
   ...INTERVENTION_REASON_CODES,
+  ...TUTOR_UNAVAILABLE_MESSAGE_KEYS,
+  ...TUTOR_REJECTION_MESSAGE_KEYS,
 ];
 
 export function message(key: DomainMessageKey, params: MessageParams = {}): LocalizedMessage {

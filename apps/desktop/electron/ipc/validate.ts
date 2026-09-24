@@ -3,8 +3,10 @@ import {
   isLocale,
   isStuckReason,
   isThemePreference,
+  isTutorMode,
   LEARNING_EVENT_TYPES,
   SESSION_END_REASONS,
+  TUTOR_LIMITS,
   type DispatchEventRequest,
   type EndSessionRequest,
   type ImportMaterialRequest,
@@ -19,6 +21,7 @@ import {
   type SetShowMaterialTextRequest,
   type SimulatorCommand,
   type StartSessionRequest,
+  type TutorAskRequest,
 } from '@focusloop/shared-types';
 
 /**
@@ -264,4 +267,46 @@ export function parseNoArgs(channel: string, value: unknown): void {
   if (value !== undefined && value !== null) {
     fail(channel, 'this channel takes no arguments');
   }
+}
+
+/**
+ * How long a question may be **on the wire**, which is not the same bound as
+ * `TUTOR_LIMITS.questionCharacters`.
+ *
+ * Two different jobs. The semantic cap is what the tutor will show the model, and a question longer
+ * than it is clipped and the clip is reported — telling a learner who pasted three paragraphs that the
+ * last of it was left out is the right behaviour, and refusing the ask outright is not. This bound
+ * exists so that a malformed or hostile renderer cannot push an unbounded string across the bridge, so
+ * it only has to be far enough above the semantic cap that the clip is still the path a real learner
+ * meets, and low enough that the payload is bounded. Twice the cap is the smallest number that does
+ * both.
+ */
+const MAX_QUESTION_CHARACTERS = TUTOR_LIMITS.questionCharacters * 2;
+
+/**
+ * Validates the payload of `focusloop:tutor:ask`.
+ *
+ * **An empty question is not malformed.** A learner who presses Ask with an empty box has made a
+ * mistake the product can explain — the engine refuses with `no-question` and a sentence — whereas a
+ * thrown `IpcValidationError` reaches the renderer as a failed promise with no outcome to render. The
+ * boundary rejects what is not a question *shape*; the domain decides what is not a question.
+ *
+ * The transcript is absent from this payload on purpose, and its absence is the security property:
+ * turns are text the model reads as its own prior output, they live in the main process, and there is
+ * no field here for a renderer to supply them in.
+ */
+export function parseTutorAsk(channel: string, value: unknown): TutorAskRequest {
+  const record = asRecord(channel, value);
+  const sessionId = asString(channel, record, 'sessionId');
+
+  const mode = asString(channel, record, 'mode');
+  if (!isTutorMode(mode)) fail(channel, `unknown tutor mode "${mode}"`);
+
+  const question = record['question'];
+  if (typeof question !== 'string') fail(channel, '"question" must be a string');
+  if (question.length > MAX_QUESTION_CHARACTERS) {
+    fail(channel, `"question" must be at most ${MAX_QUESTION_CHARACTERS} characters`);
+  }
+
+  return { sessionId, mode, question };
 }

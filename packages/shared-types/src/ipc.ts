@@ -11,6 +11,7 @@ import type { AppSettings, Locale, ThemePreference } from './settings';
 import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
 import type { LearningState } from './state';
+import type { TutorAnswer, TutorAskRequest } from './tutor';
 
 /**
  * The ONLY surface the renderer may reach. Everything else in the renderer runs
@@ -37,6 +38,7 @@ export const IPC_CHANNELS = {
   getDashboard: 'focusloop:dashboard:get',
   getInsights: 'focusloop:insights:get',
   getAgentContext: 'focusloop:agent:context',
+  askTutor: 'focusloop:tutor:ask',
   listOutcomes: 'focusloop:outcome:list',
   resolveIntervention: 'focusloop:intervention:resolve',
   getPendingRescue: 'focusloop:intervention:pending-rescue',
@@ -244,6 +246,17 @@ export interface FocusLoopApi {
    * and `node:crypto`, into a sandboxed page that has neither.
    */
   getAgentContext(): Promise<AgentContextReport>;
+
+  /**
+   * Asks the tutor about the step the learner is on, and gets back either an answer, a rejection or a
+   * fallback.
+   *
+   * One channel rather than three, because the result is a discriminated union the renderer has to
+   * branch on anyway: splitting "ask" from "ask again" would put the retry budget on the wrong side of
+   * the boundary. **The renderer sends the question and nothing else** — the transcript lives in the
+   * main process, because it becomes text the model reads as its own prior output.
+   */
+  askTutor(request: TutorAskRequest): Promise<TutorAnswer>;
 
   /** Returns an unsubscribe function. */
   onEvent(listener: (event: LearningEvent) => void): () => void;

@@ -1,19 +1,24 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { ProviderError } from '@focusloop/llm-provider';
-import type { AIProvider } from '@focusloop/shared-types';
+import { ProviderError, createProviderSelection } from '@focusloop/llm-provider';
+import { TUTOR_LIMITS, type AIProvider, type CompletionRequest } from '@focusloop/shared-types';
 import { EngineError } from './engine';
 import { DEMO_COURSE_ID } from './demo-course';
 import { createTestEngine, type TestEngine } from './test-helpers';
 
-function failingProvider(): AIProvider {
-  return {
-    id: 'deepseek',
-    model: 'deepseek-chat',
-    offline: false,
-    complete: async () => {
-      throw new ProviderError('offline', 'deepseek', 'no network in this test');
-    },
-  };
+function failingProvider(): AIProvider & { readonly requests: CompletionRequest[] } {
+  const requests: CompletionRequest[] = [];
+  return Object.assign(
+    {
+      id: 'deepseek',
+      model: 'deepseek-chat',
+      offline: false,
+      complete: async (request: CompletionRequest) => {
+        requests.push(request);
+        throw new ProviderError('offline', 'deepseek', 'no network in this test');
+      },
+    } satisfies AIProvider,
+    { requests },
+  );
 }
 
 describe('FocusLoopEngine', () => {
@@ -1020,6 +1025,624 @@ describe('FocusLoopEngine', () => {
         expect(custom.engine.tick()?.state).toBe('INTERRUPTED');
       } finally {
         custom.close();
+      }
+    });
+  });
+
+  describe('the tutor', () => {
+    /**
+     * A provider that answers from a script, and remembers what it was asked.
+     *
+     * `prompts` is the point of it: the transcript is invisible from outside the engine by design, so
+     * the only way to assert that the last exchange was carried into the next prompt is to look at what
+     * the second call actually received.
+     */
+    function scriptedProvider(
+      replies: readonly string[],
+      options: { offline?: boolean } = {},
+    ): AIProvider & { readonly prompts: string[] } {
+      const prompts: string[] = [];
+      let index = 0;
+      return {
+        id: 'scripted',
+        model: 'scripted-1',
+        offline: options.offline ?? false,
+        prompts,
+        complete: async (request) => {
+          prompts.push(request.prompt);
+          const text = replies[Math.min(index, replies.length - 1)] ?? '';
+          index += 1;
+          return { text, providerId: 'scripted', model: 'scripted-1', latencyMs: 1 };
+        },
+      };
+    }
+
+    /** The engine with a scripted provider, and the session to ask about. */
+    function withProvider(replies: readonly string[], offline = false) {
+      const provider = scriptedProvider(replies, { offline });
+      const scripted = createTestEngine({ providers: createProviderSelection(provider) });
+      const { session } = scripted.engine.startSession(DEMO_COURSE_ID);
+      return { scripted, provider, sessionId: session.id };
+    }
+
+    it('does not call an offline provider, and says so rather than paying for two calls with no answer', async () => {
+      const { scripted, provider, sessionId } = withProvider(['[hint]\nunused'], true);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'why does the colour change?',
+        });
+
+        // The offline mock's output is documented never to parse, so a call here is a rejection and then
+        // a retry: two calls, no answer, on every question of the golden path.
+        expect(provider.prompts).toEqual([]);
+        expect(answer.outcome.status).toBe('unavailable');
+        if (answer.outcome.status !== 'unavailable') return;
+        expect(answer.outcome.reason).toBe('no-model');
+        // The prompt was built and nothing left the process, so the account says nothing was sent while
+        // still carrying what the prompt would have left out.
+        expect(answer.context.sent).toEqual({
+          turns: 0,
+          inputCharacters: 0,
+          excerptCharacters: 0,
+        });
+        expect(answer.outcome.fallback.reason).toBe('no-model');
+        // The excerpt is the object rather than a nullable source, so "no section" is an empty excerpt
+        // with a heading of `null` rather than a second absent value for the screen to branch on.
+        expect(answer.outcome.fallback.excerpt).toEqual({
+          materialId: null,
+          title: null,
+          heading: null,
+          text: '',
+          truncated: false,
+        });
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('refuses an empty question as "nothing to ask", without calling the provider', async () => {
+      const { scripted, provider, sessionId } = withProvider(['[hint]\nunused']);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: '   ',
+        });
+
+        expect(provider.prompts).toEqual([]);
+        expect(answer.outcome.status).toBe('unavailable');
+        if (answer.outcome.status !== 'unavailable') return;
+        // Not `no-model`: the provider is online and would have answered. A learner whose message was
+        // empty is told about their message.
+        expect(answer.outcome.reason).toBe('no-question');
+        expect(answer.outcome.fallback.reason).toBe('no-question');
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('carries the exchange into the next prompt, which is the whole point of the transcript', async () => {
+      const { scripted, provider, sessionId } = withProvider([
+        '[hint]\nLook at the parent pointer first.',
+        '[hint]\nNow check whether the node is red.',
+      ]);
+      try {
+        const first = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'why does the colour change?',
+        });
+        expect(first.outcome.status).toBe('answered');
+        expect(provider.prompts[0]).not.toContain('[hint]');
+
+        const second = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'and then?',
+        });
+        expect(second.outcome.status).toBe('answered');
+
+        const secondPrompt = provider.prompts[1] ?? '';
+        expect(secondPrompt).toContain('why does the colour change?');
+        expect(secondPrompt).toContain('[hint]');
+        expect(secondPrompt).toContain('Look at the parent pointer first.');
+        expect(secondPrompt).toContain('and then?');
+        expect(second.context.sent.turns).toBe(2);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('asks once more when the format was wrong, and shows the model the answer it is redoing', async () => {
+      const { scripted, provider, sessionId } = withProvider([
+        'Sure! The parent pointer is set to the grandparent.',
+        '[hint]\nLook at what happens to the node that was moved.',
+      ]);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'why is the node red?',
+        });
+
+        expect(provider.prompts).toHaveLength(2);
+        expect(provider.prompts[1]).toContain('Your answer had no labelled blocks at all.');
+        expect(provider.prompts[1]).toContain(
+          'Sure! The parent pointer is set to the grandparent.',
+        );
+        expect(answer.outcome.status).toBe('answered');
+
+        /*
+         * Composing a retry from the whole prompt carries the builder's `[question]` block *and* the
+         * complaint's, so the question is sent twice — the defect that made the retry unaffordable. Counted
+         * on the **question text** rather than on the label, so the assertion measures the duplication itself
+         * and not the complaint's format; here it is the only assertion that can see it, because the
+         * duplicate fits at this size while the long-question fixture trips the ceiling and stops at one
+         * call. Verified by putting the bug back, where this reports 2.
+         */
+        const asked = 'why is the node red?';
+        expect(provider.prompts[1]?.split(asked)).toHaveLength(2);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('asks exactly once, and stops, when the second answer is wrong too', async () => {
+      const { scripted, provider, sessionId } = withProvider([
+        'prose one',
+        'prose two',
+        'prose three',
+      ]);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'why?',
+        });
+
+        // Two, not three: the retry budget is one, and nothing here counts — `isRetryable` is a
+        // predicate, so the second call is the caller's decision and this is where it is made.
+        expect(provider.prompts).toHaveLength(2);
+        expect(answer.outcome.status).toBe('rejected');
+        if (answer.outcome.status !== 'rejected') return;
+        expect(answer.outcome.reason).toBe('unparseable');
+        expect(answer.outcome.provider).toEqual({
+          id: 'scripted',
+          model: 'scripted-1',
+          degraded: false,
+          failure: null,
+        });
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('does not ask again about a confirmation that quotes nothing the learner wrote', async () => {
+      const { scripted, provider, sessionId } = withProvider([
+        '[confirmed]\nYou are right about that.\n\n[question]\nWhat happens next?',
+        '[hint]\nabc',
+      ]);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'CHECK_MY_ANSWER',
+          question: 'Is my answer right?',
+        });
+
+        // One call. Retrying a grounding failure teaches a model to satisfy the checker, which is the
+        // reason `isRetryable` excludes this reason rather than including every rejection.
+        expect(provider.prompts).toHaveLength(1);
+        expect(answer.outcome.status).toBe('rejected');
+        if (answer.outcome.status !== 'rejected') return;
+        expect(answer.outcome.reason).toBe('unquoted-confirmation');
+        expect(answer.outcome.fallback.reason).toBe('unquoted-confirmation');
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('does not put a refused answer in the transcript', async () => {
+      const { scripted, provider, sessionId } = withProvider([
+        'prose, which is refused',
+        '[hint]\nA real hint.',
+      ]);
+      try {
+        await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'first?' });
+        await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'second?' });
+
+        // The third prompt carries the first question and its answer, and not the prose that was shown
+        // to nobody — with a tutor role on it, it would read as the tutor having said it.
+        const third = provider.prompts[2] ?? '';
+        expect(third).not.toContain('prose, which is refused');
+        expect(third).toContain('A real hint.');
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('reports a provider that failed, with degraded set', async () => {
+      const provider = failingProvider();
+      const failing = createTestEngine({ providers: createProviderSelection(provider) });
+      try {
+        const { session } = failing.engine.startSession(DEMO_COURSE_ID);
+        const answer = await failing.engine.askTutor({
+          sessionId: session.id,
+          mode: 'HINT',
+          question: 'why?',
+        });
+
+        expect(answer.outcome.status).toBe('unavailable');
+        if (answer.outcome.status !== 'unavailable') return;
+        expect(answer.outcome.reason).toBe('provider-failed');
+        expect(answer.outcome.provider.degraded).toBe(true);
+        expect(answer.outcome.provider.failure?.providerId).toBe('deepseek');
+        /*
+         * Exactly what was handed over, system prompt included. Not zero: the provider was **called** and
+         * failed, and `sent` is what the inspector reads to watch a prompt grow — zeroing it here hides the
+         * growth in the one case where the prompt was built, handed over, and answered by nobody. Zero is
+         * reserved for the offline gate, which sends nothing at all.
+         *
+         * Asserted as an equality against the request the provider actually received, because `> 0` accepts
+         * the system prompt being left out of the sum, and a sum of the wrong things is the failure this
+         * change was made to fix.
+         */
+        const [call] = provider.requests;
+        expect(answer.context.sent.inputCharacters).toBe(
+          (call?.system?.length ?? 0) + (call?.prompt.length ?? 0),
+        );
+      } finally {
+        failing.close();
+      }
+    });
+
+    it('reports both calls when the retry is the one that fails', async () => {
+      /*
+       * The second call is the one that can fail on a path where the first succeeded, and it is the path
+       * the summed `sent` exists for: a prompt was sent, an answer came back, a second prompt was sent, and
+       * nobody answered it. Reporting zero there is the lie this test would catch; reporting only the first
+       * call is the other one.
+       */
+      let calls = 0;
+      const prompts: string[] = [];
+      const systems: string[] = [];
+      const provider: AIProvider = {
+        id: 'scripted',
+        model: 'scripted-1',
+        offline: false,
+        complete: async (request) => {
+          prompts.push(request.prompt);
+          systems.push(request.system ?? '');
+          calls += 1;
+          if (calls === 2) throw new ProviderError('timeout', 'scripted', 'the retry timed out');
+          return {
+            text: 'prose, which is refused',
+            providerId: 'scripted',
+            model: 'scripted-1',
+            latencyMs: 1,
+          };
+        },
+      };
+      const scripted = createTestEngine({ providers: createProviderSelection(provider) });
+      try {
+        const { session } = scripted.engine.startSession(DEMO_COURSE_ID);
+        const answer = await scripted.engine.askTutor({
+          sessionId: session.id,
+          mode: 'HINT',
+          question: 'why?',
+        });
+
+        expect(prompts).toHaveLength(2);
+        expect(answer.outcome.status).toBe('unavailable');
+        if (answer.outcome.status !== 'unavailable') return;
+        expect(answer.outcome.reason).toBe('provider-failed');
+        // Both calls, each with its own system prompt, as an equality against what the provider received.
+        // A zero report and a first-call-only report both fail it.
+        expect(answer.context.sent.inputCharacters).toBe(
+          (systems[0]?.length ?? 0) +
+            (prompts[0]?.length ?? 0) +
+            (systems[1]?.length ?? 0) +
+            (prompts[1]?.length ?? 0),
+        );
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('emits no learning event, so using the tutor cannot trigger the overload rule', async () => {
+      const { scripted, sessionId } = withProvider(['[hint]\nTry the parent pointer.']);
+      try {
+        const before = scripted.engine.listEvents(sessionId).length;
+        const stateBefore = scripted.engine.getCurrentSession()?.session.state;
+        for (let index = 0; index < 4; index += 1) {
+          await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: `q${index}` });
+        }
+        expect(scripted.engine.listEvents(sessionId)).toHaveLength(before);
+        // Four asks in a row leave the state exactly where they found it: four `HELP_REQUESTED` events
+        // would have moved it to OVERLOADED and made the feature punish the learner for using it.
+        expect(scripted.engine.getCurrentSession()?.session.state).toBe(stateBefore);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('clips a long part and reports it with the answer, not beside it', async () => {
+      const { scripted, sessionId } = withProvider([`[hint]\n${'h'.repeat(700)}`]);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'why?',
+        });
+
+        expect(answer.outcome.status).toBe('answered');
+        if (answer.outcome.status !== 'answered') return;
+        expect(answer.outcome.reply.parts[0]?.text).toHaveLength(TUTOR_LIMITS.partCharacters);
+        // In the reply, because that is what the renderer has: a caller given the omissions beside the
+        // reply has nowhere to put them that the screen can reach.
+        expect(
+          answer.outcome.reply.omissions.some((entry) =>
+            entry.detail.includes('longer than is shown'),
+          ),
+        ).toBe(true);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('asks again after a long question, because the retry does not carry the question twice', async () => {
+      /*
+       * The regression for the retry's composition. Composing `prompt + answer + complaint` put the
+       * `[question]` block in twice — the prompt ends with it and the complaint restates it — and at a
+       * 2,000-character question the prompt is near the ceiling on its own, so the duplicate tipped the
+       * composition over and the retry was refused. The repair was then available only to learners who wrote
+       * *short* questions, which is the opposite of who needs it.
+       */
+      const { scripted, provider, sessionId } = withProvider([
+        'prose, which is refused',
+        '[hint]\nA real hint.',
+      ]);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'q'.repeat(TUTOR_LIMITS.questionCharacters),
+        });
+
+        expect(provider.prompts).toHaveLength(2);
+        expect(answer.outcome.status).toBe('answered');
+
+        const retryPrompt = provider.prompts[1] ?? '';
+        // The question is still there, from the complaint. That it is there *exactly once* is asserted in
+        // the short-question retry test instead of here, for a reason that is about reach rather than about
+        // strength: in this fixture the duplicate tips the composition over the ceiling, so the run stops at
+        // one call and the prompt count above fails first, and a text count here would not be reached.
+        expect(retryPrompt).toContain('q'.repeat(50));
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('asks again one exchange short of the band, so the retry test can fail from both sides', async () => {
+      /*
+       * The positive control for the test below. Same shape with two fill-ups instead of three, and the same
+       * modes: the probe's fill-ups were `HINT` and its measured call was `CHECK_MY_ANSWER`, which is what
+       * both tests do. Measured, that leaves a preamble of 1,818 rather than 2,646, so the composition fits
+       * and both calls are made. Without this the refusal test could only ever fail by refusing, and the
+       * regression worth a loud signal is the other direction — the retry quietly becoming unaffordable for
+       * ordinary questions.
+       */
+      const { scripted, provider, sessionId } = withProvider([
+        `[hint]\n${'h'.repeat(700)}`,
+        `[hint]\n${'h'.repeat(700)}`,
+        'x'.repeat(700),
+      ]);
+      try {
+        for (let index = 0; index < 2; index += 1) {
+          await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'q'.repeat(200) });
+        }
+        const before = provider.prompts.length;
+
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'CHECK_MY_ANSWER',
+          question: 'short?',
+        });
+
+        expect(provider.prompts).toHaveLength(before + 2);
+        expect(answer.outcome.status).toBe('rejected');
+        expect(
+          answer.context.omitted.some((entry) =>
+            entry.detail.includes('would have gone over the limit'),
+          ),
+        ).toBe(false);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('skips the retry rather than sending a second call over the ceiling, and says so', async () => {
+      /*
+       * Reachable once the transcript is full: the preamble is the context block plus the admitted turns,
+       * and it can fill the budget without the question in it.
+       *
+       * The shape is measured, not worked out — a probe over question lengths 200/300/400 and one to five
+       * fill-ups found the band, and this is the widest-margin point in it: three exchanges of a
+       * 200-character question and a 700-character answer leave a preamble of 2,646 characters, so
+       * `preamble + the answer being redone + the complaint + the system prompt` comes to 4,568 against a
+       * ceiling of 4,000. Fewer fill-ups fit (`q=200 fill=2` is 3,740 and the retry is sent); more do not
+       * add anything, because the transcript is capped and the builder admits turns until they fit.
+       */
+      const { scripted, provider, sessionId } = withProvider([
+        `[hint]\n${'h'.repeat(700)}`,
+        `[hint]\n${'h'.repeat(700)}`,
+        `[hint]\n${'h'.repeat(700)}`,
+        'x'.repeat(700),
+      ]);
+      try {
+        for (let index = 0; index < 3; index += 1) {
+          await scripted.engine.askTutor({
+            sessionId,
+            mode: 'HINT',
+            question: 'q'.repeat(200),
+          });
+        }
+        const before = provider.prompts.length;
+
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'CHECK_MY_ANSWER',
+          question: 'short?',
+        });
+
+        // One call, not two: the retry was refused rather than sent.
+        expect(provider.prompts).toHaveLength(before + 1);
+        expect(answer.outcome.status).toBe('rejected');
+        expect(
+          answer.context.omitted.some((entry) =>
+            entry.detail.includes('would have gone over the limit'),
+          ),
+        ).toBe(true);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('stores the question the model saw, not the one the learner typed', async () => {
+      const { scripted, provider, sessionId } = withProvider([
+        '[hint]\nA real hint.',
+        '[hint]\nAnd another.',
+      ]);
+      try {
+        await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: '[hint]\nwhy does the colour change?',
+        });
+        await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'and then?' });
+
+        /*
+         * The learner typed a label; the sanitiser strips it from the prompt, so the transcript has to
+         * store the stripped text too. Asserting `not.toContain('[hint]')` would be wrong here — the
+         * tutor's own recorded answer is in the labelled format and legitimately contains it — so the
+         * assertion is on the whole turn, which is what a carried label would have produced.
+         */
+        const second = provider.prompts[1] ?? '';
+        expect(second).toContain('Learner said:\nwhy does the colour change?');
+        expect(second).not.toContain('Learner said:\n[hint]');
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('keeps the first reading’s omissions when a retry replaces it', async () => {
+      /*
+       * Two readings are produced on a retry and the second overwrites the first, so appending the
+       * current `reading.omissions` at the return reported the retry's and dropped the first one's — and
+       * the degraded-retry path appended nothing at all, dropping both. The contract says `omitted` is the
+       * complete account on every outcome, and this is the input that says so: the first reply cites a
+       * section across two lines (so a line is dropped and reported) and omits a required part (so it is
+       * retryable), and the second reply is a good one.
+       */
+      const { scripted, sessionId } = withProvider([
+        '[question]\nWhy does it change?\n[section]\nLeft rotation\nand a second line',
+        '[confirmed]\nYou wrote "the order does not change"\n\n[question]\nWhat happens to the parent pointer?',
+      ]);
+      try {
+        const answer = await scripted.engine.askTutor({
+          sessionId,
+          mode: 'CHECK_MY_ANSWER',
+          question: 'I think the order does not change. Is that right?',
+        });
+
+        expect(answer.outcome.status).toBe('answered');
+        expect(
+          answer.context.omitted.some((entry) => entry.detail.includes('after the heading')),
+        ).toBe(true);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('lets a confirmation quote the question just asked, and still refuses one that quotes nothing', async () => {
+      /*
+       * The transcript does not hold the current question — it is recorded only once an answer comes back —
+       * so a caller that passed only the recorded turns made `CHECK_MY_ANSWER` unable to confirm anything
+       * the learner had just said. It could pass only by confirming an *earlier* exchange, which on the
+       * first ask means never.
+       *
+       * Both directions are asserted, because including the question must not make the check vacuous: the
+       * second case is a confirmation of words the learner never wrote, and it is still refused.
+       */
+      const quoting = withProvider([
+        '[confirmed]\nYou wrote "the order does not change"\n\n[question]\nWhat happens to the parent pointer?',
+      ]);
+      try {
+        const answer = await quoting.scripted.engine.askTutor({
+          sessionId: quoting.sessionId,
+          mode: 'CHECK_MY_ANSWER',
+          question: 'I think the order does not change. Is that right?',
+        });
+
+        expect(quoting.provider.prompts).toHaveLength(1);
+        expect(answer.outcome.status).toBe('answered');
+      } finally {
+        quoting.scripted.close();
+      }
+
+      const fabricating = withProvider([
+        '[confirmed]\nYou wrote "rotations preserve the in-order sequence"\n\n[question]\nWhat happens next?',
+      ]);
+      try {
+        const answer = await fabricating.scripted.engine.askTutor({
+          sessionId: fabricating.sessionId,
+          mode: 'CHECK_MY_ANSWER',
+          question: 'I think the order does not change. Is that right?',
+        });
+
+        expect(answer.outcome.status).toBe('rejected');
+        if (answer.outcome.status !== 'rejected') return;
+        expect(answer.outcome.reason).toBe('unquoted-confirmation');
+      } finally {
+        fabricating.scripted.close();
+      }
+    });
+
+    it('refuses a session that has ended, and one that never existed', async () => {
+      const { scripted, sessionId } = withProvider(['[hint]\nx']);
+      try {
+        scripted.engine.endSession({ sessionId, reason: 'user' });
+
+        await expect(
+          scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'why?' }),
+        ).rejects.toMatchObject({ code: 'session-ended' });
+        await expect(
+          scripted.engine.askTutor({ sessionId: 'nope', mode: 'HINT', question: 'why?' }),
+        ).rejects.toMatchObject({ code: 'session-not-found' });
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('starts the next session with no conversation in it', async () => {
+      const { scripted, provider, sessionId } = withProvider([
+        '[hint]\nA real hint.',
+        '[hint]\nAnother.',
+      ]);
+      try {
+        await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'first?' });
+        scripted.engine.endSession({ sessionId, reason: 'user' });
+
+        const next = scripted.engine.startSession(DEMO_COURSE_ID).session;
+        await scripted.engine.askTutor({ sessionId: next.id, mode: 'HINT', question: 'second?' });
+
+        const nextPrompt = provider.prompts[1] ?? '';
+        expect(nextPrompt).not.toContain('A real hint.');
+        expect(nextPrompt).not.toContain('first?');
+        expect(nextPrompt).toContain('second?');
+      } finally {
+        scripted.close();
       }
     });
   });

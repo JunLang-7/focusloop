@@ -134,8 +134,9 @@ export interface AgentContextOmission {
    * `'checkpoint'` was added when the persisted checkpoint became a bounded projection: a rejected
    * or reduced checkpoint is none of the other three, and reporting it as events or material would
    * say something untrue about why it was dropped.
+   * `'conversation'` covers bounded Tutor transcript and question inputs for AG3.
    */
-  readonly field: 'events' | 'material' | 'courses' | 'session' | 'checkpoint';
+  readonly field: 'events' | 'material' | 'courses' | 'session' | 'checkpoint' | 'conversation';
   readonly detail: string;
 }
 

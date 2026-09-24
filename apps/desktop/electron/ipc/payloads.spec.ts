@@ -4,6 +4,7 @@ import {
   INSIGHT_RANGES,
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
+  TUTOR_MODES,
 } from '@focusloop/shared-types';
 import { payload } from './payloads';
 import {
@@ -20,6 +21,7 @@ import {
   parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
+  parseTutorAsk,
 } from './validate';
 
 /**
@@ -100,6 +102,26 @@ describe('the preload and the main process agree on every payload', () => {
         range,
       });
     }
+  });
+
+  it('the tutor channel accepts what the preload sends, for every mode and an empty question', () => {
+    for (const mode of TUTOR_MODES) {
+      expect(
+        parseTutorAsk(
+          IPC_CHANNELS.askTutor,
+          payload.askTutor({ sessionId: 'session-1', mode, question: 'why?' }),
+        ),
+      ).toEqual({ sessionId: 'session-1', mode, question: 'why?' });
+    }
+
+    // Empty is a payload the renderer really sends — an Ask button pressed on an empty box — and it has
+    // to survive the boundary, because the outcome for it is the domain's to produce.
+    expect(
+      parseTutorAsk(
+        IPC_CHANNELS.askTutor,
+        payload.askTutor({ sessionId: 'session-1', mode: 'HINT', question: '' }),
+      ),
+    ).toEqual({ sessionId: 'session-1', mode: 'HINT', question: '' });
   });
 
   it('a bare string is rejected — the regression that caused the error banner', () => {

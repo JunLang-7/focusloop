@@ -24,6 +24,7 @@ import { keepsRail, type FocusPhase } from '../core/focus-phase';
 import { FocusTimerService } from '../core/focus-timer.service';
 import { PLAN_INITIAL_OPEN, nextPlanOpen, type PlanEvent } from '../core/plan-visibility';
 import { helpRequestPayload } from '../core/stuck-picker';
+import { TutorPanelComponent } from '../components/tutor-panel.component';
 
 const CLOCK_RADIUS = 86;
 const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
@@ -32,6 +33,7 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
 @Component({
   selector: 'fl-focus',
   standalone: true,
+  imports: [TutorPanelComponent],
   /*
    * Both of these belong to the document rather than to this element. The plan panel is not a
    * modal, so by the time the learner changes their mind, focus may be anywhere on the page — and a
@@ -250,6 +252,13 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                 >
                   {{ t('focus.complete') }}
                 </button>
+                <!--
+                  The tutor sits beside the stuck control rather than inside it, because they answer
+                  different questions: "why am I stuck" is a fact about the learner that the policy acts
+                  on, and "what is this" is a question they asked. The panel decides whether it is offered
+                  at all, from the session and the current task.
+                -->
+                <fl-tutor-panel />
               </div>
             </section>
           }

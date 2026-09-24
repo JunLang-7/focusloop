@@ -74,6 +74,7 @@ const api: FocusLoopApi = {
     ),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getBridgeInfo, payload.none()),
   getAgentContext: () => ipcRenderer.invoke(IPC_CHANNELS.getAgentContext, payload.none()),
+  askTutor: (request) => ipcRenderer.invoke(IPC_CHANNELS.askTutor, payload.askTutor(request)),
 
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings, payload.none()),
   setLocale: (request) =>

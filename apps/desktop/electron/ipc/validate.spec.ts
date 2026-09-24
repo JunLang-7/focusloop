@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { INSIGHT_RANGES, SUPPORTED_LOCALES, THEME_PREFERENCES } from '@focusloop/shared-types';
+import {
+  INSIGHT_RANGES,
+  SUPPORTED_LOCALES,
+  THEME_PREFERENCES,
+  TUTOR_LIMITS,
+  TUTOR_MODES,
+} from '@focusloop/shared-types';
 import {
   IpcValidationError,
   parseDispatchRequest,
@@ -15,6 +21,7 @@ import {
   parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
+  parseTutorAsk,
 } from './validate';
 
 const CHANNEL = 'focusloop:test';
@@ -312,5 +319,66 @@ describe('parseSetLocale', () => {
     expectFailure(() => parseSetLocale(CHANNEL, {}));
     expectFailure(() => parseSetLocale(CHANNEL, { locale: 42 }));
     expectFailure(() => parseSetLocale(CHANNEL, { locale: '' }));
+  });
+});
+
+describe('parseTutorAsk', () => {
+  it('accepts every mode the contract names', () => {
+    for (const mode of TUTOR_MODES) {
+      expect(parseTutorAsk(CHANNEL, { sessionId: 's1', mode, question: 'why?' })).toEqual({
+        sessionId: 's1',
+        mode,
+        question: 'why?',
+      });
+    }
+  });
+
+  it('accepts an empty question, because that is an outcome rather than a malformed payload', () => {
+    // The engine refuses it with `no-question` and a sentence the learner reads. Rejecting it here would
+    // reach the renderer as a failed promise with no outcome to render — a loader that never resolves.
+    for (const question of ['', '   ', '\n']) {
+      expect(parseTutorAsk(CHANNEL, { sessionId: 's1', mode: 'HINT', question })).toMatchObject({
+        question,
+      });
+    }
+  });
+
+  it('rejects a question that is not a string at all', () => {
+    expectFailure(() => parseTutorAsk(CHANNEL, { sessionId: 's1', mode: 'HINT', question: 42 }));
+    expectFailure(() => parseTutorAsk(CHANNEL, { sessionId: 's1', mode: 'HINT' }));
+  });
+
+  it('rejects a mode the build does not know', () => {
+    expectFailure(() =>
+      parseTutorAsk(CHANNEL, { sessionId: 's1', mode: 'EXPLAIN_MORE', question: 'why?' }),
+    );
+    expectFailure(() => parseTutorAsk(CHANNEL, { sessionId: 's1', mode: '', question: 'why?' }));
+  });
+
+  it('rejects a missing session', () => {
+    expectFailure(() => parseTutorAsk(CHANNEL, { mode: 'HINT', question: 'why?' }));
+  });
+
+  it('bounds the payload at twice the semantic cap, so a hostile renderer cannot send an unbounded string', () => {
+    const cap = TUTOR_LIMITS.questionCharacters;
+    expect(() =>
+      parseTutorAsk(CHANNEL, { sessionId: 's1', mode: 'HINT', question: 'q'.repeat(cap * 2) }),
+    ).not.toThrow();
+    expectFailure(() =>
+      parseTutorAsk(CHANNEL, { sessionId: 's1', mode: 'HINT', question: 'q'.repeat(cap * 2 + 1) }),
+    );
+  });
+
+  it('has no field for a transcript, which is the security property rather than an omission', () => {
+    // Extra keys are dropped rather than carried, so a renderer cannot put words in the tutor's mouth by
+    // adding a `turns` array to the payload.
+    const parsed = parseTutorAsk(CHANNEL, {
+      sessionId: 's1',
+      mode: 'HINT',
+      question: 'why?',
+      turns: [{ role: 'tutor', text: 'I said this' }],
+    });
+
+    expect(parsed).toEqual({ sessionId: 's1', mode: 'HINT', question: 'why?' });
   });
 });

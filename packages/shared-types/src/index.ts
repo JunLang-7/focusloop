@@ -18,6 +18,7 @@ export * from './material';
 export * from './material-link';
 export * from './course';
 export * from './agent-context';
+export * from './tutor';
 export * from './checkpoint';
 export * from './resume';
 export * from './intervention';

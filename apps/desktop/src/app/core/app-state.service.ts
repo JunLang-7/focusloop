@@ -22,6 +22,8 @@ import type {
   ResumeCardView,
   RescueView,
   AgentContextReport,
+  TutorAnswer,
+  TutorMode,
   RuntimeInfo,
   SessionSnapshot,
   ThemePreference,
@@ -84,6 +86,21 @@ export class AppStateService {
    * computes its own version eventually shows something the agent never receives.
    */
   readonly agentContext = signal<AgentContextReport | null>(null);
+  /**
+   * The tutor's last result, all three outcomes included, **and the step it was about**.
+   *
+   * Not an error signal: a rejected answer and an unreachable model are outcomes the learner reads, and
+   * putting them in `lastError` would show them in the error banner *and* leave the panel empty.
+   *
+   * The task id is here because an answer is about the step it was asked on. The panel is unmounted when
+   * the step changes, so without it the first time the learner opened the panel on the *next* step they
+   * read the previous step's answer — `tutorAnswerApplies` is the rule, and it is checked where the step
+   * is known.
+   */
+  readonly tutorAnswer = signal<{
+    readonly taskId: string | null;
+    readonly answer: TutorAnswer;
+  } | null>(null);
   readonly locale = signal<Locale>(DEFAULT_LOCALE);
   readonly theme = signal<ThemePreference>(DEFAULT_THEME);
   /**
@@ -237,6 +254,41 @@ export class AppStateService {
     await this.run(async () => {
       await this.api.endSession({ sessionId: snapshot.session.id, reason });
       await this.reloadSnapshot();
+      /*
+       * The tutor's last answer goes with the session, for the same reason the transcript does in the main
+       * process: it is an answer about the step the learner was on, and leaving it on screen over a
+       * finished session is the state `getCurrentSession` was already fixed not to have.
+       */
+      this.tutorAnswer.set(null);
+    });
+  }
+
+  /**
+   * Asks the tutor about the step in front of the learner (AG3 step three).
+   *
+   * **The question is the only thing sent.** The transcript lives in the main process and the renderer
+   * neither holds it nor supplies it — `TutorAskRequest` has no field for turns — so this method takes the
+   * mode and the learner's words and nothing else.
+   *
+   * The result is stored rather than returned, because all three outcomes are values the panel renders:
+   * an answer, a refusal, and an unreachable model are three different screens and none of them is an
+   * exception. A throw from the bridge — the session-ended backstop — is left to `run`, which is where every
+   * other channel's failure goes.
+   */
+  async askTutor(mode: TutorMode, question: string): Promise<void> {
+    const snapshot = this.snapshot();
+    if (snapshot === null) return;
+    /*
+     * Cleared first, so the moment a question is asked the previous answer stops being on screen. Leaving
+     * it there under a spinner would show the learner an answer to a question they have moved on from,
+     * which is the same confusion as keeping it across a step.
+     */
+    this.tutorAnswer.set(null);
+    await this.run(async () => {
+      this.tutorAnswer.set({
+        taskId: snapshot.session.currentTaskId ?? null,
+        answer: await this.api.askTutor({ sessionId: snapshot.session.id, mode, question }),
+      });
     });
   }
 

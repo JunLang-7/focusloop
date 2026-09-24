@@ -12,6 +12,7 @@ import {
   parseImportMaterial,
   parseInsightsRequest,
   parseNoArgs,
+  parseTutorAsk,
   parseResolveIntervention,
   parseResolveRescue,
   parseResumeDecision,
@@ -235,6 +236,11 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.getAgentContext,
       parse: parseNoArgs,
       handle: () => engine.getAgentContext(),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.askTutor,
+      parse: parseTutorAsk,
+      handle: (request) => engine.askTutor(request),
     }),
   ] as const;
 }

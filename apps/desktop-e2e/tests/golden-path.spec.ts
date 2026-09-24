@@ -962,6 +962,101 @@ test('the reason the learner gives is answered according to which kind of stuck 
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
 
+test('the tutor asks the main process, and says so when no model is connected', async () => {
+  // The previous test leaves the app on the focus screen with no session — "No session running" and no
+  // course list — so the session has to be started from the home screen, as the other tests do.
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  // Read off the screen rather than written here: the assertion below is that the fallback names the step
+  // the question was about, and a title typed into the test would be a second copy of the demo course.
+  const stepTitle = (await window.getByTestId('task-title').innerText()).trim();
+
+  await window.getByTestId('tutor-entry').click();
+  await expect(window.getByTestId('tutor-panel')).toBeVisible();
+
+  /*
+   * Ask is disabled until a mode is chosen *and* something is written. The engine refuses an empty question
+   * with `no-question` and a sentence, which is right for a caller that sends one — and the wrong thing to
+   * let a learner do, because a button that can only ever produce a refusal should not be pressable.
+   */
+  await expect(window.getByTestId('tutor-ask')).toBeDisabled();
+  await window.getByTestId('tutor-mode-HINT').click();
+  await expect(window.getByTestId('tutor-ask')).toBeDisabled();
+  await window.getByTestId('tutor-question').fill('why does the colour change?');
+  await expect(window.getByTestId('tutor-ask')).toBeEnabled();
+
+  await window.getByTestId('tutor-ask').click();
+
+  /*
+   * This build has no model, so the whole chain really runs and ends in the fallback: the renderer sent
+   * the question and nothing else, the engine built a prompt, refused to call the offline provider rather
+   * than paying for two calls and getting no answer, and returned `no-model` with a sentence and the step
+   * the question was about.
+   */
+  const result = window.getByTestId('tutor-result');
+  await expect(result).toBeVisible();
+  await expect(result).toContainText('No answer this time');
+  await expect(result).toContainText('No model is connected');
+  await expect(result).toContainText(stepTitle);
+
+  // A fallback is not a dead end: the step it was asked about is still underneath it.
+  await expect(window.getByTestId('task-title')).toBeVisible();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
+  /*
+   * Escape closes the panel, from inside it — which is where the binding is and where the learner is when
+   * they want it. Both halves are asserted, because the comment on `onEscape` says the key reaches the panel
+   * only from within it, and a comment that describes the boundary is only worth writing if something fails
+   * when the boundary moves: the second press is made with focus on the page, and the panel stays up.
+   *
+   * What is *not* asserted here is the plan card behind the panel, because the plan is drawn over the button
+   * that opens the panel and the panel is drawn over the plan's toggle: the two cannot both be open through
+   * clicks, so "Escape did not close the plan as well" has no state to be asserted in. The handler still
+   * stops the event for the case where they could.
+   */
+  await window.getByTestId('tutor-question').press('Escape');
+  await expect(window.getByTestId('tutor-panel')).toBeHidden();
+  await window.getByTestId('tutor-entry').click();
+  await expect(window.getByTestId('tutor-panel')).toBeVisible();
+  await window.getByTestId('task-title').click();
+  await window.keyboard.press('Escape');
+  await expect(window.getByTestId('tutor-panel')).toBeVisible();
+
+  // Closed again before the plan is opened: the panel covers the plan's toggle, so the click that opens the
+  // plan has to happen while the panel is down.
+  await window.getByTestId('tutor-close').click();
+  await expect(window.getByTestId('tutor-panel')).toBeHidden();
+  await window.getByTestId('focus-plan-toggle').click();
+  await expect(window.getByTestId('plan-remaining')).toBeVisible();
+  await window.getByTestId('focus-plan-toggle').click();
+
+  // Re-opening on the same step shows the same answer: it is about *this* step, so it is still true.
+  await window.getByTestId('tutor-entry').click();
+  await expect(window.getByTestId('tutor-result')).toBeVisible();
+
+  /*
+   * And it does not outlive the step it is about. The panel is destroyed and re-created when the step
+   * changes, so this is not about the component's own state — it is about the answer the *service* is
+   * holding, which used to be cleared only when the whole session ended. The check is after the next step
+   * starts, because finishing one leaves the running-task branch altogether.
+   */
+  await window.getByTestId('tutor-close').click();
+  await window.getByTestId('complete-task').click();
+  await window.getByTestId('start-task').first().click();
+  await window.getByTestId('tutor-entry').click();
+  await expect(window.getByTestId('tutor-panel')).toBeVisible();
+  await expect(window.getByTestId('tutor-result')).toBeHidden();
+
+  await window.getByTestId('tutor-close').click();
+  await expect(window.getByTestId('tutor-panel')).toBeHidden();
+  await expect(window.getByTestId('tutor-entry')).toBeVisible();
+
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
 test('an active focus commitment survives leaving and returning to the route', async () => {
   await clickSidebarLink('Home');
   await window.getByTestId('course-card').first().getByTestId('start-session').click();

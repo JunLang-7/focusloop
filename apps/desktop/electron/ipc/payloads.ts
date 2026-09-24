@@ -13,6 +13,7 @@ import type {
   SimulatorCommand,
   StartSessionRequest,
   ThemePreference,
+  TutorAskRequest,
 } from '@focusloop/shared-types';
 
 /**
@@ -50,6 +51,7 @@ export const payload = {
     showMaterialText,
   }),
   insights: (range: InsightRange): InsightsRequest => ({ range }),
+  askTutor: (request: TutorAskRequest): TutorAskRequest => request,
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,
 } as const;
 

@@ -1218,6 +1218,70 @@ body:has(.simulator) .agent-context {
   margin-top: 10px;
 }
 
+/*
+ * The contextual tutor (AG3).
+ *
+ * Anchored like `.agent` and above it, because the two can be on screen together — a policy suggestion
+ * about the step and an answer the learner asked for are different things and must not cover each other.
+ * Every colour is a token; the gate at `scripts/verify-theme-tokens.mjs` fails on anything else.
+ */
+.tutor {
+  position: relative;
+  display: inline-flex;
+}
+
+.tutor__panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  width: 360px;
+  padding: 14px;
+  border: 1px solid var(--accent-border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-md);
+  z-index: 40;
+}
+
+.tutor__modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.tutor__input {
+  width: 100%;
+  margin: 6px 0 10px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+.tutor__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tutor__result {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.tutor__text {
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+.tutor__text--source {
+  color: var(--text-muted);
+}
+
 .agent--rescue {
   border-color: var(--accent);
 }
