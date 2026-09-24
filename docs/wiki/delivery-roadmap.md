@@ -1,6 +1,10 @@
 # FocusLoop Agent 能力完善与实施调度
 
-> 状态：实施基线；基于 2026-09-21 仓库静态审查。本文不把“已有同名 UI/类型”自动视为能力完成，而按端到端闭环判定。
+> 状态：实施基线；基于 2026-09-21 仓库静态审查，2026-09-22 复核。本文不把“已有同名 UI/类型”自动视为能力完成，而按端到端闭环判定。
+>
+> **事实基线**：默认分支 `main` @ `e596d6f`。本节第 2 节的证据**包含了当时可见的功能分支**，所以
+> 「已形成」未必意味着代码在 `main` 上：逐项准确状态以 [功能清单](./project-features.md) 的七级阶梯为准，
+> 两份文档不一致时以功能清单为准。
 
 ## 1. Wiki 信息架构
 
@@ -54,18 +58,25 @@ Home
 
 ## 2. AG1–AG10 能力矩阵
 
-状态含义：**已形成** = 主链路存在且有测试；**部分形成** = 有核心部件但未闭环；**未形成** = 仅有邻近能力或设计意图。
+状态含义：本节标题现在使用 [功能清单 §1.1](./project-features.md) 的七级阶梯，以便与台账逐字对照。原先的
+“已形成 / 部分形成 / 未形成”只按“主链路是否存在”判断，不区分 `main` 与分支，正是本次要修掉的模糊。
 
-### AG1 Learning Context — 已形成，需收口
+### AG1 Learning Context — 已合并（13 类事件投影 allowlist 仍在分支）
 
-- 当前证据：`shared-types/agent-context.ts` 定义边界和 omission；`agent-core/agent-context.ts` 构建当前 session/concept/task/material/state/events/checkpoint；材料 1200 字符、事件 12 条；Electron IPC 暴露只读报告；桌面有 “What the Agent sees” 面板；有单元、engine、IPC 测试。
-- 差距：隐私规则尚未形成独立、可审计的字段级 allowlist 文档；Agent Context 与 Tutor 实际 prompt 是两层报告，调试体验需说明差异；缺少面向恶意/敏感事件 payload 的固定回归语料。
-- 验收标准：任意 session 只包含当前课程路径所需数据；材料、事件、总 prompt 均在声明上限内；所有裁剪都有 omission；不得出现其他课程内容、完整日志、密钥、URL path/query、表单内容；Inspector 与实际送模输入有可追溯对应；无 session 返回显式空上下文。
+- 当前证据（`main`）：`shared-types/agent-context.ts` 定义边界和 omission；`agent-core/agent-context.ts` 构建当前 session/concept/task/material/state/events/checkpoint；材料 1200 字符、事件 12 条；Electron IPC 暴露只读报告；桌面有 `fl-agent-context-panel`（`data-testid="agent-context-panel"`）面板；有单元、engine、IPC 测试。
+- 当前证据（分支 `0f19c9f`，未合并）：`AgentContextEvent` 的 13 类逐类型投影。
+- 差距：隐私规则尚未形成独立、可审计的字段级 allowlist 文档；缺少面向恶意/敏感事件 payload 的固定回归语料。
+- **Inspector 不是“一个面板”，而是两个**（原表述自相矛盾，已修正）：
+  - **Context Inspector**：Agent **可访问**的数据。对应 `agent:context` 报告、omission 与截断长度。
+  - **Outbound Request Inspector**：这一次**实际发给 Provider** 的内容（AG9 交付）。
+  - 二者在多处必然不同，因为 Tutor 会在 AG1 上下文之上再次裁剪并拼装 system / preamble / question。
+    因此验收标准不能写“两者一致”，只能写“**两者都有视图，且差异可被解释**”。
+- 验收标准：任意 session 只包含当前课程路径所需数据；材料、事件、总 prompt 均在声明上限内；所有裁剪都有 omission；不得出现其他课程内容、完整日志、密钥、URL path/query、表单内容；**Context Inspector 与 Outbound Request Inspector 都存在，且从任一侧可追溯到另一侧**；无 session 返回显式空上下文。
 - 依赖：现有 domain types、store、material parser、IPC。
 - 风险：事件 payload 将来扩展后绕过过滤；字符预算与真实 token 预算偏差；Inspector 让开发者误以为它等于完整 Tutor prompt。
 - 实施步骤：写 Context Data Contract → 建字段 allowlist/denylist → 加敏感 payload fixtures → 统一 context/prompt inspection 导航 → 加预算与跨课程隔离回归测试。
 
-### AG2 Stuck Rescue — 部分形成（分类/政策闭环已成，动作仍偏文案）
+### AG2 Stuck Rescue — 已合并（六类原因与记录已合并；Rescue 计划与评估器仍在分支）
 
 - 当前证据：六类 `StuckReason`；UI picker；reason→action 确定性映射；`MICRO_START/SIMPLIFY/HINT/EXAMPLE/BREAK` 等 intervention；cooldown、预算、升级规则与 outcome 记录均有测试。
 - 差距：多数“skill”仍是 intervention descriptor/文案，未生成可执行临时步骤或真正缩小任务；救援成功的定义未形成统一窗口指标；“换一种解释/例子”与 AG3 Tutor 的复用边界需固定。
@@ -74,34 +85,39 @@ Home
 - 风险：同一求助重复消费；干预过频；把“疲劳”固化为长期画像；SIMPLIFY 名义完成但任务不变。
 - 实施步骤：定义 RescueResult 与成功窗口 → 固定 AG2/AG3 路由 → 将 MICRO_START/SIMPLIFY 接到临时任务工具 → 完成 outcome evaluator → 做六类 E2E。
 
-### AG3 Contextual Tutor — 已形成，需产品化收口
+### AG3 Contextual Tutor — **PR 已开**（且未合并）
 
-- 当前证据：六种 TutorMode 全部建模；当前步骤入口；主进程保存有界 transcript；结构化 parts 校验；格式失败可重试；回答与用户原话引用校验；材料 section grounding 与 source 展示；provider 失败有本地 fallback；大量边界测试。
+- 当前证据（分支 `d1e6b03`，PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101)，**未合并**）：六种 TutorMode 全部建模；当前步骤入口；主进程保存有界 transcript；结构化 parts 校验；格式失败可重试；回答与用户原话引用校验；材料 section grounding 与 source 展示；provider 失败有本地 fallback；大量边界测试。
 - 差距：真实 provider 下的质量基线与双语场景数据不足；当前“source”是所给 excerpt，不是细粒度引用定位；流式/取消属于 AG9 未完成；会话 transcript 未持久化且缺少用户可清除入口（需明确这是隐私选择还是缺口）。
 - 验收标准：六模式只产生允许的 parts；问题自动绑定当前 task；切换 task/session 不串答；follow-up 不越过上下文预算；无材料依据时不伪造来源；错误格式、provider failure、offline 均有可理解降级；中英文核心场景通过固定 eval。
 - 依赖：AG1、AG9；AG10 grounding/quality eval。
 - 风险：结构正确但教学质量差；引用标题匹配不等于事实支持；多轮对话造成 prompt injection/成本增长。
 - 实施步骤：冻结 Tutor contract → 建中英场景集 → 增加精确 section anchor → 接 runtime abort/stream → 明确 transcript 生命周期与清除策略 → E2E 覆盖六模式中的关键三模式。
 
-### AG4 Task Adaptation — 未形成（只有静态任务生成与 SIMPLIFY 建议）
+### AG4 Task Adaptation — 设计完成（未实现；`main` 上只有静态任务生成与 `SIMPLIFY` 建议）
 
 - 当前证据：课程导入时有 micro-task generator；policy 能选择 `SIMPLIFY`；既有 session plan UI/任务生命周期可作为接入点。
 - 差距：没有 `AdaptiveTask` schema、SHRINK/SPLIT/CHANGE_MODALITY 服务、plan reorder proposal、adaptive practice persistence、确认式结构写入；现有 SIMPLIFY 不等于真实任务变更。
 - 验收标准：生成的 adaptive task 绑定来源 task/concept/reason，单步 1–5 分钟且可恢复；结构性变更必须先展示 diff 并由用户确认；拒绝不改变 plan；接受后持久化并发出事件；重复提交幂等；离线至少能模板化 shrink/split。
-- 依赖：先完成 AG8 工具/权限；AG7 episodic schema；AG10 safety tests。
+- 依赖：先完成 AG8 工具/权限（**硬依赖**）；AG10 safety tests。
+- **依赖倒置修正**：本文原先写“AG4 依赖 AG7 episodic schema”，而 Phase 3 (AG4) 排在 Phase 4 (AG7) 之前，
+  构成依赖倒置。实际 AG4 需要的是“确认 + 幂等”这组原始能力，它属于 **AG8**。因此改为：
+  AG4 只依赖 AG8 的 confirmation/idempotency；若确实需要按时间窗回溯历史，就拆出 **AG7a
+  （有界 episodic 查询）** 并提前，而完整的 Memory 检查/删除仍留在 AG7。
 - 风险：破坏 progress 语义和 task position；生成重复/循环任务；模型越权静默改计划；迁移后旧 session 不兼容。
 - 实施步骤：ADR 定义 temporary step vs persistent adaptive task → schema/migration → 纯函数 proposal builder → confirmation UI → command/event/persistence → restore/resume → eval/E2E。
 
-### AG5 Cognitive Resume — 部分形成（三档恢复与成功指标已形成）
+### AG5 Cognitive Resume — 已合并（`main` 只有统一卡；三档与指标在分支）
 
-- 当前证据：checkpoint builder、idempotent persistence、interruption detection、接受/拒绝、latency 均已存在；ResumeCard 已按 15 分钟/24 小时边界形成 Short/Medium/Long 三档，Long 提供 30 秒快速回忆；Dashboard 从 timing/checkpoint/events 重算 5 分钟 resume success，AG10 使用生产 continuity 纯函数覆盖固定场景。
+- 当前证据（`main`）：checkpoint builder、幂等持久化、interruption detection、接受/拒绝、latency 均已存在。
+- 当前证据（分支 `0f19c9f`，**未合并**）：ResumeCard 按 15 分钟/24 小时边界分为 Short/Medium/Long，Long 提供 30 秒快速回忆；Dashboard 从 timing/checkpoint/events 重算 5 分钟“成功”，但**代码里这个指标仍叫 `succeeded` / `rate`，尚未改名**为 [重新参与指标](./resume-policy-and-success.md)，`progressed` / `stalledAgain` 连分支上也没有；AG10 用生产 continuity 纯函数覆盖固定场景。
 - 差距：checkpoint 内容主要由任务进度推导，尚未捕获 Tutor/救援产生的“具体卡点”；adaptive task 状态无法恢复；恢复后尚不能直接定位 material section；真实用户阈值仍需产品数据校准。
 - 验收标准：按离开时长确定三档且边界可配置、确定性可测；卡点来自最新有效学习证据；同一 interruption 只生成一 checkpoint/card；adaptive 子步骤可恢复；记录 latency，并在恢复后的窗口内记录 success/failure；跨日返回提供 30 秒 refresher 而非直接开长任务。
 - 依赖：AG2 outcome、AG4 adaptive state、AG7 episodic query、AG10 resume eval。
 - 风险：过时 checkpoint；时区/系统时钟异常；resume card 太长反而增加重启成本；长期卡点包含不必要敏感文本。
 - 实施步骤：已完成 gap bands → 三档纯策略 → refresher → success evaluator；后续为 checkpoint 纳入有界 Tutor/Rescue evidence → material 定位 → adaptive restore → 完整三档 E2E。
 
-### AG6 Learning Reflection — 未形成
+### AG6 Learning Reflection — 设计完成（未实现）
 
 - 当前证据：已有 dashboard/insights、events、outcomes，可作为统计输入；没有学习偏好模型或 reflection 产品链路。
 - 差距：AG6.1–AG6.7 基本均未实现；现有 UI settings 只含语言/主题/材料显示，不是 learner preference。
@@ -110,16 +126,21 @@ Home
 - 风险：小样本伪规律；把情境行为当人格；确认疲劳；反馈循环；跨课程偏好错误泛化。
 - 实施步骤：先写伦理/语言规范 → 定义统计特征和最小样本 → reflection proposal（只读）→ confirmation → preference store/UI → 效果对照 → weekly summary。
 
-### AG7 Memory — 部分形成（情节数据已有，统一 Memory 能力未形成）
+### AG7 Memory — 设计完成（episodic 数据已存在，统一 Memory 能力未形成）
 
 - 当前证据：当前 session/context 是 working-memory 等价物；events/checkpoints/interventions/outcomes 是 episodic 数据；SQLite local-first 且有迁移与 round-trip 测试。
 - 差距：没有明确 Memory scopes API；没有按目的/保留期查询与删除；没有 learner-preference schema/store/inspection；Tutor transcript 是进程内临时状态且生命周期未在产品层说明。
 - 验收标准：Working/Episodic/Preference 三类边界清晰；每类有 purpose、来源、保留期、读取者；偏好显式、可编辑、可单项删/全清；清除后上下文与反思不再引用；禁止存储诊断、智力、人格、心理健康推断；所有 query 有数量/时间窗上限。
+- **删除语义必须先冻结，否则不得开工**（原表述只有一句愿望：“清除后不可被查询”）。实现前必须回答：
+  1. 清除是**物理删除**、**软删除**还是**访问 tombstone**？
+  2. Dashboard 与 Insights 是否仍能使用被清除的数据（若可以，就说明它并未真正删掉）？
+  3. 审计日志是否保留被删对象的标识？保留多久？
+  4. 缓存、checkpoint 与派生结果如何失效（含“删除后不可回流”的回归测试）？
 - 依赖：privacy ADR、persistence migrations；AG6/AG4 消费其能力。
 - 风险：删除不彻底（派生表/缓存）；scope creep；长期日志增长；同步功能未来破坏 local-first 假设。
 - 实施步骤：Data Inventory → MemoryPolicy/Query contract → episodic bounded queries → preference migration/repository → inspection & delete UI → cache invalidation tests → privacy regression。
 
-### AG8 Tool & Action — 未形成（已有 domain commands，但不是 Agent Tool 系统）
+### AG8 Tool & Action — 设计完成（`main` 上只有 domain commands，没有 Agent Tool 系统）
 
 - 当前证据：engine、IPC 已有 start/pause/resume/complete、事件分发等应用命令；输入验证和事件日志可复用。
 - 差距：没有统一 `AgentTool` contract/registry；没有 safe-read/reversible-write/structural-write 权限；没有 model tool-call 解析/验证；没有通用 proposal-confirm-execute；没有专用 tool audit record。
@@ -128,18 +149,21 @@ Home
 - 风险：prompt injection 越权；确认后状态已变化（TOCTOU）；重试导致重复写；把 IPC 方法直接暴露为模型工具造成攻击面过大。
 - 实施步骤：Tool ADR/权限矩阵 → read-only registry → proposal envelope → confirmation UI → reversible commands → structural commands → audit log → adversarial tests。
 
-### AG9 Model Runtime — 部分形成
+### AG9 Model Runtime — 设计完成（`main` 上只有 `AIProvider` 抽象）
 
-- 当前证据：`AIProvider` 抽象、Mock/DeepSeek、provider selection 和 deterministic fallback；DeepSeek 有超时/错误归类；Tutor 层有结构化 reader、格式重试和字符预算。
+- 当前证据：`AIProvider` 抽象、Mock/DeepSeek、provider selection 和 deterministic fallback；DeepSeek 有超时/错误归类；Tutor 层（分支 `d1e6b03`，PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101)，未合并）有结构化 reader、格式重试和字符预算。
 - 差距：尚无独立 AgentRuntime；structured output 能力不在 provider contract；无 streaming/abort；无通用 retry/backoff；fallback 是 primary→mock 而非可配置 provider chain；只有 Mock/DeepSeek；预算是字符而非 token/成本；skills 仍知道 completion 细节。
 - 验收标准：统一 runtime 请求支持 schema、timeout、abort、stream events、retry policy、provider chain、预算；一次请求可追踪 provider/model/耗时/重试/降级但不记录敏感 prompt；超时或断网在 UX 时限内转 rule fallback；abort 后不得提交迟到结果；结构化结果在边界验证。
 - 依赖：shared provider contracts；AG10 runtime conformance tests。
 - 风险：多 provider 行为不一致；streaming 与 schema 校验冲突；重试放大成本；本地模型能力不足导致隐藏降级。
 - 实施步骤：ADR 分离 Provider 与 AgentRuntime → runtime contract → abort/timeout → structured adapter → retry/backoff → provider chain → token estimator/budget → optional adapters → conformance suite。
 
-### AG10 Evaluation & Guardrails — 部分形成（工程测试强，Agent Eval Suite 未形成）
+### AG10 Evaluation & Guardrails — 分支完成（`main` 上只有工程测试，无场景数据集）
 
-- 当前证据：当前基线共有 703 个通过的 Vitest 测试；state/policy/continuity/persistence/engine/IPC 测试较完善，并有 Electron + Playwright golden path；Tutor 有格式、模式、引用、grounding、预算 guardrail；隐私边界已有文档和若干测试。
+- 当前证据：本次静态审查时（2026-09-21，含当时可见的功能分支）共 703 项 Vitest 测试；state/policy/continuity/persistence/engine/IPC 测试较完善，并有 Electron + Playwright golden path；Tutor 有格式、模式、引用、grounding、预算 guardrail；隐私边界已有文档和若干测试。
+- **测试数量的警告**：本页的 703、实施进度页的 737/764 互相不一致，而且**都无法从 `main` 复现**
+  （大数字来自分支）。测试条数只能证明“跑过”，不能作为证据。可复现的证据是 `main` 上必需检查的结果：
+  `quality` ×3 OS、`golden path` ×2（17 个测试）、`coverage`、`package (smoke)`、CodeQL、`analyze`。
 - 差距：没有版本化 scenario dataset、统一 evaluator、expected/allowed/forbidden 断言、真实模型抽样评测、质量趋势报告；没有系统的 tool safety、跨语言、干扰度、resume quality 与 privacy regression 套件。
 - 验收标准：每个 AG 至少有 happy/edge/adversarial 场景；deterministic gates 100% 稳定；LLM eval 固定模型/参数并报告通过率与方差；发布门槛含 grounding、tool correctness、privacy zero-tolerance、concision、continuity；场景不得含真实用户数据；失败能定位到 capability/runtime/provider。
 - 依赖：应横切全阶段，不能等功能全部完成。
@@ -216,10 +240,12 @@ AG1/2/3/基础 AG5 的收口不必等关键路径，可并行交付并尽快形�
 
 ## 4. 当前应先交付的文档
 
-建议第一批只交付 6 份，先建立决策护栏再写实现 issue：
+建议第一批只交付 6 份，先建立决策护栏再写实现 issue。**2026-09-22 进展**：第 1、2 项已交付，第 3–6 项仍未开始。
 
-1. `docs/wiki/index.md`：Wiki 导航、owner、状态定义、事实更新时间。
-2. `docs/wiki/agent-capability-matrix.md`：把本文第 2 节拆成唯一能力台账，链接实现与测试。
+1. ~~`docs/wiki/index.md`：Wiki 导航、owner、状态定义、事实更新时间。~~ ✅ 已由 `docs/wiki/README.md`
+   （导航 + 事实基线 + 七级状态定义）承担。
+2. ~~`docs/wiki/agent-capability-matrix.md`：把本文第 2 节拆成唯一能力台账，链接实现与测试。~~ ✅ 已由
+   `docs/wiki/project-features.md` 承担（逐功能九点台账；本文第 2 节降级为方案描述）。
 3. `docs/wiki/adr/0001-agent-memory-scopes.md`：三层 memory、保留/删除/禁止数据。
 4. `docs/wiki/adr/0002-agent-tool-permissions.md`：权限、proposal hash、确认、幂等、audit。
 5. `docs/wiki/adr/0003-adaptive-task-lifecycle.md`：临时步骤与持久任务、position/progress/resume 语义。

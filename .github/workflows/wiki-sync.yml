@@ -1,0 +1,79 @@
+name: Wiki sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/wiki/**'
+      - 'scripts/sync-wiki.mjs'
+      - '.github/workflows/wiki-sync.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: wiki-sync
+  cancel-in-progress: false
+
+# Publishes to the wiki repository, which is a separate git repository. The default token cannot push
+# there, so this workflow does nothing until `WIKI_SYNC_TOKEN` exists as a repository secret — a
+# fine-grained PAT with `Contents: read and write` on this repository. GitHub has no wiki-only scope,
+# so keep the token narrow in every other respect and rotate it.
+#
+# `secrets` is not usable in a step `if:`, so the token is mapped to an env var and the guard reads
+# the env var. That is also what makes the no-op visible instead of a silent skip.
+#
+# The repository copy is the single editable source; see docs/wiki/README.md.
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: publish docs/wiki
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Job scope is deliberate: the `if:` guards below read this variable, and a step cannot see its
+    # own `env:` in its `if:`.
+    env:
+      WIKI_SYNC_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
+    steps:
+      - name: Explain the no-op
+        if: env.WIKI_SYNC_TOKEN == ''
+        run: |
+          echo "::notice::WIKI_SYNC_TOKEN is not set — the GitHub Wiki was not updated."
+          echo "docs/wiki/ in this repository is the source of truth. To publish it, add a repository"
+          echo "secret named WIKI_SYNC_TOKEN (fine-grained PAT, Contents: read and write)."
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: env.WIKI_SYNC_TOKEN != ''
+        with:
+          persist-credentials: false
+
+      # The wiki is a separate git repository. `--depth 1` is enough: every run rewrites the pages it
+      # manages, so there is no history to merge with.
+      - name: Clone the wiki
+        if: env.WIKI_SYNC_TOKEN != ''
+        run: |
+          # The token goes in a per-command header rather than into the remote URL: a URL ends up in
+          # `.git/config`, where any later step that archives or prints the workspace would carry it.
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_SYNC_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" clone --depth 1 \
+            "https://github.com/${GITHUB_REPOSITORY}.wiki.git" \
+            "$RUNNER_TEMP/wiki"
+
+      - name: Publish
+        if: env.WIKI_SYNC_TOKEN != ''
+        run: node scripts/sync-wiki.mjs --target "$RUNNER_TEMP/wiki"
+
+      - name: Push when a page changed
+        if: env.WIKI_SYNC_TOKEN != ''
+        working-directory: ${{ runner.temp }}/wiki
+        run: |
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No page changed."
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add --all
+          git commit -m "docs(wiki): publish docs/wiki @ ${GITHUB_SHA:0:7}"
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_SYNC_TOKEN" | base64 -w0)"
+          git -c http.extraheader="$auth" push

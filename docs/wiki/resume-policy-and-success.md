@@ -1,10 +1,25 @@
 # AG5 Resume 三档与结果指标
 
+> **状态**：本页的结果指标由 PR #119 实现；三档卡片由后续 PR #122 实现。合并状态以各 PR 为准。
+
 ## 本阶段目标
 
 在不调用模型、不增加事件类型、不复制聚合数据的前提下，让 Resume Card 根据真实离开时长选择恢复强度，并回答三个分开的问题：接受恢复后是否**再参与**、是否**真的进步**、是否**再次停滞**。
 
 本阶段不包含 Tutor/救援卡点摘要、adaptive task 恢复、长期记忆或材料章节跳转。
+
+## 指标改名（2026-09-22 修正）
+
+原来的口径叫“成功率”，但它的证据里包含 `HELP_REQUESTED`——也就是说 **用户接受恢复后立刻再次求助，
+也算“恢复成功”**。这个指标只能说明“重新参与了”，不能说明“恢复成功”。因此拆成三个：
+
+| 指标           | 含义                   | 窗口内证据（同一 Session、同一 checkpoint task）         |
+| -------------- | ---------------------- | -------------------------------------------------------- |
+| `reengaged`    | 重新产生了当前任务行为 | `TASK_STARTED`、`TASK_COMPLETED`、答题、`HELP_REQUESTED` |
+| `progressed`   | 真的往前走了           | `TASK_COMPLETED`、步骤推进、`QUIZ_CORRECT`               |
+| `stalledAgain` | 短期又卡住/又离开      | 窗口内再次 `HELP_REQUESTED`、再次中断，或结束 Session    |
+
+Dashboard 若不区分这三者，“成功率”会系统性虚高。**改名与拆分必须在实现进入 `main` 之前完成。**
 
 ## 三档策略
 
@@ -22,7 +37,7 @@ gap 优先取最新有效 `TAB_RETURNED.awayMs` 或 `IDLE_ENDED.idleMs`。时间
 
 ## 结果指标口径（原「成功率」改名）
 
-成功窗口为接受卡片后的 5 分钟，表示为 `(acceptedAt, acceptedAt + 5min]`。
+观察窗口为接受卡片后的 5 分钟，表示为 `(acceptedAt, acceptedAt + 5min]`。
 
 同一 Session、同一 checkpoint task 的证据分为三类，**互不合并成一个 success 标志**：
 
@@ -66,4 +81,6 @@ progressRate = progressed / evaluated
 - 时钟倒退、非法时间和缺失 gap 不崩溃。
 - 其他任务、其他 Session、窗口外和接受瞬间之前的事件不计证据。
 - 接受后立刻再次求助：`reengaged` 而非 `progressed`。
+- 指标名必须区分 `reengaged` / `progressed` / `stalledAgain`；UI 文案不得用“成功率”描述 `reengaged`。
+- “接受后立刻再次求助”必须能被识别为 `stalledAgain`，而不是成功。
 - AG10 JSON 场景直接调用生产 `@focusloop/continuity` 纯函数，不维护第二套参考策略。

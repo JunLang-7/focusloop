@@ -1,6 +1,16 @@
 # FocusLoop Learning Agent：AG1–AG10 逐功能完善方案
 
 > 目标：把功能分类转成可验收的 Wiki/交付清单。本文按当前仓库已有边界设计：领域决策保持纯函数和可测试；Renderer 只通过已校验 IPC；Agent 不直接写数据库；所有用户可见文案由 i18n 渲染。
+>
+> **事实基线**：默认分支 `main` @ `e596d6f`。本文是**方案**，不是状态台账；逐项真实状态见
+> [功能清单](./project-features.md) 的七级阶梯。
+>
+> **“领域层不产生句子”是一条被强制执行的硬规则**（见 `docs/architecture.md`）：领域包只返回
+> `LocalizedMessage`（如 `{ key: 'reason.confused.hint', params: {} }`），`messages.zh.ts` 以
+> `Record<MessageKey, string>` 约束，漏键即 typecheck 失败。**已知违反**：AG3 的
+> `describeUnavailable` / `describeRejection` 在领域层返回英文句子，UI 直接渲染
+> `{{ result.reason }}`，因此中文界面会出现英文；修复由独立 issue 跟踪，后续每个 AG 在评审时必须
+> 检查这一条。
 
 ## 0. 统一实施模板
 
@@ -21,6 +31,10 @@
 - 迁移可在空库和已有库执行，旧数据可读；事件、工具调用、用户确认可追溯。
 - UI 支持中英文、无障碍名称/键盘操作、加载/错误/空态；不把诊断性标签写入用户画像。
 - `pnpm test`、`pnpm typecheck`、关键 E2E 与隐私扫描通过；新增场景进入 AG10 eval 数据集。
+- **E2E 是完成度的必要条件，不是可选项**：E2E 未通过时（无论原因是环境、时序还是产品缺陷），该切片最高只能标
+  「CI 绿」，**不得标「完成」**。状态含义见 [功能清单 §1.1](./project-features.md)。
+  （注：此处原先举的例子是“Electron 44 拒绝 Playwright 的 `--remote-debugging-port=0`”——该说法在
+  2026-09-22 的实测中被推翻，见 #107。举例不等于事实，这正是本页要避免的写法。）
 
 ### 统一测试矩阵
 
@@ -39,9 +53,15 @@
 
 **数据模型**：`AgentContext`（session/concept/task/material/learningState/recentEvents/checkpoint）及 `AgentContextOmission[]`；不得携带完整课程、全量日志、浏览器 URL 或账号信息。
 
-**API/UI 交付物**：复用 `focusloop:agent:context` / `getAgentContext()`；需要时增加按 `sessionId` 的只读 inspector 请求。完善 `AgentContextPanel` 的 omitted、截断长度、无 session 空态；开发模式显示 “What the Agent sees”。
+**API/UI 交付物**：复用 `focusloop:agent:context` / `getAgentContext()`；需要时增加按 `sessionId` 的只读 inspector 请求。完善 `AgentContextPanel` 的 omitted、截断长度、无 session 空态；开发模式显示当前上下文面板（组件 `fl-agent-context-panel`，`data-testid="agent-context-panel"`）。
 
-**DoD**：同一输入构建结果字节级稳定；无 session 返回 null；材料/事件超限有 omission 记录；敏感字段过滤在 main/domain 生效而非只靠 UI；Tutor、Rescue、Resume 使用同一个 builder；Inspector 显示的内容与实际送给 runtime 的内容一致。
+- **DoD**：同一输入构建结果字节级稳定；无 session 返回 null；材料/事件超限有 omission 记录；敏感字段过滤在 main/domain 生效而非只靠 UI；Tutor、Rescue、Resume 使用同一个 builder。
+- **Inspector 一致性只能是“两个视图各自一致”**（原表述自相矛盾，已修正）：
+  - **Context Inspector** 显示 Agent **可访问**的数据，且必须与实际传给 builder 的输入一致；
+  - **Outbound Request Inspector**（AG9 交付）显示这一次实际发给 Provider 的字符串，且必须与
+    `sent.inputCharacters` 这类报告一致。
+  - Context 与 Tutor 的 prompt 是两层：Tutor 会在 AG1 上下文之上再裁剪，因此两者**不可能相同**，
+    Inspector 与送模内容也就不可能“完全一致”。验收只能要求“两个视图都存在、差异可解释”。
 
 **测试矩阵**：P—截断、空材料、12/13 事件、checkpoint；I—课程/任务/材料/事件组装及重启后读取；B—不能由 renderer 注入 context；U—Inspector 展开、中文、键盘、空态；S—全量日志/URL/用户画像不出现在报告；M—context 字符和构建耗时上限。
 
@@ -115,6 +135,10 @@
 
 **DoD**：scope、TTL、权限明确；working 自动过期，episodic 可按 session/time window 查询；删除单项和清空全部可验证且不删课程/学习事实（除非用户明确要求）；所有 memory 访问有审计；AgentContext 只读取最小窗口。
 
+- **删除语义必须在写代码前冻结**（原文只有“清除后不可被查询”这一句愿望）：清除是物理删除、软删除还是
+  tombstone？Dashboard 是否仍能使用？审计日志是否保留被删对象标识、保留多久？缓存、checkpoint 与派生
+  结果如何失效？四个问题都有答案之前，“数据还在但 Agent 看不到”不成立。
+
 **测试矩阵**：P—scope 隔离、TTL、分页、删除幂等；I—session 重启/多 session 查询/清除后 context；B—跨用户/跨 session、未知 scope、批量删除保护；U—检查、单项删除、全部清除确认/空态；S—敏感字段 schema denylist、日志脱敏、数据库残留扫描；M—查询上限、清除耗时。
 
 ## AG8 Tool & Action System
@@ -133,7 +157,12 @@
 
 **交付范围/基线**：统一 `AgentRuntime → ProviderRegistry`，Provider 对 Skill 隐藏；支持 Mock、远端 Provider、本地模型；结构化输出、streaming、abort、timeout/retry、fallback、token/context budget。
 
-**数据模型**：`RuntimeRequest {skill, schema, contextBudget, tokenBudget, deadline, abortSignal}`；`RuntimeResult {status, output, provider, usage, latency, degraded, failure}`；`ProviderHealth` 只存运行指标，不存 prompt 原文。
+- **数据模型**：拆成两个类型（原设计把 `AbortSignal` 放进数据模型，它不能跨 IPC 序列化，也不适合进入 shared contract 或持久化层）：
+  - `RuntimeRequestData { skill, schema, contextBudget, tokenBudget, deadlineMs }`：可序列化。
+  - `RuntimeExecutionOptions { signal }`：仅进程内存在，不进 `shared-types` 的持久化路径。
+  - **流式文本**与**最终结构化结果**分别定义：前者面向增量显示（可中断、可丢弃尾部），后者面向
+    schema 校验（完整结果才校验，失败才重试/降级）；笼统要求“同时支持”会变成不可测试的承诺。
+- `RuntimeResult {status, output, provider, usage, latency, degraded, failure}`；`ProviderHealth` 只存运行指标，不存 prompt 原文。
 
 **API/UI 交付物**：扩展 `AIProvider.complete()` 或新增 runtime façade；统一错误枚举/重试预算/取消；Runtime Info 显示 provider/model/offline/degraded；Rule Engine 提供 MICRO_START/SIMPLIFY/HINT/BREAK 等 deterministic fallback。
 
@@ -147,7 +176,8 @@
 
 **数据模型**：`EvalScenario {id, context, input, expected, forbidden, rubric, version}`；`EvalRun {scenarioId, provider, output, toolCalls, scores, violations, latency, at}`；`GuardrailPolicy` 定义 schema、权限、隐私和打断规则。
 
-**API/UI 交付物**：开发/CI CLI `agent-eval run --suite ...`、报告 JSON/HTML；Inspector 显示命中规则/违规原因；生产只上报聚合指标和脱敏失败类型，不上传原始学习内容。
+- **API/UI 交付物**：开发/CI CLI `agent-eval run --suite ...`、本地或 CI 内的报告 JSON/HTML；Inspector 显示命中规则/违规原因。
+- **隐私边界**：评测结果只在开发者本机或 CI 中生成，不由生产应用上报；无遥测、无分析、无崩溃上报，与 `docs/privacy.md` 一致。场景只使用合成数据，不包含真实用户学习内容。
 
 **DoD**：至少覆盖 confused、overloaded、cannot-start、follow-up、resume、provider failure、越权 tool、敏感字段八类；每 scenario 有 Expected 与 Forbidden；结构化输出/工具权限/不主动打断由 deterministic tests gate；grounding 要能指出 excerpt/source；隐私回归扫描通过；阈值失败阻断合并。
 
