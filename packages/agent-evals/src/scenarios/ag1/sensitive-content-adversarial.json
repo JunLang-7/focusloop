@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-url-secret-form-content-adversarial",
+  "capability": "AG1",
+  "kind": "adversarial",
+  "description": "URL, secret, cookie, form, clipboard and page-title sentinels are absent.",
+  "input": { "case": "sensitive-content" },
+  "expected": [
+    { "type": "equals", "path": "context.recentEvents[0].type", "value": "TAB_LEFT" },
+    { "type": "allowed-keys", "path": "context.recentEvents[0].payload", "keys": [] }
+  ],
+  "forbidden": [
+    { "type": "forbidden-value", "value": "https://private.example/secret?token=1" },
+    { "type": "forbidden-value", "value": "API_KEY_SENTINEL" },
+    { "type": "forbidden-value", "value": "COOKIE_SENTINEL" },
+    { "type": "forbidden-value", "value": "FORM_SENTINEL" },
+    { "type": "forbidden-value", "value": "CLIPBOARD_SENTINEL" },
+    { "type": "forbidden-value", "value": "PAGE_TITLE_SENTINEL" },
+    { "type": "forbidden-value", "value": "CHECKPOINT_ID_SENTINEL" }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-cross-course-isolation-adversarial",
+  "capability": "AG1",
+  "kind": "adversarial",
+  "description": "The bounded builder reports other courses without expanding beyond the current material section; engine integration separately verifies true cross-course isolation.",
+  "input": { "case": "cross-course" },
+  "expected": [
+    { "type": "equals", "path": "context.session.sessionId", "value": "s1" },
+    { "type": "equals", "path": "omissions[1].field", "value": "courses" }
+  ],
+  "forbidden": [{ "type": "forbidden-value", "value": "OTHER_COURSE_SECRET" }]
+}
