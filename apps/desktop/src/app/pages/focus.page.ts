@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
 import type { ElementRef, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import type { MicroTask, MicroTaskKind, StuckReason } from '@focusloop/shared-types';
@@ -8,20 +8,20 @@ import {
   DEFAULT_FOCUS_MINUTES,
   addMinute,
   createFocusTimer,
-  formatFocusTime,
   pause as pauseTimer,
   reset as resetTimer,
   resume as resumeTimer,
   start as startTimer,
   tick as tickTimer,
-  type FocusTimerState,
 } from '../core/focus-timer';
+import { focusClockValue } from '../core/focus-clock-value';
 import { I18nService } from '../core/i18n/i18n.service';
 import { STATE_KEYS, STUCK_REASON_KEYS, kindLabel } from '../core/i18n/labels';
 import { formatDuration } from '../core/format';
 import { formatSpan } from '../core/insights-view';
 import { KIND_GLYPHS, buildPlan } from '../core/session-plan';
 import { keepsRail, type FocusPhase } from '../core/focus-phase';
+import { FocusTimerService } from '../core/focus-timer.service';
 import { PLAN_INITIAL_OPEN, nextPlanOpen, type PlanEvent } from '../core/plan-visibility';
 import { helpRequestPayload } from '../core/stuck-picker';
 
@@ -329,10 +329,10 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
 })
 export class FocusPage implements OnDestroy {
   private readonly state = inject(AppStateService);
+  private readonly focusTimer = inject(FocusTimerService);
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
   private timerHandle: ReturnType<typeof setInterval> | null = null;
-  private timer = signal<FocusTimerState>(createFocusTimer());
   private readonly completedView = signal(false);
   private readonly planOpenState = signal(PLAN_INITIAL_OPEN);
   protected readonly planOpen = this.planOpenState.asReadonly();
@@ -344,6 +344,7 @@ export class FocusPage implements OnDestroy {
   protected readonly t = this.i18n.t;
   protected readonly snapshot = this.state.snapshot;
   protected readonly task = this.state.currentTask;
+  private readonly timer = this.focusTimer.state;
   protected readonly CLOCK_RADIUS = CLOCK_RADIUS;
   protected readonly CLOCK_CIRCUMFERENCE = CLOCK_CIRCUMFERENCE;
   protected readonly phase = computed<FocusPhase>(() => {
@@ -365,6 +366,19 @@ export class FocusPage implements OnDestroy {
   protected readonly railAttr = computed(() => (this.rail() ? '' : null));
   protected readonly plan = computed(() => buildPlan(this.openTasks()));
   protected readonly nextTask = computed<MicroTask | null>(() => this.openTasks()[0] ?? null);
+
+  /** Keep the local commitment coherent when the lazy focus page is entered or rebuilt. */
+  private readonly syncTimer = effect(() => {
+    const snapshot = this.snapshot();
+    untracked(() => {
+      this.focusTimer.sync(snapshot?.session.id, snapshot?.session.currentTaskId, Date.now());
+      if (this.focusTimer.state().phase === 'active' && this.timerHandle === null) {
+        this.startInterval();
+      } else if (this.focusTimer.state().phase !== 'active') {
+        this.clearTimer();
+      }
+    });
+  });
 
   /** Set by the two ways out of the chooser: both destroy the focused element, so both owe it on. */
   private stuckReturnFocus = false;
@@ -430,10 +444,7 @@ export class FocusPage implements OnDestroy {
     return formatDuration(this.snapshot()?.progress.elapsedMs ?? 0);
   }
   protected clockValue(): string {
-    const milliseconds =
-      this.timer().remainingMs ||
-      (this.phase() === 'active' ? (this.task()?.estimatedMinutes ?? 0) * 60_000 : 0);
-    return formatFocusTime(milliseconds);
+    return focusClockValue(this.timer(), this.phase(), this.task()?.estimatedMinutes ?? 0);
   }
   protected clockDashOffset(): number {
     return this.phase() === 'complete' ? 0 : CLOCK_CIRCUMFERENCE * (1 - this.timer().progress);
@@ -506,13 +517,13 @@ export class FocusPage implements OnDestroy {
     await this.state.dispatch('TASK_STARTED', { taskId });
     const task = this.findTask(taskId);
     this.completedView.set(false);
-    this.timer.set(
+    this.focusTimer.set(
       startTimer(resetTimer(minutes ?? Math.max(1, task?.estimatedMinutes ?? 1)), Date.now()),
     );
     this.startInterval();
   }
   protected pause(): void {
-    this.timer.update((value) => pauseTimer(value, Date.now()));
+    this.focusTimer.update((value) => pauseTimer(value, Date.now()));
     this.clearTimer();
   }
   protected resume(): void {
@@ -520,11 +531,11 @@ export class FocusPage implements OnDestroy {
       this.addMinuteToTimer();
       return;
     }
-    this.timer.update((value) => resumeTimer(value, Date.now()));
+    this.focusTimer.update((value) => resumeTimer(value, Date.now()));
     this.startInterval();
   }
   protected addMinuteToTimer(): void {
-    this.timer.update((value) => addMinute(value, Date.now()));
+    this.focusTimer.update((value) => addMinute(value, Date.now()));
     this.startInterval();
   }
   protected async complete(taskId: string): Promise<void> {
@@ -532,7 +543,7 @@ export class FocusPage implements OnDestroy {
     this.applyPlanEvent('finish');
     await this.state.dispatch('TASK_COMPLETED', { taskId });
     this.clearTimer();
-    this.timer.set(createFocusTimer());
+    this.focusTimer.set(createFocusTimer());
     this.completedView.set(true);
   }
   protected readonly STUCK_REASON_KEYS = STUCK_REASON_KEYS;
@@ -573,6 +584,7 @@ export class FocusPage implements OnDestroy {
   }
   ngOnDestroy(): void {
     this.clearTimer();
+    this.syncTimer.destroy();
     this.manageStuckFocus.destroy();
   }
 
@@ -591,7 +603,7 @@ export class FocusPage implements OnDestroy {
   private startInterval(): void {
     this.clearTimer();
     this.timerHandle = setInterval(
-      () => this.timer.update((value) => tickTimer(value, Date.now())),
+      () => this.focusTimer.update((value) => tickTimer(value, Date.now())),
       250,
     );
   }

@@ -942,3 +942,20 @@ test('the reason the learner gives is answered according to which kind of stuck 
   await window.getByTestId('end-session').click();
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
+
+test('an active focus commitment survives leaving and returning to the route', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  // Leaving the lazy focus component must not reset the renderer-local commitment.
+  await clickSidebarLink('Home');
+  await clickSidebarLink('Focus Session');
+
+  await expect(window.getByRole('button', { name: 'Pause' })).toBeVisible();
+  const value = window.locator('.focus-clock__value');
+  const afterReturn = await value.innerText();
+  await expect.poll(() => value.innerText(), { timeout: 5_000 }).not.toBe(afterReturn);
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
