@@ -1,10 +1,27 @@
-# AG5 Resume 三档与成功指标
+# AG5 Resume 三档与重新参与指标
+
+> **事实基线**：默认分支 `main` @ `e596d6f`。本页描述的三档与指标**只存在于分支
+> `feat/agent-phase1-evals-rescue` @ `0f19c9f`，且该分支当前没有 PR**，因此状态是 **分支完成**；
+> `main` 上只有统一版 Resume Card（不分档）。
 
 ## 本阶段目标
 
 在不调用模型、不增加事件类型、不复制聚合数据的前提下，让 Resume Card 根据真实离开时长选择恢复强度，并回答“接受恢复后，学习者是否真的继续了当前任务”。
 
 本阶段不包含 Tutor/救援卡点摘要、adaptive task 恢复、长期记忆或材料章节跳转。
+
+## 指标改名（2026-09-22 修正）
+
+原来的口径叫“成功率”，但它的证据里包含 `HELP_REQUESTED`——也就是说 **用户接受恢复后立刻再次求助，
+也算“恢复成功”**。这个指标只能说明“重新参与了”，不能说明“恢复成功”。因此拆成三个：
+
+| 指标           | 含义                   | 窗口内证据（同一 Session、同一 checkpoint task）         |
+| -------------- | ---------------------- | -------------------------------------------------------- |
+| `reengaged`    | 重新产生了当前任务行为 | `TASK_STARTED`、`TASK_COMPLETED`、答题、`HELP_REQUESTED` |
+| `progressed`   | 真的往前走了           | `TASK_COMPLETED`、步骤推进、`QUIZ_CORRECT`               |
+| `stalledAgain` | 短期又卡住/又离开      | 窗口内再次 `HELP_REQUESTED`、再次中断，或结束 Session    |
+
+Dashboard 若不区分这三者，“成功率”会系统性虚高。**改名与拆分必须在实现进入 `main` 之前完成。**
 
 ## 三档策略
 
@@ -18,26 +35,28 @@
 
 gap 优先取最新有效 `TAB_RETURNED.awayMs` 或 `IDLE_ENDED.idleMs`。时间 tick 已生成卡片但尚无返回事件时，使用最近的 `TAB_LEFT` 或 `IDLE_STARTED` 到建卡时刻的差值。负数、非有限数和非法时间不进入计算。
 
-## Success 口径
+## 事件与窗口口径
 
-成功窗口为接受卡片后的 5 分钟，表示为 `(acceptedAt, acceptedAt + 5min]`。
+观察窗口为接受卡片后的 5 分钟，表示为 `(acceptedAt, acceptedAt + 5min]`。
 
-只有同一 Session、同一 checkpoint task 的以下事件可作为成功证据：
+只有同一 Session、同一 checkpoint task 的以下事件可作证据（按当前实现，它们归入 `reengaged`）：
 
 - `TASK_STARTED`
 - `TASK_COMPLETED`
 - `QUIZ_CORRECT` / `QUIZ_INCORRECT`
 - `HELP_REQUESTED`
 
-窗口内出现至少一条有效证据为 `succeeded`；已接受但窗口尚未结束为 `pending`；窗口结束仍无证据为 `expired`。已拒绝和尚未作出选择的卡片不进入成功率分母。重复 event id 只计算一次。
+窗口内出现至少一条有效证据为 `succeeded`（**现实现 = `reengaged`**）；已接受但窗口尚未结束为 `pending`；
+窗口结束仍无证据为 `expired`。已拒绝和尚未作出选择的卡片不进入分母。重复 event id 只计算一次。
 
-汇总口径：
+汇总口径（**当前实现，尚未改名**）：
 
 ```text
-rate = succeeded / (succeeded + expired)
+rate = succeeded / (succeeded + expired)   // 需在合并前改成 reengageRate
 ```
 
-`pending` 不进入分母，避免把仍在观察窗口内的恢复提前判失败。
+`pending` 不进入分母，避免把仍在观察窗口内的恢复提前判失败。`progressed` 与 `stalledAgain`
+**尚未实现**；在它们实现之前，Dashboard 不得把 `rate` 标成“恢复成功率”。
 
 ## 数据与重启一致性
 
@@ -49,4 +68,6 @@ rate = succeeded / (succeeded + expired)
 - Long 必须显示 30 秒回忆提示；Short 不展开两列历史列表。
 - 时钟倒退、非法时间和缺失 gap 不崩溃。
 - 其他任务、其他 Session、窗口外和接受瞬间之前的事件不计成功。
+- 指标名必须区分 `reengaged` / `progressed` / `stalledAgain`；UI 文案不得用“成功率”描述 `reengaged`。
+- “接受后立刻再次求助”必须能被识别为 `stalledAgain`，而不是成功。
 - AG10 JSON 场景直接调用生产 `@focusloop/continuity` 纯函数，不维护第二套参考策略。
