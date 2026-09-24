@@ -93,6 +93,9 @@
 - 仓库级 737 项测试（分支本地）；`@focusloop/continuity` 41、`@focusloop/agent-core` 230、
   `@focusloop/persistence` 48、`@focusloop/agent-evals` 12 项。
 - 全仓库 typecheck、lint、build、文档、Prettier 和 diff whitespace 校验通过。
+- Desktop E2E **可以**启动 Electron 并执行产品断言，不是“启动前被阻断”。此前“Electron 拒绝
+  `--remote-debugging-port=0`、未执行到任何产品断言”的记录有误；本切片验收时本地套件曾有一条
+  用例失败，归因与修复见 #107。
 
 > 计数是分支上的一次运行结果，不是可复核证据；合并后应绑定 PR 与 CI run 链接。
 
