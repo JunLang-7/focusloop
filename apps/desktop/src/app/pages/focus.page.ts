@@ -540,10 +540,16 @@ export class FocusPage implements OnDestroy {
      */
     this.stuckOpen.set(false);
     await this.state.dispatch('TASK_STARTED', { taskId });
+    const sessionId = this.snapshot()?.session.id;
+    if (sessionId === undefined) return;
+    const now = Date.now();
+    // Claim the timer's owner before starting it. A pending snapshot effect may
+    // otherwise see a new task and reset an already-running clock to "ready".
+    this.focusTimer.sync(sessionId, taskId, now);
     const task = this.findTask(taskId);
     this.completedView.set(false);
     this.focusTimer.set(
-      startTimer(resetTimer(minutes ?? Math.max(1, task?.estimatedMinutes ?? 1)), Date.now()),
+      startTimer(resetTimer(minutes ?? Math.max(1, task?.estimatedMinutes ?? 1)), now),
     );
     this.startInterval();
   }
