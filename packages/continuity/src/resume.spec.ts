@@ -308,6 +308,21 @@ describe('evaluateResumeOutcome', () => {
     expect(result.stalledAgain).toBe(false);
   });
 
+  it('treats step advance as completion of the checkpoint micro task, not starting another task', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [
+        ev('e-next-start', 'TASK_STARTED', '2026-01-01T00:02:00.000Z', { taskId: 't2' }),
+        ev('e-current-done', 'TASK_COMPLETED', '2026-01-01T00:02:30.000Z', { taskId: 't1' }),
+      ],
+      now: '2026-01-01T00:03:00.000Z',
+    });
+    expect(result.progressed).toBe(true);
+    expect(result.progressEventIds).toEqual(['e-current-done']);
+    expect(result.reengageEventIds).toEqual(['e-current-done']);
+  });
+
   it('expires a silent window and keeps pending out until it closes', () => {
     const pending = evaluateResumeOutcome({
       checkpoint,

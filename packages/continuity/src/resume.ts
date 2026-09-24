@@ -120,6 +120,8 @@ const REENGAGE_EVENT_TYPES = new Set<LearningEvent['type']>([
   'HELP_REQUESTED',
 ]);
 
+// A course step is a MicroTask, so completing the checkpoint task is its step-advance evidence.
+// TASK_STARTED on a different task is not proof that this task progressed.
 const PROGRESS_EVENT_TYPES = new Set<LearningEvent['type']>(['TASK_COMPLETED', 'QUIZ_CORRECT']);
 
 /**

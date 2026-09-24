@@ -32,6 +32,11 @@ gap 优先取最新有效 `TAB_RETURNED.awayMs` 或 `IDLE_ENDED.idleMs`。时间
 | `progressed`   | 真正往前走       | `TASK_COMPLETED`、`QUIZ_CORRECT`                                                    |
 | `stalledAgain` | 短期回退         | 再次 `HELP_REQUESTED`、再次打断（`TAB_LEFT`/`IDLE_STARTED`）、或窗口内 Session 结束 |
 
+这里的 **step** 是课程中的一个 `MicroTask`，不是微任务内部的子步骤；当前事件模型没有独立的
+`STEP_ADVANCED`。因此需求中的「step advance」以完成 checkpoint 所在微任务的
+`TASK_COMPLETED` 表示；仅开始下一任务不会被误算为当前任务的进步。若将来引入任务内部步骤，
+应先定义其持久化事件，再扩充本指标，不能从 `TASK_STARTED` 猜测进步。
+
 汇总类型为 `ResumeOutcomeSummary`（字段 `reengaged` / `progressed` / `stalledAgain` / `expired` / `pending`，比率 `reengageRate` / `progressRate`）。**不再存在** `succeeded` / `rate` / `resumeSuccess` 这类把再参与称作成功的名字。
 
 - 窗口内有再参与或停滞证据 → 计入对应计数，`status = observed`。
