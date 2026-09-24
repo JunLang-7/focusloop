@@ -10,6 +10,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron } from '@playwright/test';
+import { hermeticEnv } from './hermetic-env.mjs';
 
 const DESKTOP_MAIN = resolve(import.meta.dirname, '..', 'desktop', 'dist', 'main', 'main.cjs');
 const userDataDir = mkdtempSync(join(tmpdir(), 'focusloop-monitor-'));
@@ -26,7 +27,7 @@ const record = (kind, text) => {
 
 const app = await electron.launch({
   args: [DESKTOP_MAIN, `--user-data-dir=${userDataDir}`],
-  env: { ...process.env, FOCUSLOOP_DEV: '1' },
+  env: hermeticEnv(),
 });
 
 try {
