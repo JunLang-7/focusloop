@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "ag5-medium-before-long-boundary",
+  "capability": "AG5",
+  "kind": "edge",
+  "description": "A gap one millisecond below twenty-four hours remains medium.",
+  "input": { "gapMs": 86399999 },
+  "expected": [{ "type": "equals", "path": "variant", "value": "medium" }],
+  "forbidden": []
+}

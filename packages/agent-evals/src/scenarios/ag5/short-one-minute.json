@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "ag5-short-one-minute",
+  "capability": "AG5",
+  "kind": "happy",
+  "description": "A one-minute interruption uses the short card.",
+  "input": { "gapMs": 60000 },
+  "expected": [
+    { "type": "equals", "path": "variant", "value": "short" },
+    { "type": "equals", "path": "refresherRequired", "value": false }
+  ],
+  "forbidden": []
+}

@@ -7,9 +7,12 @@ import type {
   LocalizedMessage,
   MicroTask,
   ResumeCard,
+  ResumePolicyConfig,
+  ResumePolicyOverrides,
+  ResumeVariant,
   ResumeOutcomeResult,
 } from '@focusloop/shared-types';
-import { message, RESUME_OUTCOME_WINDOW_MS } from '@focusloop/shared-types';
+import { DEFAULT_RESUME_POLICY_CONFIG, message } from '@focusloop/shared-types';
 
 export interface BuildResumeCardInput {
   readonly checkpoint: LearningCheckpoint;
@@ -17,10 +20,95 @@ export interface BuildResumeCardInput {
   readonly course: Course;
   readonly recentEvents: readonly LearningEvent[];
   readonly now: string;
+  readonly config?: ResumePolicyOverrides;
 }
 
 const DEFAULT_ESTIMATED_MINUTES = 5;
 const MAX_COMPLETED_ITEMS = 3;
+const MAX_UNRESOLVED_ITEMS = 3;
+const LONG_REFRESHER_SECONDS = '30';
+
+export function resolveResumePolicyConfig(
+  overrides: ResumePolicyOverrides = {},
+): ResumePolicyConfig {
+  const config: ResumePolicyConfig = { ...DEFAULT_RESUME_POLICY_CONFIG, ...overrides };
+  if (
+    !Number.isFinite(config.shortThresholdMs) ||
+    !Number.isFinite(config.longThresholdMs) ||
+    !Number.isFinite(config.outcomeWindowMs) ||
+    config.shortThresholdMs < 0 ||
+    config.longThresholdMs < 0 ||
+    config.outcomeWindowMs < 0
+  ) {
+    throw new RangeError('ResumePolicyConfig values must be non-negative finite numbers');
+  }
+  if (config.shortThresholdMs > config.longThresholdMs) {
+    throw new RangeError('ResumePolicyConfig.shortThresholdMs must not exceed longThresholdMs');
+  }
+  return config;
+}
+
+/** Invalid or unavailable gaps conservatively use the medium card. */
+export function classifyResumeGap(
+  gapMs: number | null,
+  overrides: ResumePolicyOverrides = {},
+): ResumeVariant {
+  const config = resolveResumePolicyConfig(overrides);
+  if (gapMs === null || !Number.isFinite(gapMs) || gapMs < 0) return 'medium';
+  if (gapMs < config.shortThresholdMs) return 'short';
+  if (gapMs >= config.longThresholdMs) return 'long';
+  return 'medium';
+}
+
+/** Selects one timestamp-ordered interruption record for both policy and card prose. */
+function selectResumeInterruption(
+  events: readonly LearningEvent[],
+  now: string,
+): { readonly event: LearningEvent; readonly gapMs: number } | null {
+  const nowMs = Date.parse(now);
+  if (!Number.isFinite(nowMs)) return null;
+  const entries = events.map((event, index) => ({ event, index, atMs: Date.parse(event.at) }));
+  const completed = entries
+    .filter(
+      ({ event, atMs }) =>
+        Number.isFinite(atMs) &&
+        atMs <= nowMs &&
+        (event.type === 'TAB_RETURNED' || event.type === 'IDLE_ENDED') &&
+        Number.isFinite(interruptionDuration(event)) &&
+        interruptionDuration(event) >= 0,
+    )
+    .sort((a, b) => a.atMs - b.atMs || a.index - b.index)
+    .at(-1);
+  const started = entries
+    .filter(
+      ({ event, atMs }) =>
+        Number.isFinite(atMs) &&
+        atMs <= nowMs &&
+        (event.type === 'TAB_LEFT' || event.type === 'IDLE_STARTED'),
+    )
+    .sort((a, b) => a.atMs - b.atMs || a.index - b.index)
+    .at(-1);
+  if (
+    completed !== undefined &&
+    (started === undefined ||
+      completed.atMs > started.atMs ||
+      (completed.atMs === started.atMs && completed.index > started.index))
+  ) {
+    return { event: completed.event, gapMs: interruptionDuration(completed.event) };
+  }
+  return started === undefined ? null : { event: started.event, gapMs: nowMs - started.atMs };
+}
+
+/** Uses the most recent completed interruption, or measures a newer open one to now. */
+export function deriveResumeGapMs(events: readonly LearningEvent[], now: string): number | null {
+  return selectResumeInterruption(events, now)?.gapMs ?? null;
+}
+
+function interruptionDuration(event: LearningEvent): number {
+  if (event.type === 'TAB_RETURNED') return event.payload.awayMs;
+  if (event.type === 'IDLE_ENDED') return event.payload.idleMs;
+  return Number.NaN;
+}
 
 /**
  * Turns a checkpoint plus the events around the interruption into the small
@@ -29,7 +117,10 @@ const MAX_COMPLETED_ITEMS = 3;
  * Rule-based and deterministic on purpose — no LLM is involved in resume.
  */
 export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
-  const { checkpoint, course, recentEvents, session } = input;
+  const { checkpoint, course, recentEvents, session, now } = input;
+  const interruption = selectResumeInterruption(recentEvents, now);
+  const gapMs = interruption?.gapMs ?? null;
+  const variant = classifyResumeGap(gapMs, input.config);
   const tasks = [...course.microTasks].sort((a, b) => a.order - b.order);
   const currentTask: MicroTask | null =
     tasks.find((task) => task.id === checkpoint.currentTaskId) ?? null;
@@ -45,14 +136,21 @@ export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
       ? completedTaskTitles
       : [...checkpoint.mastered].slice(-MAX_COMPLETED_ITEMS);
 
+  const itemLimit = variant === 'short' ? 1 : MAX_COMPLETED_ITEMS;
   return {
+    variant,
+    gapMs,
+    refresher:
+      variant === 'long'
+        ? message('resume.refresher.long', { seconds: LONG_REFRESHER_SECONDS })
+        : null,
     title:
       currentTask === null
         ? message('resume.title.course', { course: course.title })
         : message('resume.title.task', { task: currentTask.title }),
-    lastContext: describeLastContext(checkpoint, recentEvents),
-    completed,
-    unresolved: [...checkpoint.unresolved],
+    lastContext: describeLastContext(checkpoint, interruption),
+    completed: completed.slice(-itemLimit),
+    unresolved: [...checkpoint.unresolved].slice(-Math.min(itemLimit, MAX_UNRESOLVED_ITEMS)),
     nextAction: checkpoint.nextBestAction,
     estimatedMinutes: clampMinutes(currentTask?.estimatedMinutes),
   };
@@ -60,28 +158,17 @@ export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
 
 function describeLastContext(
   checkpoint: LearningCheckpoint,
-  recentEvents: readonly LearningEvent[],
+  interruption: { readonly event: LearningEvent; readonly gapMs: number } | null,
 ): LocalizedMessage {
   const base = { concept: checkpoint.conceptTitle, goal: checkpoint.goal };
-  const interruption = findLastInterruption(recentEvents);
   if (interruption === null) return message('resume.context.plain', base);
 
-  const awayMs = interruption.awayMs;
-  if (awayMs === null || awayMs <= 0) return message('resume.context.moment', base);
+  if (interruption.gapMs <= 0) return message('resume.context.moment', base);
 
-  return message('resume.context.away', { ...base, duration: formatDuration(awayMs) });
-}
-
-function findLastInterruption(
-  recentEvents: readonly LearningEvent[],
-): { awayMs: number | null } | null {
-  for (let index = recentEvents.length - 1; index >= 0; index -= 1) {
-    const event = recentEvents[index];
-    if (event === undefined) continue;
-    if (event.type === 'TAB_RETURNED') return { awayMs: event.payload.awayMs };
-    if (event.type === 'IDLE_ENDED') return { awayMs: event.payload.idleMs };
-  }
-  return null;
+  return message('resume.context.away', {
+    ...base,
+    duration: formatDuration(interruption.gapMs),
+  });
 }
 
 function formatDuration(ms: number): string {
@@ -137,10 +224,11 @@ const PROGRESS_EVENT_TYPES = new Set<LearningEvent['type']>(['TASK_COMPLETED', '
  * a silent expiry.
  */
 export function evaluateResumeOutcome(input: EvaluateResumeOutcomeInput): ResumeOutcomeResult {
+  const config = resolveResumePolicyConfig(input.config);
   const windowMs =
     input.windowMs !== undefined && Number.isFinite(input.windowMs) && input.windowMs >= 0
       ? input.windowMs
-      : RESUME_OUTCOME_WINDOW_MS;
+      : config.outcomeWindowMs;
   const acceptedAtMs = Date.parse(input.timing.acceptedAt ?? '');
   const nowMs = Date.parse(input.now);
 

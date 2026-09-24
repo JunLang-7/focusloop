@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "ag5-long-twenty-four-hour-boundary",
+  "capability": "AG5",
+  "kind": "edge",
+  "description": "Exactly twenty-four hours uses the long card and refresher.",
+  "input": { "gapMs": 86400000 },
+  "expected": [
+    { "type": "equals", "path": "variant", "value": "long" },
+    { "type": "equals", "path": "refresherRequired", "value": true }
+  ],
+  "forbidden": []
+}

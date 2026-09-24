@@ -4,8 +4,11 @@ import { createInitialState, type StateEngineState } from '@focusloop/learning-s
 import { buildCheckpoint } from './checkpoint';
 import {
   buildResumeCard,
+  classifyResumeGap,
   computeResumeLatencyMs,
+  deriveResumeGapMs,
   evaluateResumeOutcome,
+  resolveResumePolicyConfig,
   sessionTitle,
 } from './resume';
 import { detectInterruption, isAwayOrIdle, shouldOfferResume } from './interruption';
@@ -53,6 +56,7 @@ describe('buildResumeCard', () => {
     });
 
     expect(card.title).toEqual({ key: 'resume.title.task', params: { task: 'Practise one' } });
+    expect(card).toMatchObject({ variant: 'short', gapMs: 30_000, refresher: null });
     expect(card.completed).toEqual(['Read one']);
     expect(card.unresolved).toEqual(['Concept one']);
     expect(card.nextAction).toEqual({
@@ -66,6 +70,104 @@ describe('buildResumeCard', () => {
       goal: 'Practise one',
       duration: '30s',
     });
+  });
+
+  it('uses the long variant and a 30-second refresher at the long boundary', () => {
+    const card = buildResumeCard({
+      checkpoint: checkpointFor(createInitialState(T0)),
+      session: tinySession(),
+      course: tinyCourse(),
+      recentEvents: [tabReturned(24 * 60 * 60 * 1000)],
+      now: T1,
+    });
+
+    expect(card.variant).toBe('long');
+    expect(card.refresher).toEqual({ key: 'resume.refresher.long', params: { seconds: '30' } });
+    expect(card.completed).toHaveLength(0);
+  });
+
+  it('limits a short card to one completed and unresolved item', () => {
+    const state: StateEngineState = {
+      ...createInitialState(T0),
+      state: 'INTERRUPTED',
+      currentTaskId: 't2',
+      completedTaskIds: ['t1'],
+      awaitingResume: true,
+    };
+    const checkpoint = {
+      ...checkpointFor(state),
+      unresolved: ['one', 'two', 'three'],
+    };
+    const card = buildResumeCard({
+      checkpoint,
+      session: tinySession({ completedTaskIds: ['t1'] }),
+      course: tinyCourse(),
+      recentEvents: [tabReturned(60_000)],
+      now: T1,
+    });
+
+    expect(card.completed).toEqual(['Read one']);
+    expect(card.unresolved).toEqual(['three']);
+  });
+
+  it('measures an open interruption and conservatively classifies an unknown gap', () => {
+    const left = {
+      id: 'e-left',
+      sessionId: 'session-tiny',
+      at: T0,
+      type: 'TAB_LEFT',
+      source: 'extension',
+      payload: {},
+    } as LearningEvent;
+
+    expect(deriveResumeGapMs([left], T1)).toBe(5 * 60 * 1000);
+    const card = buildResumeCard({
+      checkpoint: checkpointFor(createInitialState(T0)),
+      session: tinySession(),
+      course: tinyCourse(),
+      recentEvents: [left],
+      now: T1,
+    });
+    expect(card.lastContext.params['duration']).toBe('5 min');
+    expect(classifyResumeGap(null)).toBe('medium');
+    expect(classifyResumeGap(-1)).toBe('medium');
+    expect(classifyResumeGap(Number.NaN)).toBe('medium');
+  });
+
+  it('uses a completed return instead of an older open interruption in event-array order', () => {
+    const olderLeft = {
+      id: 'e-old-left',
+      sessionId: 'session-tiny',
+      at: T0,
+      type: 'TAB_LEFT',
+      source: 'extension',
+      payload: {},
+    } as LearningEvent;
+    const returnedNow = { ...tabReturned(0), at: T1 };
+    const card = buildResumeCard({
+      checkpoint: checkpointFor(createInitialState(T0)),
+      session: tinySession(),
+      course: tinyCourse(),
+      // Deliberately reverse timestamp order: older open start follows the return in the array.
+      recentEvents: [returnedNow, olderLeft],
+      now: T1,
+    });
+
+    expect(card.gapMs).toBe(0);
+    expect(card.lastContext.key).toBe('resume.context.moment');
+  });
+
+  it('uses validated configurable thresholds', () => {
+    expect(resolveResumePolicyConfig({ shortThresholdMs: 100, longThresholdMs: 500 })).toEqual({
+      shortThresholdMs: 100,
+      longThresholdMs: 500,
+      outcomeWindowMs: 5 * 60 * 1000,
+    });
+    expect(classifyResumeGap(100, { shortThresholdMs: 100, longThresholdMs: 500 })).toBe('medium');
+    expect(classifyResumeGap(500, { shortThresholdMs: 100, longThresholdMs: 500 })).toBe('long');
+    expect(() =>
+      resolveResumePolicyConfig({ shortThresholdMs: 501, longThresholdMs: 500 }),
+    ).toThrow(RangeError);
   });
 
   it('reports idle-based interruptions too', () => {
@@ -458,6 +560,18 @@ describe('evaluateResumeOutcome', () => {
     });
     expect(invalid.status).toBe('pending');
     expect(invalid.windowEndsAt).toBe('2026-01-01T00:06:00.000Z');
+  });
+
+  it('uses the configured outcome window when no per-call window is supplied', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [],
+      now: '2026-01-01T00:01:20.000Z',
+      config: { outcomeWindowMs: 10_000 },
+    });
+    expect(result.status).toBe('expired');
+    expect(result.windowEndsAt).toBe('2026-01-01T00:01:10.000Z');
   });
 
   it('keeps a dismissed card without acceptedAt well-formed', () => {

@@ -6,6 +6,7 @@ import type {
   LearningEvent,
   LearningSession,
   ResumeCardTiming,
+  ResumePolicyConfig,
 } from '@focusloop/shared-types';
 import { evaluateResumeOutcome } from '@focusloop/continuity';
 import { averageResumeLatencyMs, summarizeOutcomes } from '@focusloop/intervention-policy';
@@ -27,6 +28,7 @@ export interface BuildDashboardInput {
   readonly resumeTimings?: readonly ResumeCardTiming[];
   readonly checkpoints?: readonly LearningCheckpoint[];
   readonly events?: readonly LearningEvent[];
+  readonly resumePolicyConfig?: Partial<ResumePolicyConfig>;
   readonly now: string;
 }
 
@@ -57,6 +59,7 @@ export function summarizeResumeOutcomes(input: {
   readonly events: readonly LearningEvent[];
   readonly sessionEndedAt?: string;
   readonly now: string;
+  readonly config?: Partial<ResumePolicyConfig>;
 }): DashboardSummary['resumeOutcomes'] {
   const checkpointsById = new Map(
     input.checkpoints.map((checkpoint) => [checkpoint.id, checkpoint]),
@@ -82,6 +85,7 @@ export function summarizeResumeOutcomes(input: {
       events: input.events,
       ...(input.sessionEndedAt === undefined ? {} : { sessionEndedAt: input.sessionEndedAt }),
       now: input.now,
+      ...(input.config === undefined ? {} : { config: input.config }),
     });
     if (result.status === 'dismissed') continue;
 
@@ -146,6 +150,7 @@ export function buildDashboardSummary(input: BuildDashboardInput): DashboardSumm
       events: input.events ?? [],
       ...(session.endedAt === undefined ? {} : { sessionEndedAt: session.endedAt }),
       now,
+      config: input.resumePolicyConfig,
     }),
     interventionOutcomes: summarizeOutcomes(outcomes),
   };

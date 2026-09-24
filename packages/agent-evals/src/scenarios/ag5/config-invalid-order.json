@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "ag5-config-invalid-order",
+  "capability": "AG5",
+  "kind": "adversarial",
+  "description": "The policy refuses reversed configured thresholds.",
+  "input": { "gapMs": 100, "config": { "shortThresholdMs": 500, "longThresholdMs": 100 } },
+  "expected": [{ "type": "equals", "path": "variant", "value": "invalid-config" }],
+  "forbidden": []
+}

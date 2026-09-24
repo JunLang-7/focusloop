@@ -171,6 +171,24 @@ describe('buildDashboardSummary', () => {
     expect(summary.sessionDurationMs).toBe(180_000);
   });
 
+  it('applies the configured resume outcome window to dashboard totals', () => {
+    const summary = buildDashboardSummary({
+      session: session(),
+      course: demoCourse(),
+      outcomes: [],
+      checkpointCount: 1,
+      resumeTimings: [
+        { checkpointId: 'cp-1', shownAt: T0, acceptedAt: '2026-01-01T00:00:30.000Z' },
+      ],
+      checkpoints: [checkpoint('cp-1')],
+      events: [],
+      now: '2026-01-01T00:01:20.000Z',
+      resumePolicyConfig: { outcomeWindowMs: 10_000 },
+    });
+
+    expect(summary.resumeOutcomes).toMatchObject({ accepted: 1, expired: 1, pending: 0 });
+  });
+
   it('freezes the duration once the session ended', () => {
     const summary = buildDashboardSummary({
       session: session({ endedAt: '2026-01-01T00:02:00.000Z' }),

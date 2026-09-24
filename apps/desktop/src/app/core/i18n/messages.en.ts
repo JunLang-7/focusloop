@@ -309,6 +309,7 @@ const en = {
   'resume.context.moment': 'You were working on {concept} a moment ago. The goal was: {goal}',
   'resume.context.away':
     'You were working on {concept} and stepped away for {duration}. The goal was: {goal}',
+  'resume.refresher.long': 'Take {seconds} seconds to recall the key idea before continuing.',
 
   // intervention policy — why the agent decided what it decided
   'reason.budget': 'You have already used today’s interventions.',

@@ -33,6 +33,12 @@ import { focusableWithin, nextIndex } from '../core/focus-trap';
             <p class="muted">{{ context(view) }}</p>
           </header>
 
+          @if (view.card.refresher; as refresher) {
+            <p class="resume__refresher" data-testid="resume-refresher">
+              {{ i18n.translate(refresher) }}
+            </p>
+          }
+
           <div class="resume__grid">
             <section>
               <h3>{{ t('resume.done') }}</h3>
@@ -98,7 +104,7 @@ import { focusableWithin, nextIndex } from '../core/focus-trap';
 })
 export class ResumeCardComponent implements OnDestroy {
   private readonly state = inject(AppStateService);
-  private readonly i18n = inject(I18nService);
+  protected readonly i18n = inject(I18nService);
 
   protected readonly t = this.i18n.t;
   protected readonly card = this.state.resumeCard;

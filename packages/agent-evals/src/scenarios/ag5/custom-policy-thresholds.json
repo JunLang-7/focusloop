@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "ag5-custom-policy-thresholds",
+  "capability": "AG5",
+  "kind": "edge",
+  "description": "Configured thresholds are applied at their exact boundaries.",
+  "input": { "gapMs": 500, "config": { "shortThresholdMs": 100, "longThresholdMs": 500 } },
+  "expected": [{ "type": "equals", "path": "variant", "value": "long" }],
+  "forbidden": []
+}

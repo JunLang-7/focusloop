@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "id": "ag5-medium-fifteen-minute-boundary",
+  "capability": "AG5",
+  "kind": "edge",
+  "description": "Exactly fifteen minutes enters the medium band.",
+  "input": { "gapMs": 900000 },
+  "expected": [{ "type": "equals", "path": "variant", "value": "medium" }],
+  "forbidden": []
+}

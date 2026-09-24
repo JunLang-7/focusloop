@@ -2,6 +2,24 @@ import type { LearningCheckpoint } from './checkpoint';
 import type { LearningEvent } from './events';
 import type { LocalizedMessage } from './messages';
 
+/** The amount of context a resume card should restore. */
+export type ResumeVariant = 'short' | 'medium' | 'long';
+
+/** Configurable thresholds for deterministic resume classification. */
+export interface ResumePolicyConfig {
+  readonly shortThresholdMs: number;
+  readonly longThresholdMs: number;
+  readonly outcomeWindowMs: number;
+}
+
+export type ResumePolicyOverrides = Partial<ResumePolicyConfig>;
+
+export const DEFAULT_RESUME_POLICY_CONFIG: ResumePolicyConfig = {
+  shortThresholdMs: 15 * 60 * 1000,
+  longThresholdMs: 24 * 60 * 60 * 1000,
+  outcomeWindowMs: 5 * 60 * 1000,
+};
+
 /**
  * What the learner sees when FocusLoop offers to bring them back in.
  *
@@ -10,6 +28,11 @@ import type { LocalizedMessage } from './messages';
  * learner's own content (task and concept titles) and are never translated.
  */
 export interface ResumeCard {
+  readonly variant: ResumeVariant;
+  /** Measured interruption duration, or null when timestamps are unreliable. */
+  readonly gapMs: number | null;
+  /** Long gaps offer a brief refresher before returning to the task. */
+  readonly refresher: LocalizedMessage | null;
   readonly title: LocalizedMessage;
   readonly lastContext: LocalizedMessage;
   readonly completed: readonly string[];
@@ -52,6 +75,7 @@ export interface EvaluateResumeOutcomeInput {
   readonly sessionEndedAt?: string;
   readonly now: string;
   readonly windowMs?: number;
+  readonly config?: Partial<ResumePolicyConfig>;
 }
 
 export interface ResumeOutcomeResult {

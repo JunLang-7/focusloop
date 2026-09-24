@@ -297,6 +297,7 @@ export const zh: Record<MessageKey, string> = {
   'resume.context.plain': '你当时正在处理「{concept}」。目标是：{goal}',
   'resume.context.moment': '你刚刚还在处理「{concept}」。目标是：{goal}',
   'resume.context.away': '你当时正在处理「{concept}」，中间离开了 {duration}。目标是：{goal}',
+  'resume.refresher.long': '先用 {seconds} 秒回忆关键概念，再继续。',
 
   // intervention policy — why the agent decided what it decided
   'reason.budget': '今天的干预额度已经用完了。',

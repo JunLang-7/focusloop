@@ -35,6 +35,7 @@ export const RESUME_MESSAGE_KEYS = [
   'resume.context.plain',
   'resume.context.moment',
   'resume.context.away',
+  'resume.refresher.long',
 ] as const;
 
 export type ResumeMessageKey = (typeof RESUME_MESSAGE_KEYS)[number];
