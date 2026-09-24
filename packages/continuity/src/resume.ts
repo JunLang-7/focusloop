@@ -1,13 +1,15 @@
 import type {
   Course,
+  EvaluateResumeOutcomeInput,
   LearningCheckpoint,
   LearningEvent,
   LearningSession,
   LocalizedMessage,
   MicroTask,
   ResumeCard,
+  ResumeOutcomeResult,
 } from '@focusloop/shared-types';
-import { message } from '@focusloop/shared-types';
+import { message, RESUME_OUTCOME_WINDOW_MS } from '@focusloop/shared-types';
 
 export interface BuildResumeCardInput {
   readonly checkpoint: LearningCheckpoint;
@@ -108,4 +110,159 @@ export function computeResumeLatencyMs(
 
 export function sessionTitle(session: LearningSession, course: Course): string {
   return `${course.title} · ${new Date(session.startedAt).toISOString().slice(0, 10)}`;
+}
+
+const REENGAGE_EVENT_TYPES = new Set<LearningEvent['type']>([
+  'TASK_STARTED',
+  'TASK_COMPLETED',
+  'QUIZ_CORRECT',
+  'QUIZ_INCORRECT',
+  'HELP_REQUESTED',
+]);
+
+// A course step is a MicroTask, so completing the checkpoint task is its step-advance evidence.
+// TASK_STARTED on a different task is not proof that this task progressed.
+const PROGRESS_EVENT_TYPES = new Set<LearningEvent['type']>(['TASK_COMPLETED', 'QUIZ_CORRECT']);
+
+/**
+ * Observes what happened in the window after a resume was accepted.
+ *
+ * Three independent counts, not one "success" flag: re-engagement (any current-task
+ * behaviour), progress (actually moved forward), and a stall (help again, another
+ * interruption, or the session ended). Accepting and immediately asking for help is
+ * reengaged without progressed — the case the old single rate called success.
+ *
+ * Dismissed cards are outside every denominator. Pending cards stay out of the rates
+ * until the window closes. A session that ends inside the window is stalledAgain, not
+ * a silent expiry.
+ */
+export function evaluateResumeOutcome(input: EvaluateResumeOutcomeInput): ResumeOutcomeResult {
+  const windowMs =
+    input.windowMs !== undefined && Number.isFinite(input.windowMs) && input.windowMs >= 0
+      ? input.windowMs
+      : RESUME_OUTCOME_WINDOW_MS;
+  const acceptedAtMs = Date.parse(input.timing.acceptedAt ?? '');
+  const nowMs = Date.parse(input.now);
+
+  if (input.timing.dismissedAt !== undefined) {
+    return {
+      status: 'dismissed',
+      reengaged: false,
+      progressed: false,
+      stalledAgain: false,
+      reengageEventIds: [],
+      progressEventIds: [],
+      stallEventIds: [],
+      acceptedAt: input.timing.acceptedAt ?? null,
+      windowEndsAt: Number.isFinite(acceptedAtMs)
+        ? new Date(acceptedAtMs + windowMs).toISOString()
+        : null,
+    };
+  }
+  if (!Number.isFinite(acceptedAtMs)) {
+    return {
+      status: 'pending',
+      reengaged: false,
+      progressed: false,
+      stalledAgain: false,
+      reengageEventIds: [],
+      progressEventIds: [],
+      stallEventIds: [],
+      acceptedAt: null,
+      windowEndsAt: null,
+    };
+  }
+
+  const windowEndMs = acceptedAtMs + windowMs;
+  const reengageEventIds: string[] = [];
+  const progressEventIds: string[] = [];
+  const stallEventIds: string[] = [];
+  const seen = new Set<string>();
+
+  const withinWindow = (eventMs: number): boolean =>
+    Number.isFinite(eventMs) &&
+    Number.isFinite(nowMs) &&
+    eventMs > acceptedAtMs &&
+    eventMs <= windowEndMs &&
+    eventMs <= nowMs;
+
+  for (const event of input.events) {
+    if (seen.has(event.id)) continue;
+    const eventMs = Date.parse(event.at);
+    if (!withinWindow(eventMs)) continue;
+    if (event.sessionId !== input.checkpoint.sessionId) continue;
+
+    let countsHere = false;
+    if (event.type === 'HELP_REQUESTED') {
+      // A help request is a stall signal even when older events omit taskId (or
+      // the learner asks from a different task). Only current-task requests are
+      // also re-engagement evidence.
+      stallEventIds.push(event.id);
+      countsHere = true;
+      if (isCurrentTaskEvent(event, input.checkpoint.currentTaskId)) {
+        reengageEventIds.push(event.id);
+      }
+    } else if (
+      REENGAGE_EVENT_TYPES.has(event.type) &&
+      isCurrentTaskEvent(event, input.checkpoint.currentTaskId)
+    ) {
+      reengageEventIds.push(event.id);
+      countsHere = true;
+      if (PROGRESS_EVENT_TYPES.has(event.type)) {
+        progressEventIds.push(event.id);
+      }
+    } else if (event.type === 'TAB_LEFT' || event.type === 'IDLE_STARTED') {
+      stallEventIds.push(event.id);
+      countsHere = true;
+    }
+    if (countsHere) seen.add(event.id);
+  }
+
+  const endedMs = Date.parse(input.sessionEndedAt ?? '');
+  const sessionEndedInWindow =
+    Number.isFinite(endedMs) &&
+    endedMs > acceptedAtMs &&
+    endedMs <= windowEndMs &&
+    endedMs <= nowMs;
+  if (sessionEndedInWindow) {
+    stallEventIds.push(`session-ended:${input.checkpoint.sessionId}`);
+  }
+
+  const reengaged = reengageEventIds.length > 0;
+  const progressed = progressEventIds.length > 0;
+  const stalledAgain = stallEventIds.length > 0;
+
+  let status: ResumeOutcomeResult['status'];
+  if (reengaged || stalledAgain) {
+    status = 'observed';
+  } else if (Number.isFinite(nowMs) && nowMs >= windowEndMs) {
+    status = 'expired';
+  } else {
+    status = 'pending';
+  }
+
+  return {
+    status,
+    reengaged,
+    progressed,
+    stalledAgain,
+    reengageEventIds,
+    progressEventIds,
+    stallEventIds,
+    acceptedAt: input.timing.acceptedAt ?? null,
+    windowEndsAt: new Date(windowEndMs).toISOString(),
+  };
+}
+
+function isCurrentTaskEvent(event: LearningEvent, taskId: string): boolean {
+  if (
+    event.type !== 'TASK_STARTED' &&
+    event.type !== 'TASK_COMPLETED' &&
+    event.type !== 'QUIZ_CORRECT' &&
+    event.type !== 'QUIZ_INCORRECT' &&
+    event.type !== 'HELP_REQUESTED'
+  ) {
+    return false;
+  }
+  return event.payload.taskId === taskId;
 }

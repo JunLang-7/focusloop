@@ -677,6 +677,9 @@ export class FocusLoopEngine {
       course: this.store.getCourse(record.session.courseId),
       outcomes: this.store.listOutcomes(record.session.id),
       checkpointCount: this.store.listCheckpoints(record.session.id).length,
+      resumeTimings: this.store.listResumeTimings(record.session.id),
+      checkpoints: this.store.listCheckpoints(record.session.id),
+      events: this.store.listEvents(record.session.id),
       now: this.clock(),
     });
   }

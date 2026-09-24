@@ -217,6 +217,11 @@ const en = {
   'dashboard.tasks': 'Micro tasks',
   'dashboard.interruptions': 'Interruptions',
   'dashboard.latency': 'Avg resume latency',
+  'dashboard.reengageRate': 'Re-engagement after resume',
+  'dashboard.reengageRate.sample':
+    '{reengaged} of {evaluated} re-engaged · {stalled} stalled again · {pending} pending',
+  'dashboard.progressRate': 'Progress after resume',
+  'dashboard.progressRate.sample': '{progressed} of {evaluated} progressed · {pending} pending',
   'dashboard.outcomes': 'Intervention outcomes',
   'dashboard.col.action': 'Action',
   'dashboard.col.shown': 'Shown',

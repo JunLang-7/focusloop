@@ -209,6 +209,12 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.tasks': '微任务',
   'dashboard.interruptions': '打断次数',
   'dashboard.latency': '平均恢复耗时',
+  'dashboard.reengageRate': '恢复后再参与',
+  'dashboard.reengageRate.sample':
+    '已评估 {evaluated} 次，再参与 {reengaged} 次 · 再次停滞 {stalled} 次 · 待观察 {pending} 次',
+  'dashboard.progressRate': '恢复后进步',
+  'dashboard.progressRate.sample':
+    '已评估 {evaluated} 次，进步 {progressed} 次 · 待观察 {pending} 次',
   'dashboard.outcomes': '干预结果',
   'dashboard.col.action': '动作',
   'dashboard.col.shown': '展示',

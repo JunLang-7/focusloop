@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "id": "ag5-accept-then-help-again",
+  "capability": "AG5",
+  "kind": "adversarial",
+  "description": "Accepting a resume and immediately asking for help is reengaged without progressed — the case the old single success rate counted as success.",
+  "input": {
+    "shownAt": "2026-01-01T12:00:00.000Z",
+    "acceptedAt": "2026-01-01T12:01:00.000Z",
+    "now": "2026-01-01T12:02:00.000Z",
+    "checkpoint": {
+      "id": "cp-ag5-help-again",
+      "sessionId": "session-ag5",
+      "currentTaskId": "task-ag5",
+      "currentTaskTitle": "Push one item"
+    },
+    "events": [
+      {
+        "id": "ev-help-again",
+        "type": "HELP_REQUESTED",
+        "at": "2026-01-01T12:01:30.000Z",
+        "sessionId": "session-ag5",
+        "taskId": "task-ag5",
+        "reason": "tired"
+      }
+    ]
+  },
+  "expected": [
+    { "type": "equals", "path": "reengaged", "value": true },
+    { "type": "equals", "path": "progressed", "value": false },
+    { "type": "equals", "path": "stalledAgain", "value": true },
+    { "type": "equals", "path": "status", "value": "observed" }
+  ],
+  "forbidden": [
+    { "type": "absent", "path": "succeeded" },
+    { "type": "absent", "path": "rate" },
+    { "type": "forbidden-value", "value": "succeeded" }
+  ]
+}

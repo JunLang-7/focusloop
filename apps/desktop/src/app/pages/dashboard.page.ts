@@ -261,6 +261,16 @@ const DONUT_RADIUS = 42;
             <span class="stat__label">{{ t('dashboard.latency') }}</span>
             <strong data-testid="latency">{{ latency() }}</strong>
           </div>
+          <div class="card stat-card">
+            <span class="stat__label">{{ t('dashboard.reengageRate') }}</span>
+            <strong data-testid="reengage-rate">{{ reengageRate() }}</strong>
+            <span class="muted small" data-testid="reengage-sample">{{ reengageSample() }}</span>
+          </div>
+          <div class="card stat-card">
+            <span class="stat__label">{{ t('dashboard.progressRate') }}</span>
+            <strong data-testid="progress-rate">{{ progressRate() }}</strong>
+            <span class="muted small" data-testid="progress-sample">{{ progressSample() }}</span>
+          </div>
         </div>
       </section>
 
@@ -463,6 +473,50 @@ export class DashboardPage {
 
   protected latency(): string {
     return formatLatency(this.summary()?.averageResumeLatencyMs ?? null);
+  }
+
+  protected reengageRate(): string {
+    const rate = this.summary()?.resumeOutcomes.reengageRate ?? null;
+    return rate === null ? '—' : percentLabel(rate);
+  }
+
+  protected progressRate(): string {
+    const rate = this.summary()?.resumeOutcomes.progressRate ?? null;
+    return rate === null ? '—' : percentLabel(rate);
+  }
+
+  protected reengageSample(): string {
+    const summary = this.summary()?.resumeOutcomes;
+    if (summary === undefined || summary.reengageRate === null) {
+      return this.t('dashboard.reengageRate.sample', {
+        reengaged: '0',
+        evaluated: '0',
+        stalled: '0',
+        pending: '0',
+      });
+    }
+    return this.t('dashboard.reengageRate.sample', {
+      reengaged: `${summary.reengaged}`,
+      evaluated: `${summary.accepted - summary.pending}`,
+      stalled: `${summary.stalledAgain}`,
+      pending: `${summary.pending}`,
+    });
+  }
+
+  protected progressSample(): string {
+    const summary = this.summary()?.resumeOutcomes;
+    if (summary === undefined || summary.progressRate === null) {
+      return this.t('dashboard.progressRate.sample', {
+        progressed: '0',
+        evaluated: '0',
+        pending: '0',
+      });
+    }
+    return this.t('dashboard.progressRate.sample', {
+      progressed: `${summary.progressed}`,
+      evaluated: `${summary.accepted - summary.pending}`,
+      pending: `${summary.pending}`,
+    });
   }
 
   /**

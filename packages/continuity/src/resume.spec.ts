@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import type { LearningEvent } from '@focusloop/shared-types';
 import { createInitialState, type StateEngineState } from '@focusloop/learning-state';
 import { buildCheckpoint } from './checkpoint';
-import { buildResumeCard, computeResumeLatencyMs, sessionTitle } from './resume';
+import {
+  buildResumeCard,
+  computeResumeLatencyMs,
+  evaluateResumeOutcome,
+  sessionTitle,
+} from './resume';
 import { detectInterruption, isAwayOrIdle, shouldOfferResume } from './interruption';
 import { tinyCourse, tinySession } from './fixtures';
 
@@ -234,5 +239,236 @@ describe('interruption detection', () => {
     expect(isAwayOrIdle(createInitialState(T0))).toBe(false);
     expect(isAwayOrIdle({ ...createInitialState(T0), awaySince: T0 })).toBe(true);
     expect(isAwayOrIdle({ ...createInitialState(T0), idleSince: T0 })).toBe(true);
+  });
+});
+
+describe('evaluateResumeOutcome', () => {
+  const checkpoint = {
+    id: 'cp-1',
+    sessionId: 'session-tiny',
+    conceptId: 'c1',
+    conceptTitle: 'Concept one',
+    goal: 'Learn it',
+    mastered: [],
+    unresolved: ['Concept one'],
+    currentTaskId: 't1',
+    currentTaskTitle: 'Read one',
+    currentStep: 1,
+    frictionState: 'FOCUSED' as const,
+    nextBestAction: { key: 'action.read.summarise' as const, params: {} },
+    createdAt: T0,
+  };
+
+  function ev(
+    id: string,
+    type: LearningEvent['type'],
+    at: string,
+    payload: Record<string, unknown>,
+  ): LearningEvent {
+    return {
+      id,
+      sessionId: 'session-tiny',
+      at,
+      type,
+      source: 'user',
+      payload,
+    } as LearningEvent;
+  }
+
+  const acceptedAt = '2026-01-01T00:01:00.000Z';
+
+  it('marks accept-then-help-again as reengaged without progressed', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [
+        ev('e-help', 'HELP_REQUESTED', '2026-01-01T00:01:30.000Z', {
+          taskId: 't1',
+          reason: 'tired',
+        }),
+      ],
+      now: '2026-01-01T00:02:00.000Z',
+    });
+
+    expect(result.reengaged).toBe(true);
+    expect(result.progressed).toBe(false);
+    expect(result.stalledAgain).toBe(true);
+    expect(result.status).toBe('observed');
+  });
+
+  it('counts completion as both reengaged and progressed', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [ev('e-done', 'TASK_COMPLETED', '2026-01-01T00:02:00.000Z', { taskId: 't1' })],
+      now: '2026-01-01T00:03:00.000Z',
+    });
+    expect(result.reengaged).toBe(true);
+    expect(result.progressed).toBe(true);
+    expect(result.stalledAgain).toBe(false);
+  });
+
+  it('treats step advance as completion of the checkpoint micro task, not starting another task', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [
+        ev('e-next-start', 'TASK_STARTED', '2026-01-01T00:02:00.000Z', { taskId: 't2' }),
+        ev('e-current-done', 'TASK_COMPLETED', '2026-01-01T00:02:30.000Z', { taskId: 't1' }),
+      ],
+      now: '2026-01-01T00:03:00.000Z',
+    });
+    expect(result.progressed).toBe(true);
+    expect(result.progressEventIds).toEqual(['e-current-done']);
+    expect(result.reengageEventIds).toEqual(['e-current-done']);
+  });
+
+  it('expires a silent window and keeps pending out until it closes', () => {
+    const pending = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [],
+      now: '2026-01-01T00:02:00.000Z',
+    });
+    expect(pending.status).toBe('pending');
+
+    const expired = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [],
+      now: '2026-01-01T00:07:00.000Z',
+    });
+    expect(expired.status).toBe('expired');
+    expect(expired.reengaged).toBe(false);
+    expect(expired.stalledAgain).toBe(false);
+  });
+
+  it('treats a session that ends inside the window as stalledAgain, not expired', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [],
+      sessionEndedAt: '2026-01-01T00:03:00.000Z',
+      now: '2026-01-01T00:07:00.000Z',
+    });
+    expect(result.stalledAgain).toBe(true);
+    expect(result.status).toBe('observed');
+    expect(result.status).not.toBe('expired');
+  });
+
+  it('ignores evidence from another task and outside the window', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [
+        ev('e-other-task', 'TASK_COMPLETED', '2026-01-01T00:02:00.000Z', { taskId: 't2' }),
+        ev('e-before', 'TASK_COMPLETED', T0, { taskId: 't1' }),
+        ev('e-late', 'TASK_COMPLETED', '2026-01-01T00:07:00.000Z', { taskId: 't1' }),
+      ],
+      now: '2026-01-01T00:08:00.000Z',
+    });
+    expect(result.reengaged).toBe(false);
+    expect(result.progressed).toBe(false);
+    expect(result.status).toBe('expired');
+  });
+
+  it('keeps dismissed cards out of every count', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt, dismissedAt: T1 },
+      events: [ev('e-help', 'HELP_REQUESTED', '2026-01-01T00:01:30.000Z', { taskId: 't1' })],
+      now: '2026-01-01T00:10:00.000Z',
+    });
+    expect(result.status).toBe('dismissed');
+    expect(result.reengaged).toBe(false);
+    expect(result.stalledAgain).toBe(false);
+  });
+
+  it('stays pending when the card was never accepted', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0 },
+      events: [],
+      now: T1,
+    });
+    expect(result.status).toBe('pending');
+    expect(result.acceptedAt).toBeNull();
+    expect(result.windowEndsAt).toBeNull();
+  });
+
+  it('counts another interruption in the window as stalledAgain', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [ev('e-left', 'TAB_LEFT', '2026-01-01T00:02:00.000Z', {})],
+      now: '2026-01-01T00:03:00.000Z',
+    });
+    expect(result.stalledAgain).toBe(true);
+    expect(result.reengaged).toBe(false);
+    expect(result.status).toBe('observed');
+  });
+
+  it('counts a help request without taskId as stalledAgain', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [ev('e-help-legacy', 'HELP_REQUESTED', '2026-01-01T00:02:00.000Z', {})],
+      now: '2026-01-01T00:03:00.000Z',
+    });
+    expect(result.stalledAgain).toBe(true);
+    expect(result.reengaged).toBe(false);
+    expect(result.status).toBe('observed');
+  });
+
+  it('counts each event id once and ignores another session', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [
+        ev('e-done', 'TASK_COMPLETED', '2026-01-01T00:02:00.000Z', { taskId: 't1' }),
+        ev('e-done', 'TASK_COMPLETED', '2026-01-01T00:02:10.000Z', { taskId: 't1' }),
+        {
+          ...ev('e-other', 'TASK_COMPLETED', '2026-01-01T00:02:20.000Z', { taskId: 't1' }),
+          sessionId: 'session-other',
+        },
+      ],
+      now: '2026-01-01T00:03:00.000Z',
+    });
+    expect(result.reengageEventIds).toEqual(['e-done']);
+    expect(result.reengaged).toBe(true);
+    expect(result.progressed).toBe(true);
+  });
+
+  it('accepts a custom window and invalid window falls back to the default', () => {
+    const short = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [],
+      now: '2026-01-01T00:02:30.000Z',
+      windowMs: 60_000,
+    });
+    expect(short.status).toBe('expired');
+
+    const invalid = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, acceptedAt },
+      events: [],
+      now: '2026-01-01T00:02:30.000Z',
+      windowMs: Number.NaN,
+    });
+    expect(invalid.status).toBe('pending');
+    expect(invalid.windowEndsAt).toBe('2026-01-01T00:06:00.000Z');
+  });
+
+  it('keeps a dismissed card without acceptedAt well-formed', () => {
+    const result = evaluateResumeOutcome({
+      checkpoint,
+      timing: { checkpointId: 'cp-1', shownAt: T0, dismissedAt: T1 },
+      events: [],
+      now: T1,
+    });
+    expect(result.status).toBe('dismissed');
+    expect(result.acceptedAt).toBeNull();
+    expect(result.windowEndsAt).toBeNull();
   });
 });
