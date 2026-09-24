@@ -7,6 +7,8 @@ import type {
   LearningState,
   MessageParams,
   MicroTask,
+  RescueAction,
+  RescueReasonMap,
   StuckReason,
 } from '@focusloop/shared-types';
 import { isStuckReason, message } from '@focusloop/shared-types';
@@ -95,7 +97,7 @@ function lastEventOfType(
  * form that most reliably does. Offering all three is the learner's own choice to make in the
  * interface, not something to guess at here.
  */
-export const ACTION_FOR_STUCK_REASON: Record<StuckReason, InterventionAction> = {
+export const ACTION_FOR_STUCK_REASON: RescueReasonMap = {
   'cannot-start': 'MICRO_START',
   'do-not-understand': 'EXAMPLE',
   'too-big': 'SIMPLIFY',
@@ -103,6 +105,10 @@ export const ACTION_FOR_STUCK_REASON: Record<StuckReason, InterventionAction> = 
   'cannot-recall': 'HINT',
   tired: 'BREAK',
 };
+
+/** Rescue-only view of routing when callers do not need other policy actions. */
+export const RESCUE_ACTION_FOR_STUCK_REASON: Record<StuckReason, RescueAction> =
+  ACTION_FOR_STUCK_REASON;
 
 /**
  * How each reason reads back to the learner when the policy has acted on it.
@@ -277,6 +283,13 @@ export function decideIntervention(
   // 5. Cooldown, except when the situation has become more urgent.
   const lastShown = shownInterventions[shownInterventions.length - 1];
   const sinceLastShown = msSince(lastShown?.shownAt, now);
+  const breakCooldownActive =
+    candidate.action === 'BREAK' &&
+    state === 'OVERLOADED' &&
+    lastShown?.action === 'BREAK' &&
+    sinceLastShown !== null &&
+    sinceLastShown < config.breakCooldownMs;
+  if (breakCooldownActive) return decision('reason.cooldown', 'NO_ACTION', state);
   if (sinceLastShown !== null && sinceLastShown < config.cooldownMs && lastShown !== undefined) {
     const escalated = ACTION_PRIORITY[candidate.action] > ACTION_PRIORITY[lastShown.action];
     if (!escalated) {

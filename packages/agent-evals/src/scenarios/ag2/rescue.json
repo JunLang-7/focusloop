@@ -1,0 +1,268 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "ag2-cannot-start",
+    "capability": "AG2",
+    "kind": "happy",
+    "input": { "reason": "cannot-start" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "MICRO_START" },
+      { "type": "equals", "path": "stepKeys", "value": ["rescue.microStart.first"] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-do-not-understand",
+    "capability": "AG2",
+    "kind": "happy",
+    "input": { "reason": "do-not-understand" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "EXAMPLE" },
+      { "type": "equals", "path": "estimatedMinutes", "value": 4 }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-too-big",
+    "capability": "AG2",
+    "kind": "happy",
+    "input": { "reason": "too-big" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "SIMPLIFY" },
+      {
+        "type": "equals",
+        "path": "stepKeys",
+        "value": ["rescue.simplify.identify", "rescue.simplify.first", "rescue.simplify.check"]
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-went-wrong",
+    "capability": "AG2",
+    "kind": "happy",
+    "input": { "reason": "went-wrong" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "HINT" },
+      { "type": "equals", "path": "estimatedMinutes", "value": 2 }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-cannot-recall",
+    "capability": "AG2",
+    "kind": "happy",
+    "input": { "reason": "cannot-recall" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "HINT" },
+      { "type": "equals", "path": "source", "value": "deterministic-local" }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-tired",
+    "capability": "AG2",
+    "kind": "happy",
+    "input": { "reason": "tired" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "BREAK" },
+      {
+        "type": "equals",
+        "path": "stepKeys",
+        "value": ["rescue.break.pause", "rescue.break.return"]
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-no-reason-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "input": { "state": "FOCUSED" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "NO_ACTION" },
+      { "type": "equals", "path": "source", "value": null }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-unknown-reason-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "input": { "reason": "invented" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "NO_ACTION" },
+      { "type": "equals", "path": "stepKeys", "value": [] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-overloaded-explicit-reason-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "input": { "state": "OVERLOADED", "reason": "tired" },
+    "expected": [
+      { "type": "equals", "path": "action", "value": "BREAK" },
+      { "type": "equals", "path": "reasonKey", "value": "reason.stuck.tired" }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-success-continue",
+    "capability": "AG2",
+    "kind": "happy",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "continuedAt": "2026-01-01T00:01:00.000Z",
+      "now": "2026-01-01T00:01:00.000Z"
+    },
+    "expected": [{ "type": "equals", "path": "status", "value": "succeeded" }],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-expired",
+    "capability": "AG2",
+    "kind": "edge",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "now": "2026-01-01T00:05:00.000Z"
+    },
+    "expected": [{ "type": "equals", "path": "status", "value": "expired" }],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-repeated-help",
+    "capability": "AG2",
+    "kind": "edge",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "now": "2026-01-01T00:00:02.000Z",
+      "events": [{ "id": "help-2", "type": "HELP_REQUESTED", "at": "2026-01-01T00:00:01.000Z" }]
+    },
+    "expected": [{ "type": "equals", "path": "status", "value": "repeated-help" }],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-missing-accepted-at-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "input": { "reason": "went-wrong" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "pending" },
+      { "type": "equals", "path": "windowEndsAt", "value": null }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-cross-session-event-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "events": [
+        {
+          "id": "other-session",
+          "type": "TASK_COMPLETED",
+          "at": "2026-01-01T00:00:01.000Z",
+          "sessionId": "other"
+        }
+      ],
+      "now": "2026-01-01T00:00:02.000Z"
+    },
+    "expected": [{ "type": "equals", "path": "status", "value": "pending" }],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-cross-task-event-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "events": [
+        {
+          "id": "other-task",
+          "type": "TASK_COMPLETED",
+          "at": "2026-01-01T00:00:01.000Z",
+          "taskId": "other"
+        }
+      ],
+      "now": "2026-01-01T00:00:02.000Z"
+    },
+    "expected": [{ "type": "equals", "path": "status", "value": "pending" }],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-future-event-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "events": [{ "id": "future", "type": "TASK_COMPLETED", "at": "2026-01-01T00:00:03.000Z" }],
+      "now": "2026-01-01T00:00:02.000Z"
+    },
+    "expected": [{ "type": "equals", "path": "status", "value": "pending" }],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-duplicate-event-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "events": [
+        { "id": "same", "type": "TASK_COMPLETED", "at": "2026-01-01T00:00:01.000Z" },
+        { "id": "same", "type": "HELP_REQUESTED", "at": "2026-01-01T00:00:01.000Z" }
+      ],
+      "now": "2026-01-01T00:00:02.000Z"
+    },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "succeeded" },
+      { "type": "equals", "path": "evidenceEventIds", "value": ["same"] },
+      { "type": "equals", "path": "repeatedHelpEventIds", "value": [] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-repeated-help-precedence-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "input": {
+      "reason": "went-wrong",
+      "acceptedAt": "2026-01-01T00:00:00.000Z",
+      "events": [
+        { "id": "done", "type": "TASK_COMPLETED", "at": "2026-01-01T00:00:01.000Z" },
+        { "id": "help", "type": "HELP_REQUESTED", "at": "2026-01-01T00:00:02.000Z" }
+      ],
+      "now": "2026-01-01T00:00:03.000Z"
+    },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "repeated-help" },
+      { "type": "equals", "path": "repeatedHelpEventIds", "value": ["help"] }
+    ],
+    "forbidden": []
+  }
+]

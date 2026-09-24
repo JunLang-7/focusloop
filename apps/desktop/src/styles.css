@@ -1218,6 +1218,19 @@ body:has(.simulator) .agent-context {
   margin-top: 10px;
 }
 
+.agent--rescue {
+  border-color: var(--accent);
+}
+
+.agent__plan {
+  display: grid;
+  gap: 6px;
+  padding-left: 20px;
+  margin: 10px 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .simulator {
   position: fixed;
   left: 0;

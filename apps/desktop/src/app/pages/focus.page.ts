@@ -333,6 +333,8 @@ export class FocusPage implements OnDestroy {
   private readonly router = inject(Router);
   private readonly i18n = inject(I18nService);
   private timerHandle: ReturnType<typeof setInterval> | null = null;
+  private handledRescuePause = 0;
+  private handledRescueContinue = 0;
   private readonly completedView = signal(false);
   private readonly planOpenState = signal(PLAN_INITIAL_OPEN);
   protected readonly planOpen = this.planOpenState.asReadonly();
@@ -366,6 +368,20 @@ export class FocusPage implements OnDestroy {
   protected readonly railAttr = computed(() => (this.rail() ? '' : null));
   protected readonly plan = computed(() => buildPlan(this.openTasks()));
   protected readonly nextTask = computed<MicroTask | null>(() => this.openTasks()[0] ?? null);
+
+  /** A learner accepted a BREAK plan, so pause the local focus clock until Continue. */
+  private readonly followRescueTimer = effect(() => {
+    const pauseRequest = this.state.rescuePauseRequest();
+    const continueRequest = this.state.rescueContinueRequest();
+    if (pauseRequest > this.handledRescuePause) {
+      this.handledRescuePause = pauseRequest;
+      untracked(() => this.pause());
+    }
+    if (continueRequest > this.handledRescueContinue) {
+      this.handledRescueContinue = continueRequest;
+      untracked(() => this.resume());
+    }
+  });
 
   /** Keep the local commitment coherent when the lazy focus page is entered or rebuilt. */
   private readonly syncTimer = effect(() => {
@@ -584,6 +600,7 @@ export class FocusPage implements OnDestroy {
   }
   ngOnDestroy(): void {
     this.clearTimer();
+    this.followRescueTimer.destroy();
     this.syncTimer.destroy();
     this.manageStuckFocus.destroy();
   }

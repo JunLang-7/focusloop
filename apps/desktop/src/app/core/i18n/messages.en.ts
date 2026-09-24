@@ -264,6 +264,11 @@ const en = {
   'agent.suggesting': 'Suggestion',
   'agent.showMe': 'Show me',
   'agent.notNow': 'Not now',
+  'agent.accept': 'Try this',
+  'agent.continue': 'Continue',
+  'agent.rescue.ready': 'A small plan',
+  'agent.rescue.title': 'Start with this',
+  'agent.rescue.plan': 'Rescue steps',
   'agent.action.MICRO_START': 'Start with the smallest possible step',
   'agent.action.SIMPLIFY': 'Simplify the current task',
   'agent.action.HINT': 'Here is a hint',
@@ -310,6 +315,17 @@ const en = {
   'resume.context.away':
     'You were working on {concept} and stepped away for {duration}. The goal was: {goal}',
   'resume.refresher.long': 'Take {seconds} seconds to recall the key idea before continuing.',
+  // Deterministic AG2 rescue steps
+  'rescue.microStart.first': 'Open the task and do the first visible action.',
+  'rescue.simplify.identify': 'Name the one result this task asks for.',
+  'rescue.simplify.first': 'Work only on the first part.',
+  'rescue.simplify.check': 'Check that part before moving on.',
+  'rescue.hint.action': 'Look for the rule or idea that applies here.',
+  'rescue.hint.condition': 'Check what must be true before using it.',
+  'rescue.example.pattern': 'Study one worked example and notice its steps.',
+  'rescue.example.apply': 'Try the same first step on your task.',
+  'rescue.break.pause': 'Step away from the task for a few minutes.',
+  'rescue.break.return': 'When you return, start with one small action.',
 
   // intervention policy — why the agent decided what it decided
   'reason.budget': 'You have already used today’s interventions.',

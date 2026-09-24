@@ -21,6 +21,7 @@ export * from './agent-context';
 export * from './checkpoint';
 export * from './resume';
 export * from './intervention';
+export * from './rescue';
 export * from './dashboard';
 export * from './insights';
 export * from './provider';

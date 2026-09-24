@@ -904,15 +904,34 @@ test('the reason the learner gives is answered according to which kind of stuck 
   await expect(agent).toContainText('You said you had not got the energy for it.');
   await expect(agent).not.toContainText("I haven't got the energy for it");
 
-  // A different kind of stuck is answered differently, which is the premise of asking at all.
-  await agent.getByRole('button', { name: 'Not now' }).click();
-  await expect(agent).toBeHidden();
+  // Accepting a BREAK reveals its bounded local plan and pauses the live focus timer.
+  const timer = window.locator('.focus-clock__value');
+  const beforeBreak = await timer.innerText();
+  await expect(timer).not.toHaveText(beforeBreak, { timeout: 2_000 });
+  await agent.getByRole('button', { name: 'Try this' }).click();
+  const activeRescue = window.getByTestId('agent-accepted');
+  await expect(activeRescue).toBeVisible();
+  await expect(activeRescue.locator('.agent__plan li')).toHaveCount(2);
+  await expect(window.locator('.focus-workspace')).toHaveAttribute('data-phase', 'paused');
+  const duringBreak = await timer.innerText();
+  await new Promise((resolveWait) => setTimeout(resolveWait, 1_100));
+  await expect(timer).toHaveText(duringBreak);
+  await activeRescue.getByRole('button', { name: 'Continue' }).click();
+  await expect(activeRescue).toBeHidden();
+  await expect(window.locator('.focus-workspace')).toHaveAttribute('data-phase', 'active');
 
+  // A different kind of stuck is answered differently, which is the premise of asking at all.
   await window.getByTestId('focus-stuck').click();
   await window.getByTestId('stuck-do-not-understand').click();
   await expect(agent).toBeVisible();
   await expect(agent).toHaveAttribute('data-action', 'EXAMPLE');
   await expect(agent).toContainText('You said reading it was not making sense.');
+
+  // The other accepted route uses the same offered → plan → continue lifecycle.
+  await agent.getByRole('button', { name: 'Try this' }).click();
+  await expect(window.getByTestId('agent-accepted').locator('.agent__plan li')).toHaveCount(2);
+  await window.getByTestId('agent-accepted').getByRole('button', { name: 'Continue' }).click();
+  await expect(agent).toBeHidden();
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 

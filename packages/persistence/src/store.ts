@@ -155,6 +155,9 @@ interface OutcomeRow {
   task_completed: number;
   resume_latency_ms: number | null;
   quiz_outcome: string | null;
+  accepted_at: string | null;
+  dismissed_at: string | null;
+  continued_at: string | null;
 }
 
 interface ResumeCardRow {
@@ -591,49 +594,69 @@ export class FocusLoopStore {
   }
 
   saveOutcome(outcome: InterventionOutcome): void {
+    const existing = this.getOutcomeByIntervention(outcome.interventionId);
+    if (existing === null) {
+      this.db
+        .prepare(
+          `INSERT INTO outcomes
+           (id, intervention_id, session_id, at, state, action, accepted, dismissed,
+            task_completed, resume_latency_ms, quiz_outcome, accepted_at, dismissed_at, continued_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(id) DO NOTHING;`,
+        )
+        .run(
+          outcome.id,
+          outcome.interventionId,
+          outcome.sessionId,
+          outcome.at,
+          outcome.state,
+          outcome.action,
+          outcome.accepted ? 1 : 0,
+          outcome.dismissed ? 1 : 0,
+          outcome.taskCompleted ? 1 : 0,
+          outcome.resumeLatencyMs,
+          outcome.quizOutcome,
+          outcome.acceptedAt ?? null,
+          outcome.dismissedAt ?? null,
+          outcome.continuedAt ?? null,
+        );
+      return;
+    }
+    if ((existing.accepted && outcome.dismissed) || (existing.dismissed && outcome.accepted))
+      return;
     this.db
       .prepare(
-        `INSERT INTO outcomes
-           (id, intervention_id, session_id, at, state, action, accepted, dismissed,
-            task_completed, resume_latency_ms, quiz_outcome)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(id) DO NOTHING;`,
+        `UPDATE outcomes SET accepted = ?, dismissed = ?, task_completed = ?,
+         resume_latency_ms = COALESCE(resume_latency_ms, ?), quiz_outcome = COALESCE(quiz_outcome, ?),
+         accepted_at = COALESCE(accepted_at, ?), dismissed_at = COALESCE(dismissed_at, ?),
+         continued_at = COALESCE(continued_at, ?)
+       WHERE id = (SELECT id FROM outcomes WHERE intervention_id = ? ORDER BY at, rowid LIMIT 1);`,
       )
       .run(
-        outcome.id,
-        outcome.interventionId,
-        outcome.sessionId,
-        outcome.at,
-        outcome.state,
-        outcome.action,
-        outcome.accepted ? 1 : 0,
-        outcome.dismissed ? 1 : 0,
-        outcome.taskCompleted ? 1 : 0,
+        existing.accepted || outcome.accepted ? 1 : 0,
+        existing.dismissed || outcome.dismissed ? 1 : 0,
+        existing.taskCompleted || outcome.taskCompleted ? 1 : 0,
         outcome.resumeLatencyMs,
         outcome.quizOutcome,
+        outcome.acceptedAt ?? null,
+        outcome.dismissedAt ?? null,
+        outcome.continuedAt ?? null,
+        outcome.interventionId,
       );
+  }
+
+  getOutcomeByIntervention(interventionId: string): InterventionOutcome | null {
+    const row = this.db
+      .prepare('SELECT * FROM outcomes WHERE intervention_id = ? ORDER BY at, rowid LIMIT 1;')
+      .get(interventionId) as OutcomeRow | undefined;
+    return row === undefined ? null : mapOutcome(row);
   }
 
   listOutcomes(sessionId: string): InterventionOutcome[] {
     const rows = this.db
       .prepare('SELECT * FROM outcomes WHERE session_id = ? ORDER BY at ASC;')
       .all(sessionId) as OutcomeRow[];
-    return rows.map((row) => ({
-      id: row.id,
-      interventionId: row.intervention_id,
-      sessionId: row.session_id,
-      at: row.at,
-      state: row.state as LearningState,
-      action: row.action as InterventionOutcome['action'],
-      accepted: row.accepted === 1,
-      dismissed: row.dismissed === 1,
-      taskCompleted: row.task_completed === 1,
-      resumeLatencyMs: row.resume_latency_ms,
-      quizOutcome:
-        row.quiz_outcome === 'correct' || row.quiz_outcome === 'incorrect'
-          ? row.quiz_outcome
-          : null,
-    }));
+    return rows.map(mapOutcome);
   }
 
   // ------------------------------------------------------------ resume cards
@@ -729,6 +752,26 @@ export class FocusLoopStore {
   close(): void {
     this.db.close();
   }
+}
+
+function mapOutcome(row: OutcomeRow): InterventionOutcome {
+  return {
+    id: row.id,
+    interventionId: row.intervention_id,
+    sessionId: row.session_id,
+    at: row.at,
+    state: row.state as LearningState,
+    action: row.action as InterventionOutcome['action'],
+    accepted: row.accepted === 1,
+    dismissed: row.dismissed === 1,
+    taskCompleted: row.task_completed === 1,
+    resumeLatencyMs: row.resume_latency_ms,
+    quizOutcome:
+      row.quiz_outcome === 'correct' || row.quiz_outcome === 'incorrect' ? row.quiz_outcome : null,
+    ...(row.accepted_at === null ? {} : { acceptedAt: row.accepted_at }),
+    ...(row.dismissed_at === null ? {} : { dismissedAt: row.dismissed_at }),
+    ...(row.continued_at === null ? {} : { continuedAt: row.continued_at }),
+  };
 }
 
 function mapMaterial(row: MaterialRow): MaterialDocument {

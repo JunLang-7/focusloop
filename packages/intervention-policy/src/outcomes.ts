@@ -15,6 +15,9 @@ export interface RecordOutcomeInput {
   readonly taskCompleted: boolean;
   readonly resumeLatencyMs: number | null;
   readonly quizOutcome: 'correct' | 'incorrect' | null;
+  readonly acceptedAt?: string;
+  readonly dismissedAt?: string;
+  readonly continuedAt?: string;
 }
 
 /**
@@ -34,6 +37,9 @@ export function recordOutcome(input: RecordOutcomeInput): InterventionOutcome {
     taskCompleted: input.taskCompleted,
     resumeLatencyMs: input.resumeLatencyMs,
     quizOutcome: input.quizOutcome,
+    ...(input.acceptedAt === undefined ? {} : { acceptedAt: input.acceptedAt }),
+    ...(input.dismissedAt === undefined ? {} : { dismissedAt: input.dismissedAt }),
+    ...(input.continuedAt === undefined ? {} : { continuedAt: input.continuedAt }),
   };
 }
 

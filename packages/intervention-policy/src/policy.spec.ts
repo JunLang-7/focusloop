@@ -254,6 +254,21 @@ describe('intervention policy — state driven actions', () => {
     expect(decision.estimatedMinutes).toBe(5);
   });
 
+  it('suppresses repeated unasked breaks for the full break cooldown', () => {
+    const recent = decide({
+      engineState: engineWith({ state: 'OVERLOADED' }),
+      shownInterventions: [interventionWith(at(-120_000), 'BREAK')],
+      now: T0,
+    });
+    const elapsed = decide({
+      engineState: engineWith({ state: 'OVERLOADED' }),
+      shownInterventions: [interventionWith(at(-301_000), 'BREAK')],
+      now: T0,
+    });
+    expect(recent.action).toBe('NO_ACTION');
+    expect(elapsed.action).toBe('BREAK');
+  });
+
   it('offers HINT when confused after a single failure', () => {
     const decision = decide({
       engineState: engineWith({ state: 'CONFUSED', consecutiveIncorrect: 1 }),

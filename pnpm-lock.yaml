@@ -178,6 +178,9 @@ importers:
       '@focusloop/continuity':
         specifier: workspace:*
         version: link:../continuity
+      '@focusloop/intervention-policy':
+        specifier: workspace:*
+        version: link:../intervention-policy
       '@focusloop/shared-types':
         specifier: workspace:*
         version: link:../shared-types

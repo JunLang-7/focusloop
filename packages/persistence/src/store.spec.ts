@@ -446,6 +446,22 @@ describe('FocusLoopStore', () => {
         firstStore.initialize();
         firstStore.saveCourse(courseFixture());
         firstStore.setMeta('locale', 'zh');
+        const rescueOutcome: InterventionOutcome = {
+          id: 'rescue-outcome-1',
+          interventionId: 'rescue-intervention-1',
+          sessionId: 'session-1',
+          at: T0,
+          state: 'STUCK',
+          action: 'BREAK',
+          accepted: true,
+          dismissed: false,
+          taskCompleted: false,
+          resumeLatencyMs: null,
+          quizOutcome: null,
+          acceptedAt: '2026-01-01T00:00:05.000Z',
+          continuedAt: '2026-01-01T00:00:20.000Z',
+        };
+        firstStore.saveOutcome(rescueOutcome);
         firstStore.close();
 
         const second = openDatabase(file);
@@ -455,6 +471,7 @@ describe('FocusLoopStore', () => {
         // The interface language is stored here, which is why switching it
         // survives a restart.
         expect(secondStore.getMeta('locale')).toBe('zh');
+        expect(secondStore.listOutcomes('session-1')).toEqual([rescueOutcome]);
         secondStore.close();
       } finally {
         rmSync(file, { force: true });

@@ -8,6 +8,7 @@ import {
   parseInsightsRequest,
   parseNoArgs,
   parseResolveIntervention,
+  parseResolveRescue,
   parseResumeDecision,
   parseSessionId,
   parseSetLocale,
@@ -207,6 +208,23 @@ describe('parseResolveIntervention', () => {
 
   it('rejects an unknown quiz outcome', () => {
     expectFailure(() => parseResolveIntervention(CHANNEL, { ...valid, quizOutcome: 'maybe' }));
+  });
+});
+
+describe('parseResolveRescue', () => {
+  const channel = 'focusloop:intervention:resolve-rescue';
+  const valid = {
+    sessionId: 'session-1',
+    interventionId: 'intervention-1',
+    resolution: 'accept',
+  } as const;
+  it('accepts only the closed rescue resolution vocabulary', () => {
+    expect(parseResolveRescue(channel, valid)).toEqual(valid);
+    expect(parseResolveRescue(channel, { ...valid, resolution: 'continue' })).toMatchObject({
+      resolution: 'continue',
+    });
+    expectFailure(() => parseResolveRescue(channel, { ...valid, resolution: 'maybe' }));
+    expectFailure(() => parseResolveRescue(channel, { ...valid, sessionId: '' }));
   });
 });
 

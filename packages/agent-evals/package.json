@@ -11,6 +11,7 @@
   "dependencies": {
     "@focusloop/agent-core": "workspace:*",
     "@focusloop/continuity": "workspace:*",
+    "@focusloop/intervention-policy": "workspace:*",
     "@focusloop/shared-types": "workspace:*"
   },
   "scripts": {

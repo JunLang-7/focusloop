@@ -7,6 +7,10 @@ export interface InterventionPolicyConfig {
   readonly maxInterventionsPerSession: number;
   /** A dismissed resume keeps the agent quiet for this long. */
   readonly dismissedResumeCooldownMs: number;
+  /** How long an unasked OVERLOADED BREAK is suppressed after one was shown. */
+  readonly breakCooldownMs: number;
+  /** How long a learner has to demonstrate progress after accepting a rescue. */
+  readonly rescueSuccessWindowMs: number;
 }
 
 export const DEFAULT_POLICY_CONFIG: InterventionPolicyConfig = {
@@ -14,6 +18,8 @@ export const DEFAULT_POLICY_CONFIG: InterventionPolicyConfig = {
   simplifyAfterRatio: 2,
   maxInterventionsPerSession: 12,
   dismissedResumeCooldownMs: 120_000,
+  breakCooldownMs: 5 * 60 * 1000,
+  rescueSuccessWindowMs: 5 * 60 * 1000,
 };
 
 export function resolvePolicyConfig(

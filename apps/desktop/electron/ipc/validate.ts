@@ -12,6 +12,7 @@ import {
   type LearningEvent,
   type ResumeDecisionRequest,
   type ResolveInterventionRequest,
+  type ResolveRescueRequest,
   type SessionEndReason,
   type SetLocaleRequest,
   type SetThemeRequest,
@@ -221,6 +222,19 @@ export function parseResolveIntervention(
     dismissed: record['dismissed'] as boolean,
     taskCompleted: record['taskCompleted'] as boolean,
     quizOutcome: (quizOutcome ?? null) as 'correct' | 'incorrect' | null,
+  };
+}
+
+export function parseResolveRescue(channel: string, value: unknown): ResolveRescueRequest {
+  const record = asRecord(channel, value);
+  const resolution = asString(channel, record, 'resolution');
+  if (resolution !== 'accept' && resolution !== 'dismiss' && resolution !== 'continue') {
+    fail(channel, `unknown rescue resolution "${resolution}"`);
+  }
+  return {
+    sessionId: asString(channel, record, 'sessionId'),
+    interventionId: asString(channel, record, 'interventionId'),
+    resolution,
   };
 }
 

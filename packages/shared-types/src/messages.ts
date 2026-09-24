@@ -40,6 +40,22 @@ export const RESUME_MESSAGE_KEYS = [
 
 export type ResumeMessageKey = (typeof RESUME_MESSAGE_KEYS)[number];
 
+/** Small deterministic steps shown after an AG2 rescue is accepted. */
+export const RESCUE_MESSAGE_KEYS = [
+  'rescue.microStart.first',
+  'rescue.simplify.identify',
+  'rescue.simplify.first',
+  'rescue.simplify.check',
+  'rescue.hint.action',
+  'rescue.hint.condition',
+  'rescue.example.pattern',
+  'rescue.example.apply',
+  'rescue.break.pause',
+  'rescue.break.return',
+] as const;
+
+export type RescueMessageKey = (typeof RESCUE_MESSAGE_KEYS)[number];
+
 /** Why the policy decided what it decided. Produced by the intervention policy. */
 export const INTERVENTION_REASON_CODES = [
   'reason.budget',
@@ -65,11 +81,13 @@ export const INTERVENTION_REASON_CODES = [
 export type InterventionReasonCode = (typeof INTERVENTION_REASON_CODES)[number];
 
 /** Every message the domain can emit. The renderer must translate all of them. */
-export type DomainMessageKey = NextActionKey | ResumeMessageKey | InterventionReasonCode;
+export type DomainMessageKey =
+  NextActionKey | ResumeMessageKey | RescueMessageKey | InterventionReasonCode;
 
 export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...NEXT_ACTION_KEYS,
   ...RESUME_MESSAGE_KEYS,
+  ...RESCUE_MESSAGE_KEYS,
   ...INTERVENTION_REASON_CODES,
 ];
 

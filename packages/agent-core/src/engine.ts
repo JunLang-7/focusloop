@@ -18,6 +18,9 @@ import type {
   MicroTask,
   ResolveInterventionRequest,
   ResumeCardView,
+  RescueView,
+  ResolveRescueRequest,
+  ResolveRescueResponse,
   ResumeDecisionResponse,
   SessionSnapshot,
   SimulatorAvailability,
@@ -25,7 +28,12 @@ import type {
   StartSessionResponse,
   ThemePreference,
 } from '@focusloop/shared-types';
-import { findMaterialForCourse, message } from '@focusloop/shared-types';
+import {
+  findMaterialForCourse,
+  isRescueAction,
+  isStuckReason,
+  message,
+} from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
 import {
   DEFAULT_INSIGHT_RANGE,
@@ -50,6 +58,10 @@ import {
   decideIntervention,
   recordOutcome,
   type InterventionPolicyConfig,
+  buildRescuePlan,
+  buildRescueView,
+  estimatedMinutesFor,
+  evaluateRescueSuccess,
 } from '@focusloop/intervention-policy';
 import { parseMaterial } from '@focusloop/material-parser';
 import type { FocusLoopStore, SessionRecord } from '@focusloop/persistence';
@@ -357,6 +369,7 @@ export class FocusLoopEngine {
         resumeCard: this.getResumeCard(request.sessionId),
         decision: null,
         interventionId: null,
+        rescue: null,
       };
     }
 
@@ -376,6 +389,7 @@ export class FocusLoopEngine {
       resumeCard: resume.resumeCard,
       decision: policy.decision,
       interventionId: policy.interventionId,
+      rescue: policy.rescue,
     };
   }
 
@@ -425,6 +439,7 @@ export class FocusLoopEngine {
       resumeCard: resume.resumeCard,
       decision: policy.decision,
       interventionId: policy.interventionId,
+      rescue: policy.rescue,
     };
   }
 
@@ -588,7 +603,11 @@ export class FocusLoopEngine {
     course: Course | null,
     engineState: StateEngineState,
     now: string,
-  ): { decision: ReturnType<typeof decideIntervention> | null; interventionId: string | null } {
+  ): {
+    decision: ReturnType<typeof decideIntervention> | null;
+    interventionId: string | null;
+    rescue: RescueView | null;
+  } {
     const shown = this.store
       .listInterventions(session.id)
       .filter((item) => item.action !== 'RESUME');
@@ -606,7 +625,7 @@ export class FocusLoopEngine {
     );
 
     if (decision.action === 'NO_ACTION') {
-      return { decision, interventionId: null };
+      return { decision, interventionId: null, rescue: null };
     }
 
     const intervention = createIntervention(
@@ -630,7 +649,25 @@ export class FocusLoopEngine {
       decision,
     );
     this.store.saveIntervention(intervention);
-    return { decision, interventionId: intervention.id };
+    const helpRequest =
+      decision.answersRequestId === undefined
+        ? undefined
+        : this.store.listEvents(session.id).find((event) => event.id === decision.answersRequestId);
+    const taskId =
+      helpRequest?.type === 'HELP_REQUESTED'
+        ? (helpRequest.payload.taskId ?? engineState.currentTaskId)
+        : engineState.currentTaskId;
+    const rescue =
+      decision.answersRequestId !== undefined &&
+      isRescueAction(decision.action) &&
+      this.isCurrentRescue(intervention)
+        ? buildRescueView(decision, {
+            interventionId: intervention.id,
+            sessionId: session.id,
+            taskId,
+          })
+        : null;
+    return { decision, interventionId: intervention.id, rescue };
   }
 
   listInterventions(sessionId: string): Intervention[] {
@@ -653,6 +690,128 @@ export class FocusLoopEngine {
     });
     this.store.saveOutcome(outcome);
     return outcome;
+  }
+
+  getPendingRescue(sessionId: string): RescueView | null {
+    const interventions = this.store.listInterventions(sessionId);
+    for (let index = interventions.length - 1; index >= 0; index -= 1) {
+      const intervention = interventions[index];
+      if (
+        intervention === undefined ||
+        !isRescueAction(intervention.action) ||
+        !this.isCurrentRescue(intervention)
+      )
+        continue;
+      const outcome = this.store.getOutcomeByIntervention(intervention.id);
+      if (outcome?.dismissed || outcome?.continuedAt !== undefined) return null;
+      const decision = {
+        action: intervention.action,
+        state: intervention.state,
+        reason: intervention.reason,
+        confidence: 1,
+        estimatedMinutes: estimatedMinutesFor(intervention.action),
+        ...(intervention.answersRequestId === undefined
+          ? {}
+          : { answersRequestId: intervention.answersRequestId }),
+      };
+      const seed = {
+        interventionId: intervention.id,
+        sessionId,
+        taskId: this.taskIdForIntervention(intervention),
+      };
+      if (outcome?.accepted) {
+        const plan = buildRescuePlan(decision, seed);
+        if (
+          plan !== null &&
+          evaluateRescueSuccess({
+            plan,
+            outcome,
+            events: this.store.listEvents(sessionId),
+            now: this.clock(),
+            rescueSuccessWindowMs: this.policyConfig.rescueSuccessWindowMs,
+          }).status !== 'pending'
+        )
+          return null;
+      }
+      return buildRescueView(decision, seed, outcome?.accepted ? 'active' : 'offered');
+    }
+    return null;
+  }
+
+  resolveRescue(request: ResolveRescueRequest): ResolveRescueResponse {
+    const intervention = this.store.getIntervention(request.interventionId);
+    if (
+      intervention === null ||
+      intervention.sessionId !== request.sessionId ||
+      !isRescueAction(intervention.action) ||
+      !this.isCurrentRescue(intervention)
+    ) {
+      return { outcome: null, rescue: this.getPendingRescue(request.sessionId) };
+    }
+    const prior = this.store.getOutcomeByIntervention(intervention.id);
+    const now = this.clock();
+    if (request.resolution === 'continue' && !prior?.accepted) {
+      return { outcome: prior, rescue: this.getPendingRescue(request.sessionId) };
+    }
+    if (prior?.continuedAt !== undefined) {
+      return { outcome: prior, rescue: this.getPendingRescue(request.sessionId) };
+    }
+    if (prior?.dismissed || (prior?.accepted && request.resolution === 'dismiss')) {
+      return { outcome: prior, rescue: this.getPendingRescue(request.sessionId) };
+    }
+    const acceptedAt =
+      request.resolution === 'accept'
+        ? (prior?.acceptedAt ?? (prior?.accepted ? prior.at : now))
+        : prior?.acceptedAt;
+    const dismissedAt =
+      request.resolution === 'dismiss'
+        ? (prior?.dismissedAt ?? (prior?.dismissed ? prior.at : now))
+        : prior?.dismissedAt;
+    const continuedAt =
+      request.resolution === 'continue' ? (prior?.continuedAt ?? now) : prior?.continuedAt;
+    const outcome = recordOutcome({
+      id: `outcome:${intervention.id}`,
+      intervention,
+      at: prior?.at ?? now,
+      accepted: prior?.accepted ?? request.resolution !== 'dismiss',
+      dismissed: prior?.dismissed ?? request.resolution === 'dismiss',
+      taskCompleted: prior?.taskCompleted ?? false,
+      resumeLatencyMs: prior?.resumeLatencyMs ?? null,
+      quizOutcome: prior?.quizOutcome ?? null,
+      ...(acceptedAt === undefined ? {} : { acceptedAt }),
+      ...(dismissedAt === undefined ? {} : { dismissedAt }),
+      ...(continuedAt === undefined ? {} : { continuedAt }),
+    });
+    this.store.saveOutcome(outcome);
+    return {
+      outcome: this.store.getOutcomeByIntervention(intervention.id),
+      rescue: this.getPendingRescue(request.sessionId),
+    };
+  }
+
+  private taskIdForIntervention(intervention: Intervention): string | null {
+    const requestId = intervention.answersRequestId;
+    if (requestId !== undefined) {
+      const event = this.store
+        .listEvents(intervention.sessionId)
+        .find((item) => item.id === requestId);
+      if (event?.type === 'HELP_REQUESTED' && event.payload.taskId !== undefined)
+        return event.payload.taskId;
+    }
+    return this.store.getSession(intervention.sessionId)?.session.currentTaskId ?? null;
+  }
+
+  private isCurrentRescue(intervention: Intervention): boolean {
+    if (intervention.answersRequestId === undefined) return false;
+    const active = this.store.getActiveSession();
+    if (active === null || active.session.id !== intervention.sessionId) return false;
+    const request = this.store
+      .listEvents(intervention.sessionId)
+      .find((event) => event.id === intervention.answersRequestId);
+    if (request?.type !== 'HELP_REQUESTED') return false;
+    if (!isStuckReason(request.payload.reason)) return false;
+    const requestedTaskId = request.payload.taskId;
+    return requestedTaskId === undefined || active.session.currentTaskId === requestedTaskId;
   }
 
   listOutcomes(sessionId: string): InterventionOutcome[] {

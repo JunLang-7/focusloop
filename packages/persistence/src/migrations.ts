@@ -230,6 +230,19 @@ export const MIGRATIONS: readonly Migration[] = [
       ALTER TABLE interventions ADD COLUMN answers_request_id TEXT;
     `,
   },
+  {
+    id: '0004-rescue-outcome-times',
+    sql: `
+      ALTER TABLE outcomes ADD COLUMN accepted_at TEXT;
+      ALTER TABLE outcomes ADD COLUMN dismissed_at TEXT;
+      ALTER TABLE outcomes ADD COLUMN continued_at TEXT;
+      UPDATE outcomes
+      SET accepted_at = CASE WHEN accepted = 1 THEN at ELSE NULL END,
+          dismissed_at = CASE WHEN dismissed = 1 THEN at ELSE NULL END;
+      CREATE INDEX IF NOT EXISTS idx_outcomes_intervention
+        ON outcomes(intervention_id, at, id);
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

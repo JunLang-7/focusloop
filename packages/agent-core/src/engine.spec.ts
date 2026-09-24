@@ -324,6 +324,64 @@ describe('FocusLoopEngine', () => {
   });
 
   describe('stuck reasons (AG2)', () => {
+    it('does not create a rescue card when the learner does not provide a reason', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const response = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: {},
+      });
+      expect(response.rescue).toBeNull();
+      expect(ctx.engine.getPendingRescue(session.id)).toBeNull();
+    });
+
+    it('ignores an unknown rescue resolution and does not treat Continue as acceptance', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'went-wrong' },
+      });
+      expect(asked.rescue?.phase).toBe('offered');
+      expect(
+        ctx.engine.resolveRescue({
+          sessionId: session.id,
+          interventionId: 'missing-intervention',
+          resolution: 'accept',
+        }),
+      ).toMatchObject({ outcome: null });
+      expect(
+        ctx.engine.resolveRescue({
+          sessionId: session.id,
+          interventionId: asked.interventionId!,
+          resolution: 'continue',
+        }),
+      ).toMatchObject({ outcome: null, rescue: { phase: 'offered' } });
+      expect(ctx.engine.listOutcomes(session.id)).toHaveLength(0);
+    });
+
+    it('dismisses an offered rescue once and keeps the saved outcome on replay', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'went-wrong' },
+      });
+      const request = {
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'dismiss' as const,
+      };
+      const dismissed = ctx.engine.resolveRescue(request);
+      expect(dismissed.outcome?.dismissed).toBe(true);
+      expect(dismissed.rescue).toBeNull();
+      expect(ctx.engine.resolveRescue(request).outcome).toEqual(dismissed.outcome);
+      expect(ctx.engine.listOutcomes(session.id)).toHaveLength(1);
+    });
+
     it('answers a reasoned help request through the engine, not only in the policy package', () => {
       /*
        * `docs/testing.md` asks agent-core to prove every policy rule *through the engine*, and the
@@ -340,6 +398,103 @@ describe('FocusLoopEngine', () => {
       });
 
       expect(response.decision?.action).toBe('BREAK');
+      expect(response.rescue?.phase).toBe('offered');
+      expect(response.rescue?.plan).toBeNull();
+    });
+
+    it('persists accept and Continue times and restores the accepted rescue', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      const response = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'went-wrong', taskId: 'rbt-t1' },
+      });
+      expect(response.rescue?.decision.action).toBe('HINT');
+      const accepted = ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: response.interventionId!,
+        resolution: 'accept',
+      });
+      expect(accepted.rescue?.phase).toBe('active');
+      expect(accepted.rescue?.plan?.steps).toHaveLength(2);
+      expect(ctx.engine.getPendingRescue(session.id)?.phase).toBe('active');
+      ctx.clock.advance(60_000);
+      const continued = ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: response.interventionId!,
+        resolution: 'continue',
+      });
+      expect(continued.rescue).toBeNull();
+      expect(continued.outcome?.acceptedAt).toBe(ctx.clock.now().replace('00:01:00', '00:00:00'));
+      expect(continued.outcome?.continuedAt).toBe(ctx.clock.now());
+      const replay = ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: response.interventionId!,
+        resolution: 'continue',
+      });
+      expect(replay.outcome).toEqual(continued.outcome);
+      expect(ctx.engine.listOutcomes(session.id)).toHaveLength(1);
+    });
+
+    it('does not restore or accept a rescue after the task has changed', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1', reason: 'went-wrong' },
+      });
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t2' },
+      });
+      expect(ctx.engine.getPendingRescue(session.id)).toBeNull();
+      const stale = ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+      expect(stale).toMatchObject({ outcome: null, rescue: null });
+      expect(ctx.engine.listOutcomes(session.id)).toHaveLength(0);
+    });
+
+    it('rejects an accept replay after its session has ended', () => {
+      const firstSession = ctx.engine.startSession(DEMO_COURSE_ID).session;
+      ctx.engine.dispatch({
+        sessionId: firstSession.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: firstSession.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1', reason: 'went-wrong' },
+      });
+      ctx.engine.startSession(DEMO_COURSE_ID);
+      const stale = ctx.engine.resolveRescue({
+        sessionId: firstSession.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+      expect(stale).toMatchObject({ outcome: null, rescue: null });
+      expect(ctx.engine.listOutcomes(firstSession.id)).toHaveLength(0);
     });
 
     it('does not answer a second reasoned request that this session has already had an answer to', () => {
