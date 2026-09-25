@@ -27,6 +27,7 @@ export * from './proposal';
 export * from './dashboard';
 export * from './insights';
 export * from './provider';
+export * from './runtime';
 export * from './ipc';
 export * from './bridge';
 export * from './messages';

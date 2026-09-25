@@ -18,6 +18,7 @@ const en = {
   'app.connecting': 'connecting…',
   'app.mode.offline': 'offline mode',
   'app.mode.network': 'network mode',
+  'app.mode.degraded': 'degraded mode',
   'app.language': 'Language',
   'app.language.switch': 'Switch interface language',
   'app.theme': 'Theme',

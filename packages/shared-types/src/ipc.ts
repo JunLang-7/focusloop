@@ -78,6 +78,8 @@ export interface RuntimeInfo {
   readonly providerId: string;
   readonly providerModel: string;
   readonly providerOffline: boolean;
+  /** True when the last runtime call failed over to the fallback provider. */
+  readonly providerDegraded: boolean;
 }
 
 export interface ImportMaterialRequest {
