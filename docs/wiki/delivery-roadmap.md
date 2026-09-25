@@ -126,7 +126,7 @@ Home
 - 风险：小样本伪规律；把情境行为当人格；确认疲劳；反馈循环；跨课程偏好错误泛化。
 - 实施步骤：先写伦理/语言规范 → 定义统计特征和最小样本 → reflection proposal（只读）→ confirmation → preference store/UI → 效果对照 → weekly summary。
 
-### AG7 Memory — 设计完成（episodic 数据已存在，统一 Memory 能力未形成）
+### AG7 Memory — PR 已开（删除语义已按 ADR 0001 冻结，清除原语见 PR #129）
 
 - 当前证据：当前 session/context 是 working-memory 等价物；events/checkpoints/interventions/outcomes 是 episodic 数据；SQLite local-first 且有迁移与 round-trip 测试。
 - 差距：没有明确 Memory scopes API；没有按目的/保留期查询与删除；没有 learner-preference schema/store/inspection；Tutor transcript 是进程内临时状态且生命周期未在产品层说明。

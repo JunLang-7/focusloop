@@ -18,6 +18,7 @@
  * `--prune` deletes wiki pages that no longer exist here. It is opt-in: deleting a page somebody
  * wrote by hand is not a decision a formatter should make on its own.
  */
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,20 +41,40 @@ const PAGES = new Map([
 /**
  * Which repository this is, read from the checkout so a fork publishes links to itself. The wiki
  * cannot resolve `../architecture.md`, so those links must be absolute in the published copy.
+ *
+ * It asks git as well as opening `.git/config` because of linked worktrees: there `.git` is a
+ * *file* holding `gitdir: <path>`, and the remote lives in the common directory that points at,
+ * not next to the file — so `existsSync('.git/config')` is false and the remote is unreachable.
+ * `--repo` overrides both, for a checkout with no origin at all.
  */
 function repositoryUrl() {
   const index = process.argv.indexOf('--repo');
   const explicit = index === -1 ? undefined : process.argv[index + 1];
+  const candidates = [explicit];
+
   const configPath = join(root, '.git', 'config');
-  const remote = explicit ?? (existsSync(configPath) ? readFileSync(configPath, 'utf8') : '');
-  const match = /github\.com[/:]([^/\s]+)\/([^/\s]+?)(?:\.git)?$/m.exec(remote);
-  if (match === null) {
-    console.error(
-      'Cannot tell which repository this is; pass --repo https://github.com/<owner>/<repo>',
+  if (existsSync(configPath)) candidates.push(readFileSync(configPath, 'utf8'));
+
+  try {
+    candidates.push(
+      execFileSync('git', ['-C', root, 'config', '--get', 'remote.origin.url'], {
+        encoding: 'utf8',
+      }),
     );
-    process.exit(2);
+  } catch {
+    // Not a git checkout, or it has no origin: the candidates above decide.
   }
-  return `https://github.com/${match[1]}/${match[2]}`;
+
+  for (const candidate of candidates) {
+    if (candidate === undefined) continue;
+    const match = /github\.com[/:]([^/\s]+)\/([^/\s]+?)(?:\.git)?$/m.exec(candidate);
+    if (match !== null) return `https://github.com/${match[1]}/${match[2]}`;
+  }
+
+  console.error(
+    'Cannot tell which repository this is; pass --repo https://github.com/<owner>/<repo>',
+  );
+  process.exit(2);
 }
 
 /**
