@@ -16,6 +16,7 @@ export const zh: Record<MessageKey, string> = {
   'app.connecting': '连接中…',
   'app.mode.offline': '离线模式',
   'app.mode.network': '联网模式',
+  'app.mode.degraded': '降级模式',
   'app.language': '语言',
   'app.language.switch': '切换界面语言',
   'app.theme': '主题',

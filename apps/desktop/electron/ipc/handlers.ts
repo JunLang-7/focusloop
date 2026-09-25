@@ -77,6 +77,7 @@ export function createHandlers(service: FocusLoopService) {
           providerId: provider.id,
           providerModel: provider.model,
           providerOffline: provider.offline,
+          providerDegraded: provider.degraded,
         };
       },
     }),

@@ -150,11 +150,8 @@ const PEEK_CLOSE_DELAY_MS = 150;
             <span class="state-chip__dot"></span>{{ stateLabel() }}
           </div>
           @if (runtime(); as info) {
-            <p class="muted small footer__meta">
-              {{ info.providerModel }} ·
-              {{ t(info.providerOffline ? 'app.mode.offline' : 'app.mode.network') }} · v{{
-                info.appVersion
-              }}
+            <p class="muted small footer__meta" data-testid="run-mode">
+              {{ info.providerModel }} · {{ runModeLabel(info) }} · v{{ info.appVersion }}
             </p>
           } @else {
             <p class="muted small">{{ t('app.connecting') }}</p>
@@ -433,6 +430,19 @@ export class AppComponent implements OnInit, OnDestroy {
   protected stateLabel(): string {
     const current = this.state();
     return this.t(STATE_KEYS[current] ?? 'state.READY');
+  }
+
+  /**
+   * Offline beats degraded in the label: a mock provider is not a failed
+   * primary, so "offline" is the honest reading when both would apply.
+   */
+  protected runModeLabel(info: {
+    readonly providerOffline: boolean;
+    readonly providerDegraded: boolean;
+  }): string {
+    if (info.providerOffline) return this.t('app.mode.offline');
+    if (info.providerDegraded) return this.t('app.mode.degraded');
+    return this.t('app.mode.network');
   }
 
   protected label(locale: Locale): string {
