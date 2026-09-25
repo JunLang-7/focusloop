@@ -1338,7 +1338,14 @@ export class FocusLoopEngine {
       this.store.recordAgentMemoryClear(sessionId, clearedAt, actor);
     });
     run();
-    return { clearedAt, actor };
+
+    /*
+     * Report the row that is actually in the audit. `recordAgentMemoryClear` keeps the first clear
+     * (`ON CONFLICT DO NOTHING`), so returning this call's timestamp would make a second clear name a
+     * moment the audit does not contain.
+     */
+    const row = this.store.getAgentMemoryClear(sessionId);
+    return row === null ? { clearedAt, actor } : { clearedAt: row.clearedAt, actor: row.actor };
   }
 
   /** Opaque audit for a cleared session, or null if it was never cleared. */

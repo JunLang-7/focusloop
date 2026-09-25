@@ -55,12 +55,12 @@ There is **no long-lived cache** of agent context or tutor prompts: `buildAgentC
 
 Invalidation is therefore “delete the rows / maps the readers use”:
 
-| Reader               | After clear                                                                                                               |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| Tutor transcript     | `forget(sessionId)` — next ask has an empty turn list                                                                     |
-| Outbound inspector   | Map entry deleted                                                                                                         |
-| `getAgentContext`    | Session flagged cleared → `{ context: null }` + omission; even without the flag, deleted events/checkpoints cannot appear |
-| Dashboard / insights | Query empty tables for that session                                                                                       |
+| Reader               | After clear                                                                                                                                                                                     |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tutor transcript     | `forget(sessionId)` — next ask has an empty turn list                                                                                                                                           |
+| Outbound inspector   | Map entry deleted                                                                                                                                                                               |
+| `getAgentContext`    | Rebuilt per request from the store, so it sees an empty event window and no checkpoint once they are deleted. There is **no** "session cleared" flag: deletion is the mechanism, not a denylist |
+| Dashboard / insights | Query empty tables for that session                                                                                                                                                             |
 
 **Proof**: a regression test per class does **write → clear → query**, asserting empty on the direct path **and** on derived paths (dashboard aggregate, context builder, tutor transcript). A test that only checked the direct `listEvents` would pass while a stale checkpoint still fed the dashboard.
 

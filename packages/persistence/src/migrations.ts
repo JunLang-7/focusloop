@@ -244,7 +244,7 @@ export const MIGRATIONS: readonly Migration[] = [
     `,
   },
   {
-    id: '0005-agent-memory-clears',
+    id: '0006-agent-memory-clears',
     sql: `
       -- ADR 0001 (agent memory deletion): opaque audit. No content columns.
       CREATE TABLE IF NOT EXISTS agent_memory_clears (

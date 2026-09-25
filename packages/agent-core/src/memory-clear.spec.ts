@@ -126,7 +126,7 @@ describe('agent memory clear (ADR 0001)', () => {
     expect(report.context?.checkpoint).toBeNull();
   });
 
-  it('Derived: insights session replay sees no events after clear', () => {
+  it('Derived: the event log insights read is empty after clear', () => {
     const { engine, store } = ctx;
     const { session } = engine.startSession(DEMO_COURSE_ID);
     engine.dispatch({
@@ -138,8 +138,12 @@ describe('agent memory clear (ADR 0001)', () => {
 
     engine.clearAgentMemory(session.id);
 
+    /*
+     * Insights are derived from the event log, so the log being empty *is* the assertion.
+     * `expect(engine.getInsights('all')).toBeDefined()` was here before and asserted nothing — any
+     * object satisfies it, so the test would have passed with the events still present.
+     */
     expect(store.listEvents(session.id)).toEqual([]);
-    expect(engine.getInsights('all')).toBeDefined();
   });
 
   it('Keeps session catalog and course structure', () => {

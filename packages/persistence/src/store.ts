@@ -744,12 +744,12 @@ export class FocusLoopStore {
         )
         .run(sessionId, sessionId);
       this.db.prepare('DELETE FROM interventions WHERE session_id = ?;').run(sessionId);
-      this.db
-        .prepare(
-          `DELETE FROM resume_cards WHERE checkpoint_id IN
-             (SELECT id FROM checkpoints WHERE session_id = ?);`,
-        )
-        .run(sessionId);
+      /*
+       * By `session_id`, not through the checkpoint join. `resume_cards` carries the session id itself,
+       * and a card whose checkpoint row is already gone would survive a join-based delete — leaving
+       * "cleared" data behind for exactly the rows nobody would think to look at.
+       */
+      this.db.prepare('DELETE FROM resume_cards WHERE session_id = ?;').run(sessionId);
       this.db.prepare('DELETE FROM checkpoints WHERE session_id = ?;').run(sessionId);
       this.db.prepare('DELETE FROM learning_events WHERE session_id = ?;').run(sessionId);
     });

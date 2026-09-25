@@ -558,6 +558,21 @@ describe('FocusLoopStore', () => {
       expect(store.getCourse('course-1')).not.toBeNull();
     });
 
+    it('deletes a resume card whose checkpoint row is already gone', () => {
+      seedSession();
+      /*
+       * A card can outlive its checkpoint. The delete used to go through
+       * `checkpoint_id IN (SELECT id FROM checkpoints WHERE session_id = ?)`, which cannot match a card
+       * whose checkpoint is missing — so this row survived a "clear" and stayed readable.
+       */
+      store.saveResumeShown('checkpoint-that-does-not-exist', 'session-1', T);
+      expect(store.listResumeTimings('session-1')).toHaveLength(1);
+
+      store.clearSessionEpisodic('session-1');
+
+      expect(store.listResumeTimings('session-1')).toEqual([]);
+    });
+
     it('records an opaque clear audit once', () => {
       seedSession();
       expect(store.recordAgentMemoryClear('session-1', T, 'user')).toBe(true);
