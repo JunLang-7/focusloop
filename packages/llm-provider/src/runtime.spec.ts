@@ -266,8 +266,7 @@ describe('AgentRuntime stream', () => {
     expect(commit).toHaveBeenCalledTimes(1);
   });
 
-  it('abandoned stream never commits (structured path only commits after full validation)', async () => {
-    const commit = vi.fn();
+  it('cancelling a stream stops the chunks', async () => {
     const controller = new AbortController();
     const runtime = new AgentRuntime(createProviderSelection(new MockAIProvider()));
 
@@ -276,10 +275,54 @@ describe('AgentRuntime stream', () => {
       chunks.push(chunk);
       controller.abort();
     }
-    // streamText has no commit hook at all — the contract is structural.
+
     expect(chunks.length).toBeGreaterThan(0);
-    expect(commit).not.toHaveBeenCalled();
     expect(runtime.degraded).toBe(false);
+  });
+
+  /*
+   * The previous version of this test created a `commit` mock and never passed it to the runtime, so
+   * `expect(commit).not.toHaveBeenCalled()` was true by construction — an assertion that could not
+   * fail. Here the hook is attached, so a commit that ran before validation would be visible.
+   */
+  it('an aborted structured call never commits', async () => {
+    const commit = vi.fn();
+    const controller = new AbortController();
+    const runtime = new AgentRuntime(createProviderSelection(new MockAIProvider()));
+
+    controller.abort();
+    const result = await runtime.executeStructuredViaStream(data(), request(), {
+      signal: controller.signal,
+      commit,
+    });
+
+    expect(result).toMatchObject({ status: 'aborted', degraded: false });
+    expect(result.value).toBeUndefined();
+    expect(commit).not.toHaveBeenCalled();
+  });
+
+  it('a fallback answer is reported as degraded, not as the primary model', async () => {
+    const commit = vi.fn();
+    const runtime = new AgentRuntime({
+      primary: failingProvider('primary', new ProviderError('timeout', 'primary', 'too slow')),
+      fallback: textProvider('mock', VALID_JSON),
+    });
+
+    const result = await runtime.executeStructuredViaStream(data(), request(), { commit });
+
+    /*
+     * The mock produced this value. Reporting `providerId: primary` with `degraded: false` credits the
+     * model with the fallback's text — the "true about the wrong thing" defect the other paths already
+     * avoid by reading provenance off the completion result rather than off `this.selection.primary`.
+     */
+    expect(result).toMatchObject({
+      status: 'degraded',
+      degraded: true,
+      providerId: 'mock',
+      model: 'mock-model',
+    });
+    expect(result.value).toEqual({ answer: 'because rotations', confident: true });
+    expect(commit).toHaveBeenCalledTimes(1);
   });
 });
 

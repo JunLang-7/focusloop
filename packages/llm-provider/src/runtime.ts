@@ -258,15 +258,46 @@ export class AgentRuntime {
   }
 
   /**
-   * Incremental text for display. Cancelling (abort) or abandoning the
-   * iterator simply stops the chunks — there is no commit on this path; a
-   * caller that wants a committed result must use `executeStructured`.
+   * Incremental text for display.
+   *
+   * The provider call is a **single completion**; this splits the finished text so a caller can
+   * render progressively. It is not provider token streaming: the first chunk arrives only once the
+   * whole completion has, so time-to-first-chunk here is time-to-completion, and a caller that
+   * measures it as though it were a token stream is measuring the wrong thing. Real streaming needs
+   * providers that expose it (AG9), and that is the interface to keep for it.
+   *
+   * Cancelling (abort) or abandoning the iterator stops the chunks; there is no commit on this path —
+   * a caller that wants a committed result must use `executeStructured`.
    */
   async *streamText(
     request: CompletionRequest,
     options?: RuntimeExecutionOptions & { readonly deadlineMs?: number },
   ): AsyncGenerator<string> {
-    if (isSignalAborted(options?.signal)) return;
+    const result = await this.completeOnce(request, options);
+    if (result === null) return;
+
+    const chunkSize = 48;
+    for (let index = 0; index < result.text.length; index += chunkSize) {
+      if (isSignalAborted(options?.signal)) return;
+      yield result.text.slice(index, index + chunkSize);
+    }
+  }
+
+  /**
+   * One completion with the provenance its callers have to report.
+   *
+   * `completeWithFallback` may answer from the fallback provider, so identity and `degraded` come
+   * from the result rather than from the primary: a caller that assumed the primary would credit the
+   * mock's text to the model.
+   *
+   * Returns null when the signal was already aborted, or aborted mid-flight — a late result is
+   * dropped rather than returned.
+   */
+  private async completeOnce(
+    request: CompletionRequest,
+    options?: RuntimeExecutionOptions & { readonly deadlineMs?: number },
+  ): Promise<CompleteWithFallbackResult | null> {
+    if (isSignalAborted(options?.signal)) return null;
     const result = await raceAbort(
       raceDeadline(completeWithFallback(this.selection, request), options?.deadlineMs),
       options?.signal,
@@ -274,14 +305,9 @@ export class AgentRuntime {
       if (isAbort(error)) return null;
       throw error;
     });
-    if (result === null) return;
+    if (result === null) return null;
     this.lastDegraded = result.degraded;
-
-    const chunkSize = 48;
-    for (let index = 0; index < result.text.length; index += chunkSize) {
-      if (isSignalAborted(options?.signal)) return;
-      yield result.text.slice(index, index + chunkSize);
-    }
+    return result;
   }
 
   /** Streamed text assembled, then validated once — retry once, then degrade. */
@@ -295,16 +321,13 @@ export class AgentRuntime {
       throw new Error('executeStructuredViaStream requires RuntimeRequestData.schema');
     }
 
-    const collect = async (): Promise<string> => {
-      const chunks: string[] = [];
-      for await (const chunk of this.streamText(request, {
+    // One completion, not a re-collected stream: the provenance has to survive, and a stream of
+    // chunks carries text only — which is how the fallback's answer got credited to the primary.
+    const collect = async (): Promise<CompleteWithFallbackResult | null> =>
+      this.completeOnce(request, {
         ...options,
         ...(data.deadlineMs === undefined ? {} : { deadlineMs: data.deadlineMs }),
-      })) {
-        chunks.push(chunk);
-      }
-      return chunks.join('');
-    };
+      });
 
     if (isSignalAborted(options?.signal)) {
       this.lastDegraded = false;
@@ -314,21 +337,23 @@ export class AgentRuntime {
     let failureReason: string | undefined;
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
-        const text = await collect();
-        if (isSignalAborted(options?.signal)) {
+        const collected = await collect();
+        if (collected === null || isSignalAborted(options?.signal)) {
           this.lastDegraded = false;
           return abortedResult(this.selection);
         }
-        const parsed = parseSchema(text, schema);
+        const parsed = parseSchema(collected.text, schema);
         if (parsed.ok) {
-          this.lastDegraded = false;
+          this.lastDegraded = collected.degraded;
           options?.commit?.(parsed.value);
           return {
-            status: 'ok',
+            // A fallback answer that validates is `degraded`, not `ok`: the status has to say which
+            // provider produced the value, or the caller reports the mock as the model.
+            status: collected.degraded ? 'degraded' : 'ok',
             value: parsed.value as T,
-            providerId: this.selection.primary.id,
-            model: this.selection.primary.model,
-            degraded: false,
+            providerId: collected.providerId,
+            model: collected.model,
+            degraded: collected.degraded,
           };
         }
         failureReason = parsed.problems.join('; ');
