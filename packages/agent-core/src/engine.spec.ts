@@ -1701,7 +1701,8 @@ describe('FocusLoopEngine', () => {
         const outbound = scripted.engine.getOutboundRequest(sessionId);
         expect(outbound?.prompt).toContain(question);
 
-        // Dump every event payload and the settings meta — the prompt must appear in neither.
+        // The session's event log must not contain the question — the prompt is held in memory only.
+        // (Only the event log is checked here; no other store table is dumped.)
         const events = JSON.stringify(scripted.store.listEvents(sessionId));
         expect(events).not.toContain(question);
       } finally {

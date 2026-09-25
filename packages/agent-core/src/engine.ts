@@ -159,6 +159,14 @@ export class FocusLoopEngine {
    * logged. Cleared when the session ends, with the transcript.
    */
   private readonly outboundBySession = new Map<string, OutboundRequest>();
+  /**
+   * How many sessions' outbound requests may be held at once.
+   *
+   * `endSession` drops the entry, but an *abandoned* session never reaches it, and its question plus
+   * material excerpt would then sit in the heap for the life of the process — the opposite of \"for the
+   * current session only\". The bound is small because only the newest is ever interesting.
+   */
+  private static readonly MAX_OUTBOUND_SESSIONS = 4;
 
   constructor(options: FocusLoopEngineOptions) {
     this.store = options.store;
@@ -659,6 +667,8 @@ export class FocusLoopEngine {
    * so the inspector figure cannot drift from the string it describes.
    */
   private rememberOutbound(sessionId: string, system: string, prompt: string): void {
+    // Re-insert so eviction follows insertion order and the oldest session goes first.
+    this.outboundBySession.delete(sessionId);
     this.outboundBySession.set(sessionId, {
       sessionId,
       at: this.clock(),
@@ -666,6 +676,11 @@ export class FocusLoopEngine {
       prompt,
       inputCharacters: system.length + prompt.length,
     });
+    while (this.outboundBySession.size > FocusLoopEngine.MAX_OUTBOUND_SESSIONS) {
+      const oldest = this.outboundBySession.keys().next().value;
+      if (oldest === undefined) break;
+      this.outboundBySession.delete(oldest);
+    }
   }
 
   /** Last outbound request for this session, or null if nothing has been sent. */
