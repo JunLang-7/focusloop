@@ -581,3 +581,30 @@ function rawEvent(type: string, payload: Record<string, unknown>): LearningEvent
     payload,
   } as unknown as LearningEvent;
 }
+
+describe('AGENT_PROPOSAL_EXECUTED projection', () => {
+  it('passes the audit event through with an empty payload', () => {
+    const report = buildAgentContext(
+      source({
+        events: [
+          {
+            id: 'e-proposal',
+            sessionId: 's1',
+            at: '2026-01-01T00:00:01.000Z',
+            type: 'AGENT_PROPOSAL_EXECUTED',
+            source: 'agent',
+            payload: { proposalId: 'p1', kind: 'structural-write', idempotencyKey: 'k' },
+          } as never,
+        ],
+      }),
+    );
+    expect(report.context?.recentEvents).toEqual([
+      {
+        type: 'AGENT_PROPOSAL_EXECUTED',
+        at: '2026-01-01T00:00:01.000Z',
+        source: 'agent',
+        payload: {},
+      },
+    ]);
+  });
+});

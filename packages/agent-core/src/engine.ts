@@ -2,11 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type {
   AgentContext,
   AgentContextReport,
+  AgentProposal,
+  AgentProposalKind,
+  ConfirmProposalRequest,
   Course,
   DashboardSummary,
   DispatchEventRequest,
   DispatchEventResponse,
   EndSessionRequest,
+  ExecuteProposalRequest,
   ImportMaterialResponse,
   InsightRange,
   InsightsSummary,
@@ -17,6 +21,8 @@ import type {
   LearningSession,
   MaterialDocument,
   MicroTask,
+  ProposalConfirmResult,
+  ProposalExecuteResult,
   ResolveInterventionRequest,
   ResumeCardView,
   RescueView,
@@ -82,6 +88,7 @@ import { buildInsightsSummary, type InsightsSessionSource } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
+import { confirmAgentProposal, createAgentProposal, executeAgentProposal } from './proposal';
 import {
   TutorTranscript,
   composeRetryPrompt,
@@ -1333,6 +1340,36 @@ export class FocusLoopEngine {
   setShowMaterialText(showMaterialText: boolean): AppSettings {
     this.store.setMeta(SHOW_MATERIAL_TEXT_KEY, showMaterialText ? 'true' : 'false');
     return this.getSettings();
+  }
+
+  // --------------------------------------------------- structural proposals
+
+  private proposalDeps() {
+    return { store: this.store, now: this.clock, idFactory: this.idFactory };
+  }
+
+  /**
+   * Builds a structural proposal bound to the session's current state.
+   * The learner (or a later tool) must confirm it before it can execute.
+   */
+  proposeStructuralChange(input: {
+    sessionId: string;
+    kind: AgentProposalKind;
+    payload: Record<string, unknown>;
+    createdBy: string;
+    idempotencyKey: string;
+    ttlMs?: number;
+  }): AgentProposal | null {
+    return createAgentProposal(this.proposalDeps(), input);
+  }
+
+  confirmProposal(request: ConfirmProposalRequest): ProposalConfirmResult {
+    return confirmAgentProposal(this.proposalDeps(), request);
+  }
+
+  /** The only structural write path: confirmed + idempotent + audited. */
+  executeProposal(request: ExecuteProposalRequest): ProposalExecuteResult {
+    return executeAgentProposal(this.proposalDeps(), request);
   }
 }
 

@@ -392,6 +392,19 @@ const en = {
     'The model did not quote anything you wrote, so the tutor will not show a confirmation of it.',
   'tutor.rejection.not-from-the-material':
     'The model answered from a section that is not in front of you, so the tutor will not show it.',
+
+  // Structural proposal envelope (AG4/AG8). A refusal is always a reason the learner can read.
+  'proposal.refusal.unknown-proposal': 'That change is no longer available.',
+  'proposal.refusal.wrong-session': 'This change belongs to a different session.',
+  'proposal.refusal.expired': 'This change offer has expired. Ask for it again.',
+  'proposal.refusal.state-changed':
+    'Something changed after this change was prepared, so it was not applied. Review the new state and try again.',
+  'proposal.refusal.hash-mismatch': 'This confirmation does not match the change that was shown.',
+  'proposal.refusal.already-confirmed': 'This change is already confirmed.',
+  'proposal.refusal.already-executed': 'This change has already been applied.',
+  'proposal.refusal.already-refused': 'This change was already declined.',
+  'proposal.refusal.not-confirmed': 'Confirm the change before it can run.',
+  'proposal.refusal.forged-id': 'That change identifier is not valid.',
 } as const;
 
 export default en;

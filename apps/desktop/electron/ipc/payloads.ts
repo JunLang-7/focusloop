@@ -1,10 +1,13 @@
 import type {
+  ConfirmProposalRequest,
   DispatchEventRequest,
   EndSessionRequest,
+  ExecuteProposalRequest,
   ImportMaterialRequest,
   InsightRange,
   InsightsRequest,
   Locale,
+  ProposeStructuralChangeRequest,
   ResumeDecisionRequest,
   ResolveInterventionRequest,
   SetLocaleRequest,
@@ -53,6 +56,11 @@ export const payload = {
   insights: (range: InsightRange): InsightsRequest => ({ range }),
   askTutor: (request: TutorAskRequest): TutorAskRequest => request,
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,
+  proposeStructuralChange: (
+    request: ProposeStructuralChangeRequest,
+  ): ProposeStructuralChangeRequest => request,
+  confirmProposal: (request: ConfirmProposalRequest): ConfirmProposalRequest => request,
+  executeProposal: (request: ExecuteProposalRequest): ExecuteProposalRequest => request,
 } as const;
 
 export type PayloadBuilder = typeof payload;

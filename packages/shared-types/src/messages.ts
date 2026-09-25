@@ -99,13 +99,30 @@ export const TUTOR_REJECTION_MESSAGE_KEYS = [
 export type TutorFallbackMessageKey =
   (typeof TUTOR_UNAVAILABLE_MESSAGE_KEYS)[number] | (typeof TUTOR_REJECTION_MESSAGE_KEYS)[number];
 
+/** Why a structural proposal could not be confirmed or executed. Renderer owns the wording. */
+export const PROPOSAL_MESSAGE_KEYS = [
+  'proposal.refusal.unknown-proposal',
+  'proposal.refusal.wrong-session',
+  'proposal.refusal.expired',
+  'proposal.refusal.state-changed',
+  'proposal.refusal.hash-mismatch',
+  'proposal.refusal.already-confirmed',
+  'proposal.refusal.already-executed',
+  'proposal.refusal.already-refused',
+  'proposal.refusal.not-confirmed',
+  'proposal.refusal.forged-id',
+] as const;
+
+export type ProposalMessageKey = (typeof PROPOSAL_MESSAGE_KEYS)[number];
+
 /** Every message the domain can emit. The renderer must translate all of them. */
 export type DomainMessageKey =
   | NextActionKey
   | ResumeMessageKey
   | RescueMessageKey
   | InterventionReasonCode
-  | TutorFallbackMessageKey;
+  | TutorFallbackMessageKey
+  | ProposalMessageKey;
 
 export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...NEXT_ACTION_KEYS,
@@ -114,6 +131,7 @@ export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...INTERVENTION_REASON_CODES,
   ...TUTOR_UNAVAILABLE_MESSAGE_KEYS,
   ...TUTOR_REJECTION_MESSAGE_KEYS,
+  ...PROPOSAL_MESSAGE_KEYS,
 ];
 
 export function message(key: DomainMessageKey, params: MessageParams = {}): LocalizedMessage {

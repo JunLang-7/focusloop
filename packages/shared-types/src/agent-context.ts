@@ -94,7 +94,8 @@ export type AgentContextEvent =
   | AgentContextEventBase<'IDLE_ENDED', { readonly idleMs: number }>
   | AgentContextEventBase<'RESUME_REQUESTED', EmptyAgentContextPayload>
   | AgentContextEventBase<'RESUME_DISMISSED', EmptyAgentContextPayload>
-  | AgentContextEventBase<'SESSION_ENDED', { readonly reason: SessionEndReason }>;
+  | AgentContextEventBase<'SESSION_ENDED', { readonly reason: SessionEndReason }>
+  | AgentContextEventBase<'AGENT_PROPOSAL_EXECUTED', EmptyAgentContextPayload>;
 
 /** The bounded cognitive summary exposed to an agent, without persistence identifiers. */
 export interface AgentContextCheckpoint {

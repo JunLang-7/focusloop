@@ -12,6 +12,14 @@ import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
 import type { LearningState } from './state';
 import type { TutorAnswer, TutorAskRequest } from './tutor';
+import type {
+  AgentProposal,
+  AgentProposalKind,
+  ConfirmProposalRequest,
+  ExecuteProposalRequest,
+  ProposalConfirmResult,
+  ProposalExecuteResult,
+} from './proposal';
 
 /**
  * The ONLY surface the renderer may reach. Everything else in the renderer runs
@@ -38,6 +46,9 @@ export const IPC_CHANNELS = {
   getDashboard: 'focusloop:dashboard:get',
   getInsights: 'focusloop:insights:get',
   getAgentContext: 'focusloop:agent:context',
+  proposeStructuralChange: 'focusloop:agent:propose',
+  confirmProposal: 'focusloop:agent:confirm-proposal',
+  executeProposal: 'focusloop:agent:execute-proposal',
   askTutor: 'focusloop:tutor:ask',
   listOutcomes: 'focusloop:outcome:list',
   resolveIntervention: 'focusloop:intervention:resolve',
@@ -168,6 +179,15 @@ export interface SimulatorAvailability {
   readonly reason: string;
 }
 
+export interface ProposeStructuralChangeRequest {
+  readonly sessionId: string;
+  readonly kind: AgentProposalKind;
+  readonly payload: Record<string, unknown>;
+  readonly createdBy: string;
+  readonly idempotencyKey: string;
+  readonly ttlMs?: number;
+}
+
 /**
  * Everything the extension needs to pair with this desktop instance.
  * The token is per-run and only valid on loopback.
@@ -246,6 +266,14 @@ export interface FocusLoopApi {
    * and `node:crypto`, into a sandboxed page that has neither.
    */
   getAgentContext(): Promise<AgentContextReport>;
+
+  /**
+   * Builds a structural proposal bound to the session's current state.
+   * The learner must `confirmProposal` before `executeProposal` will run it.
+   */
+  proposeStructuralChange(request: ProposeStructuralChangeRequest): Promise<AgentProposal | null>;
+  confirmProposal(request: ConfirmProposalRequest): Promise<ProposalConfirmResult>;
+  executeProposal(request: ExecuteProposalRequest): Promise<ProposalExecuteResult>;
 
   /**
    * Asks the tutor about the step the learner is on, and gets back either an answer, a rejection or a

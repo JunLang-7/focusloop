@@ -257,4 +257,5 @@ AG1/2/3/基础 AG5 的收口不必等关键路径，可并行交付并尽快形�
 
 如果下一轮只安排一个可交付切片，选择：**“Resume 三档 + success metric，但不引入新 LLM 能力”**。它复用现有 checkpoint/resume 强项、风险低、可 deterministic 测试，且直接增强最有辨识度的 Demo。并行补 AG10 scenario harness 与 AG1 privacy fixtures。
 
-进入 AG4 前的硬门槛：AG8 的 structural-write confirmation 与 idempotency 测试已通过。进入 AG6 前的硬门槛：AG7 的 preference inspection/delete 已交付。
+进入 AG4 前的硬门槛：AG8 的 structural-write confirmation 与 idempotency 测试已通过
+（**已满足**：确认信封 + 幂等 + 审计 + 四条 DoD 测试，见 #114）。进入 AG6 前的硬门槛：AG7 的 preference inspection/delete 已交付。
