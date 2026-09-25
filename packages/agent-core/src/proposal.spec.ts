@@ -404,6 +404,9 @@ describe('proposal envelope — remaining edge cases', () => {
 
   it('refuses execute when the session disappeared', () => {
     const h = harness();
+    // NOTE: this harness cannot delete a session, so the `unknown-proposal` refusal for a vanished
+    // session (proposal.ts, `record === null`) is not exercised here; renaming this test would need
+    // a store-level delete to test the real path.
     const proposal = proposalFor(h);
     confirmAgentProposal(h.deps, {
       proposalId: proposal.id,
@@ -495,7 +498,7 @@ describe('proposal envelope — session loss and append race', () => {
     h.close();
   });
 
-  it('returns already-executed when the event insert loses the race', () => {
+  it('rolls back and fails when the execution event cannot be written', () => {
     const h = harness();
     const proposal = proposalFor(h);
     confirmAgentProposal(h.deps, {
@@ -518,12 +521,23 @@ describe('proposal envelope — session loss and append race', () => {
       },
     });
 
-    const result = executeAgentProposal(h.deps, {
-      proposalId: proposal.id,
-      sessionId: h.sessionId,
-      idempotencyKey: proposal.idempotencyKey,
-    });
-    expect(result).toMatchObject({ ok: false, reason: 'already-executed' });
+    /*
+     * Nothing was written, so the caller must not be told "already executed". The store commits only
+     * on a normal return, so the failed half is thrown out of the transaction and the execution
+     * surfaces as a failure; the proposal stays `confirmed` and no second event exists.
+     */
+    expect(() =>
+      executeAgentProposal(h.deps, {
+        proposalId: proposal.id,
+        sessionId: h.sessionId,
+        idempotencyKey: proposal.idempotencyKey,
+      }),
+    ).toThrow(/could not be appended/);
+
+    expect(h.store.getAgentProposal(proposal.id)?.status).toBe('confirmed');
+    expect(
+      h.store.listEvents(h.sessionId).filter((e) => e.type === 'AGENT_PROPOSAL_EXECUTED'),
+    ).toHaveLength(1);
     h.close();
   });
 });

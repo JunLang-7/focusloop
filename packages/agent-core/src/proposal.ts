@@ -19,9 +19,12 @@ import type { FocusLoopStore, SessionRecord } from '@focusloop/persistence';
  * propose → (learner confirms) → execute → one domain event, where a proposal
  * is bound to the state it was built from and cannot be executed twice.
  *
- * **This module is the command layer.** The only way a structural payload runs
- * is `executeAgentProposal` after a successful confirm. There is no second
- * export that applies a payload — the architectural test pins the export list.
+ * **This module is the command layer, and for now it only records intent.** `executeAgentProposal`
+ * writes one audit event and moves the proposal to `executed` after a successful confirm; it does
+ * **not** apply a payload, because applying one is AG4's work. No second export applies a payload —
+ * the architectural test pins the export list so none can appear unnoticed. Until AG4 supplies the
+ * applier, a "structural write" that reaches `executed` has been *agreed to and recorded*, not
+ * performed, and the wording must not claim otherwise.
  *
  * Free of shrink/split/reorder: those are AG4's payloads, not the envelope's.
  */
@@ -171,8 +174,9 @@ export function confirmAgentProposal(
  * `proposalId`: the second call returns the first call's event id and writes
  * nothing. A proposal that was never confirmed is refused (`not-confirmed`).
  *
- * The payload applier is not called from anywhere else — see the architectural
- * test on the export list.
+ * The payload applier does not exist yet (AG4 supplies it) — see the module doc. What is pinned here
+ * is that no *second* export could apply one without failing the architectural test on the export
+ * list.
  */
 export function executeAgentProposal(
   deps: ProposalCommandDeps,
@@ -232,16 +236,33 @@ export function executeAgentProposal(
     },
   };
 
-  // Transaction: one event + one status change, or neither.
-  const run = deps.store.transaction(() => {
-    const appended = deps.store.appendEvent(event);
-    if (!appended) return false;
-    return deps.store.markAgentProposalExecuted(stored.proposal.id, eventId, deps.now());
+  /*
+   * One event and one status change, or neither.
+   *
+   * The store's transaction wrapper COMMITs on a normal return and rolls back only on a throw, so
+   * `return false` here would leave the event committed while the proposal stayed `confirmed` — an
+   * audit record of an execution the proposal table says never happened, and a caller told
+   * "already executed" when nothing executed. Losing either half therefore has to leave by throwing.
+   */
+  const run = deps.store.transaction((): true => {
+    if (!deps.store.appendEvent(event)) {
+      throw new ExecutionRaceError('the execution event could not be appended');
+    }
+    if (!deps.store.markAgentProposalExecuted(stored.proposal.id, eventId, deps.now())) {
+      throw new ExecutionRaceError('the proposal status changed under this execution');
+    }
+    return true;
   });
 
-  const applied = run();
-  if (!applied) {
-    // Lost a race with a concurrent execute — read back and return the winner's event.
+  try {
+    run();
+  } catch (error) {
+    if (!(error instanceof ExecutionRaceError)) throw error;
+    /*
+     * Rolled back, so nothing was written. Read the proposal back to find out whether another writer
+     * executed it first; if not, this execution simply did not happen, and the caller gets a failure
+     * rather than a false "already executed".
+     */
     const again = deps.store.getAgentProposal(stored.proposal.id);
     if (again?.status === 'executed' && again.eventId !== null) {
       return {
@@ -251,10 +272,18 @@ export function executeAgentProposal(
         eventId: again.eventId,
       };
     }
-    return refusal('already-executed', stored.proposal.id);
+    throw error;
   }
 
   return { ok: true, status: 'executed', proposalId: stored.proposal.id, eventId };
+}
+
+/**
+ * Internal sentinel: an execution that could not be applied. Caught inside `executeAgentProposal` so
+ * the transaction rolls back; rethrown when the read-back shows nothing happened.
+ */
+class ExecutionRaceError extends Error {
+  override readonly name = 'ExecutionRaceError';
 }
 
 /**
