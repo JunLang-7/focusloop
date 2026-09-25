@@ -74,15 +74,25 @@ function answer(
 
 describe('the translation keys the tutor owns', () => {
   it('maps every fallback code to a distinct English and Chinese sentence', () => {
+    /*
+     * The "有码必有译文" test (#108): four unavailabilities and five rejections must each have a
+     * non-empty, distinct sentence in both dictionaries. A new `TutorFallbackReason` without a
+     * key fails `Record<TutorFallbackReason, MessageKey>` at typecheck; a key without a Chinese
+     * string fails `messages.zh.ts`'s `Record<MessageKey, string>`; this test catches two codes
+     * sharing one key or a translation that is accidentally English.
+     */
     const reasons = Object.keys(TUTOR_FALLBACK_KEYS) as (keyof typeof TUTOR_FALLBACK_KEYS)[];
     const keys = reasons.map((reason) => TUTOR_FALLBACK_KEYS[reason]);
 
+    expect(reasons).toHaveLength(9); // 4 unavailable + 5 rejection
     expect(new Set(keys).size).toBe(reasons.length);
     expect(DOMAIN_MESSAGE_KEYS).toEqual(expect.arrayContaining(keys));
     for (const key of keys) {
       expect(en[key].trim()).not.toBe('');
       expect(zh[key].trim()).not.toBe('');
       expect(zh[key]).not.toBe(en[key]);
+      // Chinese is Chinese: no pure-ASCII sentence in the zh dictionary for these keys.
+      expect(zh[key]).toMatch(/[一-鿿]/);
     }
   });
 

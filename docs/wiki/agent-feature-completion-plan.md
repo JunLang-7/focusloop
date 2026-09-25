@@ -6,11 +6,10 @@
 > [功能清单](./project-features.md) 的七级阶梯。
 >
 > **“领域层不产生句子”是一条被强制执行的硬规则**（见 `docs/architecture.md`）：领域包只返回
-> `LocalizedMessage`（如 `{ key: 'reason.confused.hint', params: {} }`），`messages.zh.ts` 以
-> `Record<MessageKey, string>` 约束，漏键即 typecheck 失败。**已知违反**：AG3 的
-> `describeUnavailable` / `describeRejection` 在领域层返回英文句子，UI 直接渲染
-> `{{ result.reason }}`，因此中文界面会出现英文；修复由独立 issue 跟踪，后续每个 AG 在评审时必须
-> 检查这一条。
+> `LocalizedMessage` 或闭合错误码（如 `{ key: 'reason.confused.hint', params: {} }`、
+> `TutorFallbackReason`），`messages.zh.ts` 以 `Record<MessageKey, string>` 约束，漏键即 typecheck 失败。
+> AG3 的 tutor fallback 已按此规则修复（闭合码 + 渲染端 `TUTOR_FALLBACK_KEYS` 映射，见 #108）；
+> 后续每个 AG 在评审时必须检查这一条。
 
 ## 0. 统一实施模板
 

@@ -3,11 +3,13 @@ import {
   type MaterialExcerpt,
   type SessionSnapshot,
   type TutorAnswer,
-  type TutorFallbackReason,
   type TutorMode,
   type TutorPartKind,
 } from '@focusloop/shared-types';
 import type { MessageKey } from './i18n/messages.en';
+import { TUTOR_FALLBACK_KEYS } from './i18n/labels';
+
+export { TUTOR_FALLBACK_KEYS };
 
 /**
  * What the tutor panel shows, as plain data.
@@ -66,19 +68,6 @@ export const TUTOR_PART_KEYS: Record<TutorPartKind, MessageKey> = {
   summary: 'tutor.part.summary',
   confirmed: 'tutor.part.confirmed',
   missing: 'tutor.part.missing',
-};
-
-/** Translate closed tutor outcome codes at the renderer boundary. */
-export const TUTOR_FALLBACK_KEYS: Record<TutorFallbackReason, MessageKey> = {
-  'no-question': 'tutor.unavailable.no-question',
-  'request-too-long': 'tutor.unavailable.request-too-long',
-  'no-model': 'tutor.unavailable.no-model',
-  'provider-failed': 'tutor.unavailable.provider-failed',
-  unparseable: 'tutor.rejection.unparseable',
-  'unexpected-part': 'tutor.rejection.unexpected-part',
-  'missing-part': 'tutor.rejection.missing-part',
-  'unquoted-confirmation': 'tutor.rejection.unquoted-confirmation',
-  'not-from-the-material': 'tutor.rejection.not-from-the-material',
 };
 
 /**

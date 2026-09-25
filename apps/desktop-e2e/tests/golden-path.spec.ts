@@ -380,6 +380,29 @@ test('the interface can be switched to Chinese, and the choice survives a restar
   await expect(agent).toBeVisible();
   await expect(agent).toContainText('一次塞进来的东西太多了');
 
+  /*
+   * 2b. Tutor fallbacks are closed codes, not sentences (#108): the Chinese interface
+   * must show the Chinese no-model wording. The entry only appears on a running step,
+   * so a task has to be under way first.
+   */
+  const startTask = window.getByTestId('start-task').first();
+  if (await startTask.isVisible().catch(() => false)) {
+    await startTask.click();
+    await stateIs('FOCUSED');
+  }
+  await window.getByTestId('tutor-entry').click();
+  await expect(window.getByTestId('tutor-panel')).toBeVisible();
+  await window.getByTestId('tutor-mode-HINT').click();
+  await window.getByTestId('tutor-question').fill('为什么颜色会变？');
+  await expect(window.getByTestId('tutor-ask')).toBeEnabled();
+  await window.getByTestId('tutor-ask').click();
+  const tutorResult = window.getByTestId('tutor-result');
+  await expect(tutorResult).toBeVisible();
+  await expect(tutorResult).toContainText('当前没有连接模型');
+  await expect(tutorResult).not.toContainText('No model is connected');
+  await window.getByTestId('tutor-close').click();
+  await expect(window.getByTestId('tutor-panel')).toBeHidden();
+
   // 3. A restart keeps the language: the store owns it, not the renderer.
   await app.close();
   ({ app, window } = await launch());
