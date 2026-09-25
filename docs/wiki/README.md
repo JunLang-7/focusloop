@@ -25,18 +25,18 @@
 
 ## 当前判断
 
-| 能力                         | 在 `main` 上的状态 | 证据                                                           | 下一交付重点                                                                                      |
-| ---------------------------- | ------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| AG1 Learning Context         | 已合并             | `63acc28` (#99)                                                | **未合并**：13 类事件投影 allowlist（`AgentContextEvent`）与敏感 payload 回归（`0f19c9f`，无 PR） |
-| AG2 Stuck Rescue             | 已合并             | `534bc1c` (#100)                                               | **未合并**：Rescue 计划与评估器（`0f19c9f`）；动作层仍待 AG4/AG8                                  |
-| AG3 Contextual Tutor         | **PR 已开**        | PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101) | 合并前先修领域层英文字符串（i18n 违规），另开 issue 处理                                          |
-| AG4 Task Adaptation          | 设计完成           | 方案页 AG4                                                     | AdaptiveTask、提案/确认、持久化与恢复；依赖已改为 AG8                                             |
-| AG5 Cognitive Resume         | 已合并             | `packages/continuity`（统一卡）                                | **未合并**：三档与指标（`0f19c9f`，无 PR）；指标口径需改名                                        |
-| AG6 Learning Reflection      | 设计完成           | 方案页 AG6                                                     | 行为证据、最小样本、确认后偏好                                                                    |
-| AG7 Memory                   | 设计完成           | 方案页 AG7                                                     | 先冻结删除语义，再谈 scope/retention                                                              |
-| AG8 Tools & Actions          | 设计完成           | 方案页 AG8                                                     | Tool contract、权限、确认、幂等、审计                                                             |
-| AG9 Model Runtime            | 设计完成           | `AIProvider` 抽象                                              | Runtime façade、可序列化请求、结构化输出、abort/stream/retry/budget                               |
-| AG10 Evaluation & Guardrails | 分支完成           | `0f19c9f`（无 PR）                                             | 开 PR；评测只在开发者本机或 CI 中运行，不做生产遥测                                               |
+| 能力                         | 在 `main` 上的状态 | 证据                            | 下一交付重点                                                                                      |
+| ---------------------------- | ------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------- |
+| AG1 Learning Context         | 已合并             | `63acc28` (#99)                 | **未合并**：13 类事件投影 allowlist（`AgentContextEvent`）与敏感 payload 回归（`0f19c9f`，无 PR） |
+| AG2 Stuck Rescue             | 已合并             | `534bc1c` (#100)                | **未合并**：Rescue 计划与评估器（`0f19c9f`）；动作层仍待 AG4/AG8                                  |
+| AG3 Contextual Tutor         | 已合并             | `107a30f` (#101)                | 领域层已只返回闭合码；`AgentContextOmission.detail` 仍是英文句子，按同一规则修                    |
+| AG4 Task Adaptation          | 设计完成           | 方案页 AG4                      | AdaptiveTask、提案/确认、持久化与恢复；依赖已改为 AG8                                             |
+| AG5 Cognitive Resume         | 已合并             | `packages/continuity`（统一卡） | **未合并**：三档与指标（`0f19c9f`，无 PR）；指标口径需改名                                        |
+| AG6 Learning Reflection      | 设计完成           | 方案页 AG6                      | 行为证据、最小样本、确认后偏好                                                                    |
+| AG7 Memory                   | 设计完成           | 方案页 AG7                      | 先冻结删除语义，再谈 scope/retention                                                              |
+| AG8 Tools & Actions          | 设计完成           | 方案页 AG8                      | Tool contract、权限、确认、幂等、审计                                                             |
+| AG9 Model Runtime            | 设计完成           | `AIProvider` 抽象               | Runtime façade、可序列化请求、结构化输出、abort/stream/retry/budget                               |
+| AG10 Evaluation & Guardrails | 分支完成           | `0f19c9f`（无 PR）              | 开 PR；评测只在开发者本机或 CI 中运行，不做生产遥测                                               |
 
 > 一眼可见的问题：`main` 上十项 Agent 能力里，只有 AG1、AG2 和基础 AG5 真正落地，AG3 卡在 PR，
 > AG10 的评测框架与 AG5/AG2 的切片停在分支上且**没有 PR**。分支成果在开 PR 之前不会进入任何绿状态。

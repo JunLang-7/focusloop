@@ -85,7 +85,7 @@ Home
 - 风险：同一求助重复消费；干预过频；把“疲劳”固化为长期画像；SIMPLIFY 名义完成但任务不变。
 - 实施步骤：定义 RescueResult 与成功窗口 → 固定 AG2/AG3 路由 → 将 MICRO_START/SIMPLIFY 接到临时任务工具 → 完成 outcome evaluator → 做六类 E2E。
 
-### AG3 Contextual Tutor — **PR 已开**（且未合并）
+### AG3 Contextual Tutor — 已合并（`107a30f`，PR #101）
 
 - 当前证据（分支 `d1e6b03`，PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101)，**未合并**）：六种 TutorMode 全部建模；当前步骤入口；主进程保存有界 transcript；结构化 parts 校验；格式失败可重试；回答与用户原话引用校验；材料 section grounding 与 source 展示；provider 失败有本地 fallback；大量边界测试。
 - 差距：真实 provider 下的质量基线与双语场景数据不足；当前“source”是所给 excerpt，不是细粒度引用定位；流式/取消属于 AG9 未完成；会话 transcript 未持久化且缺少用户可清除入口（需明确这是隐私选择还是缺口）。
