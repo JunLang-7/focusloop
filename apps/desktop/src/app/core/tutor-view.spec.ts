@@ -10,11 +10,11 @@ import {
 } from '@focusloop/shared-types';
 import en from './i18n/messages.en';
 import { zh } from './i18n/messages.zh';
+import { TUTOR_FALLBACK_KEYS } from './i18n/labels';
 import {
   TUTOR_MODE_KEYS,
   TUTOR_MODE_ORDER,
   TUTOR_PART_KEYS,
-  TUTOR_FALLBACK_KEYS,
   buildTutorView,
   tutorAnswerApplies,
   tutorEntryVisible,

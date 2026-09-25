@@ -383,13 +383,19 @@ test('the interface can be switched to Chinese, and the choice survives a restar
   /*
    * 2b. Tutor fallbacks are closed codes, not sentences (#108): the Chinese interface
    * must show the Chinese no-model wording. The entry only appears on a running step,
-   * so a task has to be under way first.
+   * so one has to be under way — start it if it can be started, then assert.
+   *
+   * The assertion below is deliberately unconditional. Guarding the whole block with
+   * `if (await startTask.isVisible())` reads as a check but is skippable: on the path
+   * where the button is absent the tutor wording is never verified and the test still
+   * passes, which is worse than failing.
    */
   const startTask = window.getByTestId('start-task').first();
   if (await startTask.isVisible().catch(() => false)) {
     await startTask.click();
-    await stateIs('FOCUSED');
   }
+  await stateIs('FOCUSED');
+  await expect(window.getByTestId('tutor-entry')).toBeVisible();
   await window.getByTestId('tutor-entry').click();
   await expect(window.getByTestId('tutor-panel')).toBeVisible();
   await window.getByTestId('tutor-mode-HINT').click();

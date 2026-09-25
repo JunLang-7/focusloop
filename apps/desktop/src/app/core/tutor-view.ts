@@ -9,8 +9,6 @@ import {
 import type { MessageKey } from './i18n/messages.en';
 import { TUTOR_FALLBACK_KEYS } from './i18n/labels';
 
-export { TUTOR_FALLBACK_KEYS };
-
 /**
  * What the tutor panel shows, as plain data.
  *
