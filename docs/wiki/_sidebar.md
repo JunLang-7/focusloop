@@ -10,6 +10,7 @@
 - [交付路线图](./delivery-roadmap.md)
 - [实施进度](./implementation-progress.md)
 - [Resume 策略与指标](./resume-policy-and-success.md)
+- [ADR 0001 记忆删除语义](./adr/0001-agent-memory-deletion.md)
 
 ---
 

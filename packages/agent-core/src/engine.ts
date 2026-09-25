@@ -1310,6 +1310,43 @@ export class FocusLoopEngine {
     };
   }
 
+  // ------------------------------------------------------- agent memory clear
+
+  /**
+   * Clears agent memory for one session — ADR
+   * `docs/wiki/adr/0001-agent-memory-deletion.md`.
+   *
+   * - **Working**: tutor transcript (physical, in-process).
+   * - **Episodic**: events, checkpoints, interventions, outcomes, resume_cards (physical, SQLite).
+   * - **Audit**: opaque `agent_memory_clears` row (session id, timestamp, actor) — no content.
+   *
+   * Session catalog and course structure stay. Dashboard/insights read the deleted tables, so
+   * their episodic aggregates drop to empty for this session: derived paths are invalidated by
+   * deletion, not by a side channel.
+   */
+  clearAgentMemory(
+    sessionId: string,
+    options: { actor?: string } = {},
+  ): { clearedAt: string; actor: string } | null {
+    if (this.store.getSession(sessionId) === null) return null;
+    const actor = options.actor ?? 'user';
+    const clearedAt = this.clock();
+    this.transcript.forget(sessionId);
+
+    const run = this.store.transaction(() => {
+      this.store.clearSessionEpisodic(sessionId);
+      this.store.recordAgentMemoryClear(sessionId, clearedAt, actor);
+    });
+    run();
+    return { clearedAt, actor };
+  }
+
+  /** Opaque audit for a cleared session, or null if it was never cleared. */
+  getAgentMemoryClear(sessionId: string): { clearedAt: string; actor: string } | null {
+    const row = this.store.getAgentMemoryClear(sessionId);
+    return row === null ? null : { clearedAt: row.clearedAt, actor: row.actor };
+  }
+
   // ---------------------------------------------------------------- settings
 
   getSettings(): AppSettings {

@@ -34,6 +34,7 @@ const PAGES = new Map([
   ['delivery-roadmap.md', 'Delivery-Roadmap.md'],
   ['implementation-progress.md', 'Implementation-Progress.md'],
   ['resume-policy-and-success.md', 'Resume-Policy-and-Success.md'],
+  ['adr/0001-agent-memory-deletion.md', 'Adr-0001-Agent-Memory-Deletion.md'],
 ]);
 
 /**

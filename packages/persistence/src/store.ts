@@ -727,6 +727,61 @@ export class FocusLoopStore {
     return this.getResumeTiming(checkpointId);
   }
 
+  // ------------------------------------------------------- agent memory clear
+
+  /**
+   * Physically deletes episodic rows for one session (ADR 0001).
+   *
+   * Interventions/outcomes first (FK-shaped joins), then checkpoints → resume_cards,
+   * then events. The session row and course catalog are left alone.
+   */
+  clearSessionEpisodic(sessionId: string): void {
+    const run = this.db.transaction(() => {
+      this.db
+        .prepare(
+          `DELETE FROM outcomes WHERE session_id = ? OR intervention_id IN
+             (SELECT id FROM interventions WHERE session_id = ?);`,
+        )
+        .run(sessionId, sessionId);
+      this.db.prepare('DELETE FROM interventions WHERE session_id = ?;').run(sessionId);
+      this.db
+        .prepare(
+          `DELETE FROM resume_cards WHERE checkpoint_id IN
+             (SELECT id FROM checkpoints WHERE session_id = ?);`,
+        )
+        .run(sessionId);
+      this.db.prepare('DELETE FROM checkpoints WHERE session_id = ?;').run(sessionId);
+      this.db.prepare('DELETE FROM learning_events WHERE session_id = ?;').run(sessionId);
+    });
+    run();
+  }
+
+  /** Records an opaque clear (no content). Returns false if already recorded. */
+  recordAgentMemoryClear(sessionId: string, clearedAt: string, actor: string): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT INTO agent_memory_clears (session_id, cleared_at, actor)
+         VALUES (?, ?, ?)
+         ON CONFLICT(session_id) DO NOTHING;`,
+      )
+      .run(sessionId, clearedAt, actor);
+    return result.changes > 0;
+  }
+
+  getAgentMemoryClear(sessionId: string): {
+    sessionId: string;
+    clearedAt: string;
+    actor: string;
+  } | null {
+    const row = this.db
+      .prepare(
+        'SELECT session_id, cleared_at, actor FROM agent_memory_clears WHERE session_id = ?;',
+      )
+      .get(sessionId) as { session_id: string; cleared_at: string; actor: string } | undefined;
+    if (row === undefined) return null;
+    return { sessionId: row.session_id, clearedAt: row.cleared_at, actor: row.actor };
+  }
+
   // ----------------------------------------------------------------- misc
 
   setMeta(key: string, value: string): void {

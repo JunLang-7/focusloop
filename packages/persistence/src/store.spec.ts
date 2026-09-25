@@ -500,4 +500,74 @@ describe('FocusLoopStore', () => {
       expect(store.listEvents('session-2')).toHaveLength(0);
     });
   });
+
+  describe('agent memory clear', () => {
+    const T = '2026-01-01T00:00:00.000Z';
+
+    function seedSession(id = 'session-1'): void {
+      store.saveCourse(courseFixture());
+      store.saveSession({
+        session: {
+          id,
+          courseId: 'course-1',
+          startedAt: T,
+          state: 'READY',
+          completedTaskIds: ['t1'],
+          updatedAt: T,
+        },
+        engineState: createInitialState(T),
+      });
+    }
+
+    it('physically deletes episodic rows for one session', () => {
+      seedSession();
+      store.appendEvent({
+        id: 'e1',
+        sessionId: 'session-1',
+        at: T,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 't1' },
+      });
+      store.saveCheckpoint({
+        ...({
+          id: 'cp1',
+          sessionId: 'session-1',
+          conceptId: 'c1',
+          conceptTitle: 'C',
+          goal: 'G',
+          mastered: [],
+          unresolved: [],
+          currentTaskId: 't1',
+          currentTaskTitle: 'T',
+          currentStep: 1,
+          frictionState: 'FOCUSED',
+          nextBestAction: { key: 'action.read.summarise', params: {} },
+          createdAt: T,
+        } as never),
+      });
+
+      expect(store.listEvents('session-1').length).toBeGreaterThan(0);
+      expect(store.listCheckpoints('session-1').length).toBeGreaterThan(0);
+
+      store.clearSessionEpisodic('session-1');
+
+      expect(store.listEvents('session-1')).toEqual([]);
+      expect(store.listCheckpoints('session-1')).toEqual([]);
+      expect(store.getSession('session-1')).not.toBeNull();
+      expect(store.getCourse('course-1')).not.toBeNull();
+    });
+
+    it('records an opaque clear audit once', () => {
+      seedSession();
+      expect(store.recordAgentMemoryClear('session-1', T, 'user')).toBe(true);
+      expect(store.recordAgentMemoryClear('session-1', T, 'user')).toBe(false);
+      expect(store.getAgentMemoryClear('session-1')).toEqual({
+        sessionId: 'session-1',
+        clearedAt: T,
+        actor: 'user',
+      });
+      expect(store.getAgentMemoryClear('missing')).toBeNull();
+    });
+  });
 });

@@ -100,7 +100,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 | F Agent | AG4 Task Adaptation            | 设计完成    | 方案页 AG4                                                     | 只有一个 commit 的动作，无 AdaptiveTask       |
 | F Agent | AG5 Cognitive Resume           | 已合并      | 统一卡；三档在 `0f19c9f`                                       | 见 §4.C3                                      |
 | F Agent | AG6 Learning Reflection        | 设计完成    | 方案页 AG6                                                     | 无偏好模型，无复盘链路                        |
-| F Agent | AG7 Agent Memory               | 设计完成    | 方案页 AG7                                                     | episodic 数据已有，无 scope/删除语义          |
+| F Agent | AG7 Agent Memory               | 语义已冻结  | [ADR 0001](./adr/0001-agent-memory-deletion.md) + 方案页 AG7   | physical delete + 审计；scope UI 未做         |
 | F Agent | AG8 Tools & Actions            | 设计完成    | 方案页 AG8                                                     | 无 tool contract / 权限 / 确认                |
 | F Agent | AG9 Model Runtime              | 设计完成    | `AIProvider` 抽象                                              | 无结构化输出 / abort / 流式                   |
 | F Agent | AG10 Evaluation & Guardrails   | 分支完成    | `0f19c9f`（无 PR）                                             | `main` 上只有工程测试，无场景数据集           |
@@ -520,13 +520,15 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 4. **永不做什么**：不复制完整日志或材料；不存诊断/智力/人格/心理健康推断。
 5. **数据与边界**（计划）：`getMemorySummary` / `listMemory` / `deletePreference` /
    `clearAgentMemory`；每类有 purpose、来源、保留期、读取者。
-6. **状态与证据**：设计完成 — 方案页 AG7；episodic 数据本身已存在（events / checkpoints /
+6. **状态与证据**：删除语义已冻结 — [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110）；
+   `clearAgentMemory` + `agent_memory_clears` 审计与 write→clear→query 回归测试已在
+   `agent-core` / `persistence` 落地；episodic 行本身已存在（events / checkpoints /
    outcomes / resume_cards）。
-7. **已知限制**：**删除语义尚未冻结**（分析发现 #9）。必须在实现前明确定义：物理删除 / 软删除 /
-   访问 tombstone、Dashboard 是否仍可使用、审计日志是否保留被删对象标识、缓存与派生结果如何失效。
-   否则「数据还在但 Agent 看不到」只是一句愿望。
-8. **依赖**：隐私 ADR、persistence migrations。
-9. **怎么验证**：待实现；需包含删除后不可回流的回归测试。
+7. **已知限制**：**删除语义已按 ADR 0001 冻结**（物理删除；Dashboard 不得使用被清除行；
+   审计仅 opaque id + 时间 + actor）。未交付：scope 检查 UI、preference 删除、按时间窗的批量清理。
+8. **依赖**：ADR 0001、persistence migrations。
+9. **怎么验证**：`agent-core/src/memory-clear.spec.ts`（每类写→清→查空，含 dashboard/context/transcript）
+   - `persistence` store 单测。
 
 #### F8 AG8 Tools & Actions — 设计完成
 
