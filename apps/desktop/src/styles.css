@@ -1042,6 +1042,24 @@ body:has(.simulator) .agent-context {
   pointer-events: auto;
 }
 
+/* Two inspector views: Context and Outbound Request. */
+.agent-context__tabs {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  pointer-events: auto;
+}
+
+.agent-context__tabs .btn.is-active {
+  border-color: var(--accent, currentColor);
+  font-weight: 600;
+}
+
+.agent-context__privacy {
+  margin: 8px 0 4px;
+  font-size: 11px;
+}
+
 .agent-context__grid {
   display: grid;
   grid-template-columns: max-content 1fr;

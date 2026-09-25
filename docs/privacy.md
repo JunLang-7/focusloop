@@ -85,6 +85,17 @@ enrichment (for example, generating an example for a hint). In that case:
 You can verify the second claim by reading `packages/llm-provider/src/deepseek-provider.ts`: the
 request body contains exactly `model`, `messages`, `stream` and the sampling options.
 
+### Developer inspector: what was sent
+
+In development builds only, the **Outbound Request Inspector** (second tab of the agent inspector)
+shows the last tutor prompt **as handed to the provider** — system + prompt strings and their total
+character count. That content includes your question and the material excerpt.
+
+- It is held **in memory** in the main process for the current session only.
+- It is **never written to the database** and **never logged**.
+- It disappears when the session ends.
+- Packaged builds do not show the panel at all (same gate as the simulator and Context Inspector).
+
 ## What the app can see, and what it does about it
 
 The renderer is sandboxed with `contextIsolation: true`, `nodeIntegration: false` and

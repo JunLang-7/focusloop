@@ -238,6 +238,11 @@ export function createHandlers(service: FocusLoopService) {
       handle: () => engine.getAgentContext(),
     }),
     defineHandler({
+      channel: IPC_CHANNELS.getOutboundRequest,
+      parse: parseSessionId,
+      handle: (sessionId) => engine.getOutboundRequest(sessionId),
+    }),
+    defineHandler({
       channel: IPC_CHANNELS.askTutor,
       parse: parseTutorAsk,
       handle: (request) => engine.askTutor(request),

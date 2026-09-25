@@ -17,6 +17,7 @@ import type {
   LearningSession,
   MaterialDocument,
   MicroTask,
+  OutboundRequest,
   ResolveInterventionRequest,
   ResumeCardView,
   RescueView,
@@ -151,6 +152,13 @@ export class FocusLoopEngine {
    * a working aid whose value ends with the session. AG7 is where this becomes durable, deliberately.
    */
   private readonly transcript = new TutorTranscript();
+  /**
+   * Last outbound tutor request per session — the Outbound Request Inspector's data.
+   *
+   * In memory only: the prompt contains learner text, so it is never written to the store and never
+   * logged. Cleared when the session ends, with the transcript.
+   */
+  private readonly outboundBySession = new Map<string, OutboundRequest>();
 
   constructor(options: FocusLoopEngineOptions) {
     this.store = options.store;
@@ -277,6 +285,7 @@ export class FocusLoopEngine {
      * is not in the store, so this is the one place it can leak per-session.
      */
     this.transcript.forget(request.sessionId);
+    this.outboundBySession.delete(request.sessionId);
     return session;
   }
 
@@ -436,6 +445,8 @@ export class FocusLoopEngine {
       return this.unavailable('no-model', context, unsentReport(built.report));
     }
 
+    // Recorded immediately before the hand-off: the Outbound Inspector shows what left, not a rebuild.
+    this.rememberOutbound(request.sessionId, built.system, built.prompt);
     let completion = await this.complete(built.system, built.prompt);
     if (completion.degraded) {
       /*
@@ -528,6 +539,7 @@ export class FocusLoopEngine {
           detail: 'the answer could not be asked for again: it would have gone over the limit',
         });
       } else {
+        this.rememberOutbound(request.sessionId, built.system, composed.prompt);
         completion = await this.complete(built.system, composed.prompt);
         sent = {
           turns: built.report.sent.turns,
@@ -637,6 +649,28 @@ export class FocusLoopEngine {
       maxTokens: 2048,
       temperature: 0.3,
     });
+  }
+
+  /**
+   * Stores the exact strings about to be handed to the provider.
+   *
+   * Memory only — never the store, never a log line. The character total is
+   * `system.length + prompt.length`, the same formula as `sent.inputCharacters`,
+   * so the inspector figure cannot drift from the string it describes.
+   */
+  private rememberOutbound(sessionId: string, system: string, prompt: string): void {
+    this.outboundBySession.set(sessionId, {
+      sessionId,
+      at: this.clock(),
+      system,
+      prompt,
+      inputCharacters: system.length + prompt.length,
+    });
+  }
+
+  /** Last outbound request for this session, or null if nothing has been sent. */
+  getOutboundRequest(sessionId: string): OutboundRequest | null {
+    return this.outboundBySession.get(sessionId) ?? null;
   }
 
   getSessionProgress(sessionId: string) {

@@ -1645,5 +1645,68 @@ describe('FocusLoopEngine', () => {
         scripted.close();
       }
     });
+
+    it('records the exact strings handed to the provider for the Outbound Inspector', async () => {
+      const { scripted, provider, sessionId } = withProvider(['[hint]\nA real hint.']);
+      try {
+        expect(scripted.engine.getOutboundRequest(sessionId)).toBeNull();
+
+        await scripted.engine.askTutor({
+          sessionId,
+          mode: 'HINT',
+          question: 'why does the colour change?',
+        });
+
+        const outbound = scripted.engine.getOutboundRequest(sessionId);
+        expect(outbound).not.toBeNull();
+        if (outbound === null) return;
+
+        // Displayed count equals the string actually handed over — not a recomputation.
+        expect(outbound.inputCharacters).toBe(outbound.system.length + outbound.prompt.length);
+        // The prompt the provider received is stored verbatim.
+        expect(outbound.prompt).toBe(provider.prompts[provider.prompts.length - 1]);
+        expect(outbound.sessionId).toBe(sessionId);
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('does not record an outbound request when nothing is sent (offline gate)', async () => {
+      const { scripted, sessionId } = withProvider(['[hint]\nunused'], true);
+      try {
+        await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'why?' });
+        expect(scripted.engine.getOutboundRequest(sessionId)).toBeNull();
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('forgets the outbound request when the session ends', async () => {
+      const { scripted, sessionId } = withProvider(['[hint]\nA real hint.']);
+      try {
+        await scripted.engine.askTutor({ sessionId, mode: 'HINT', question: 'why?' });
+        expect(scripted.engine.getOutboundRequest(sessionId)).not.toBeNull();
+        scripted.engine.endSession({ sessionId, reason: 'user' });
+        expect(scripted.engine.getOutboundRequest(sessionId)).toBeNull();
+      } finally {
+        scripted.close();
+      }
+    });
+
+    it('never writes the outbound prompt into the store', async () => {
+      const { scripted, sessionId } = withProvider(['[hint]\nA real hint.']);
+      try {
+        const question = 'SECRET_LEARNER_QUESTION_NOT_IN_DB';
+        await scripted.engine.askTutor({ sessionId, mode: 'HINT', question });
+        const outbound = scripted.engine.getOutboundRequest(sessionId);
+        expect(outbound?.prompt).toContain(question);
+
+        // Dump every event payload and the settings meta — the prompt must appear in neither.
+        const events = JSON.stringify(scripted.store.listEvents(sessionId));
+        expect(events).not.toContain(question);
+      } finally {
+        scripted.close();
+      }
+    });
   });
 });

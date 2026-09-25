@@ -22,6 +22,7 @@ import type {
   ResumeCardView,
   RescueView,
   AgentContextReport,
+  OutboundRequest,
   TutorAnswer,
   TutorMode,
   RuntimeInfo,
@@ -87,6 +88,12 @@ export class AppStateService {
    */
   readonly agentContext = signal<AgentContextReport | null>(null);
   /**
+   * Last outbound tutor request for the current session — the second inspector view.
+   *
+   * Display copy only: the main process holds the strings in memory and never persists them.
+   */
+  readonly outboundRequest = signal<OutboundRequest | null>(null);
+  /**
    * The tutor's last result, all three outcomes included, **and the step it was about**.
    *
    * Not an error signal: a rejected answer and an unreachable model are outcomes the learner reads, and
@@ -149,6 +156,9 @@ export class AppStateService {
       this.snapshot.set(snapshot);
       this.dashboard.set(dashboard);
       this.agentContext.set(agentContext);
+      this.outboundRequest.set(
+        snapshot === null ? null : await this.api.getOutboundRequest(snapshot.session.id),
+      );
       this.rescue.set(
         snapshot === null ? null : await this.api.getPendingRescue(snapshot.session.id),
       );
@@ -260,6 +270,7 @@ export class AppStateService {
        * finished session is the state `getCurrentSession` was already fixed not to have.
        */
       this.tutorAnswer.set(null);
+      this.outboundRequest.set(null);
     });
   }
 
@@ -289,6 +300,8 @@ export class AppStateService {
         taskId: snapshot.session.currentTaskId ?? null,
         answer: await this.api.askTutor({ sessionId: snapshot.session.id, mode, question }),
       });
+      // Reload so the Outbound Inspector shows the prompt that was just handed over.
+      this.outboundRequest.set(await this.api.getOutboundRequest(snapshot.session.id));
     });
   }
 

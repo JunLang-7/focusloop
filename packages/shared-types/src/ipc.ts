@@ -12,6 +12,7 @@ import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
 import type { LearningState } from './state';
 import type { TutorAnswer, TutorAskRequest } from './tutor';
+import type { OutboundRequest } from './outbound';
 
 /**
  * The ONLY surface the renderer may reach. Everything else in the renderer runs
@@ -38,6 +39,7 @@ export const IPC_CHANNELS = {
   getDashboard: 'focusloop:dashboard:get',
   getInsights: 'focusloop:insights:get',
   getAgentContext: 'focusloop:agent:context',
+  getOutboundRequest: 'focusloop:agent:outbound-request',
   askTutor: 'focusloop:tutor:ask',
   listOutcomes: 'focusloop:outcome:list',
   resolveIntervention: 'focusloop:intervention:resolve',
@@ -246,6 +248,13 @@ export interface FocusLoopApi {
    * and `node:crypto`, into a sandboxed page that has neither.
    */
   getAgentContext(): Promise<AgentContextReport>;
+  /**
+   * Last outbound request for this session — the second inspector view.
+   *
+   * Development-only content (learner text); never persisted. Returns null when
+   * nothing has been sent yet for the session.
+   */
+  getOutboundRequest(sessionId: string): Promise<OutboundRequest | null>;
 
   /**
    * Asks the tutor about the step the learner is on, and gets back either an answer, a rejection or a

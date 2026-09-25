@@ -58,8 +58,8 @@
 - **DoD**：同一输入构建结果字节级稳定；无 session 返回 null；材料/事件超限有 omission 记录；敏感字段过滤在 main/domain 生效而非只靠 UI；Tutor、Rescue、Resume 使用同一个 builder。
 - **Inspector 一致性只能是“两个视图各自一致”**（原表述自相矛盾，已修正）：
   - **Context Inspector** 显示 Agent **可访问**的数据，且必须与实际传给 builder 的输入一致；
-  - **Outbound Request Inspector**（AG9 交付）显示这一次实际发给 Provider 的字符串，且必须与
-    `sent.inputCharacters` 这类报告一致。
+  - **Outbound Request Inspector** **已交付**（#112）显示这一次实际发给 Provider 的字符串，且与
+    `sent.inputCharacters` 使用同一公式（`system.length + prompt.length`）。
   - Context 与 Tutor 的 prompt 是两层：Tutor 会在 AG1 上下文之上再裁剪，因此两者**不可能相同**，
     Inspector 与送模内容也就不可能“完全一致”。验收只能要求“两个视图都存在、差异可解释”。
 

@@ -1006,6 +1006,21 @@ test('the tutor asks the main process, and says so when no model is connected', 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 
   /*
+   * Outbound Request Inspector (the second view, #112). This build is offline, so the engine refused
+   * to call a provider — nothing left the process, and the Outbound tab must say so rather than
+   * re-render the context. Count-equals-string-length is asserted in engine.spec, where a scripted
+   * provider actually receives the prompt.
+   */
+  await window.getByTestId('agent-context-toggle').click();
+  await expect(window.getByTestId('agent-context-panel')).toHaveAttribute('open', '');
+  await window.getByTestId('inspector-tab-outbound').click();
+  await expect(window.getByTestId('outbound-privacy')).toBeVisible();
+  await expect(window.getByTestId('outbound-empty')).toContainText('No request has been sent yet');
+  await window.getByTestId('inspector-tab-context').click();
+  await expect(window.getByTestId('agent-context-state')).toBeVisible();
+  await window.getByTestId('agent-context-toggle').click();
+
+  /*
    * Escape closes the panel, from inside it — which is where the binding is and where the learner is when
    * they want it. Both halves are asserted, because the comment on `onEscape` says the key reaches the panel
    * only from within it, and a comment that describes the boundary is only worth writing if something fails

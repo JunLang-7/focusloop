@@ -407,17 +407,19 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 8. **依赖**：AG9 才能成为统一 Runtime。
 9. **怎么验证**：`llm-provider` 单测（错误归类、URL 规范化）。
 
-#### E7 Agent Context Inspector — 已合并
+#### E7 Agent Inspector (Context + Outbound) — Outbound 已交付
 
-1. **定位**：看清「Agent 现在能看到什么」，包括被裁掉的部分。
-2. **用户怎么用**：开发模式打开面板。
-3. **何时发生**：读取当前上下文构建结果。
-4. **永不做什么**：不是完整数据库视图；不是完整 Provider 请求视图。
-5. **数据与边界**：展示 AG1 报告（含 omission 与截断长度）；不显示未授权的跨课程内容。
-6. **状态与证据**：已合并 — `63acc28` (#99)。
-7. **已知限制**：与「实际送模内容」是两层报告，容易误读；见 §4.F1 的两视图定义。
-8. **依赖**：AG1。
-9. **怎么验证**：engine/IPC 单测 + Inspector 组件单测。
+1. **定位**：看清「Agent 现在能看到什么」（Context）与「这一次实际发给 Provider 什么」（Outbound）。
+2. **用户怎么用**：开发模式打开面板，切换 Context / Outbound 两个 Tab。
+3. **何时发生**：Context 每次刷新读取；Outbound 在每次 Tutor ask 之后更新（仅内存）。
+4. **永不做什么**：不是完整数据库视图；Outbound 内容不落库、不写日志；打包构建不显示面板。
+5. **数据与边界**：Context 展示 AG1 报告（omission 与截断）；Outbound 展示 system+prompt 原文与
+   `system.length + prompt.length` 字符数（与预算公式一致）；未发送时显示空态。
+6. **状态与证据**：Context 已合并 — `63acc28` (#99)；Outbound — 本 issue (#112)。
+7. **已知限制**：两层报告，差异可解释（Tutor 在 AG1 之上再裁剪）；离线/无模型时 Outbound 为空是预期。
+8. **依赖**：AG1、AG3（有出站才可看）。
+9. **怎么验证**：engine 单测（字符数 = 实际交给 provider 的字符串长度）+ IPC `parseSessionId` +
+   e2e 空态/Tab 切换。
 
 ### F. Agent 能力（AG1–AG10）
 
@@ -431,7 +433,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 6. **状态与证据**：已合并 — `63acc28` (#99)；`shared-types/src/agent-context.ts` +
    `agent-core/src/agent-context.ts`。
 7. **已知限制**：其一，**Inspector 一致性必须按两个视图理解**——「Agent Context Inspector」显示
-   Agent 可访问的数据，「Outbound Request Inspector」（AG9 交付）显示这次实际发给 Provider 的内容。
+   Agent 可访问的数据，「Outbound Request Inspector」**已交付**（#112）显示这次实际发给 Provider 的内容。
    二者不可能相同，因为 Tutor 会在 AG1 上下文之上再裁剪。方案页原先要求「完全一致」的表述已修正。
    其二，`main` 上只有边界与 omission；**13 类事件的逐类型投影 allowlist
    （`AgentContextEvent`）只存在于分支 `0f19c9f`**，未合并。
