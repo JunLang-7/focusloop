@@ -567,8 +567,8 @@ failure }`、`ProviderHealth`。
    断言；AG1 ×6、AG2 ×18、AG5 ×9 个 JSON 场景。
 6. **状态与证据**：**分支完成** — `0f19c9f`，**无 PR**；`main` 上只有工程测试与 CI 门禁。
 7. **已知限制**：未合并；仍是 deterministic、同步、JSON-only runner，不含真实模型评测、provider 或
-   工具安全套件。评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、分析或崩溃上报，
-   与 `docs/privacy.md` 一致。
+   工具安全套件。**遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、
+   分析或崩溃上报（见 `docs/privacy.md` 决策节与 #115）。选项 (B) 已否决，除非先改隐私文档。
 8. **依赖**：横切全阶段。
 9. **怎么验证**：`pnpm test`（`agent-evals` 项目，分支上）+ 仓库级 required checks。
 

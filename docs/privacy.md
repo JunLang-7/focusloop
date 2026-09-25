@@ -11,6 +11,24 @@ assumption that such a tool is only usable if it is obviously, verifiably privat
 - The optional model provider is off unless you supply a key yourself.
 - The browser extension cannot read page content, because it does not request permission to.
 
+### Decision: option (A) — no production telemetry
+
+**Chosen and frozen** (issue [#115](https://github.com/nianpingy-cpu/focusloop/issues/115), 2026-09-25):
+
+The product ships with **no telemetry of any kind** — no aggregate metrics, no analytics, no crash
+reports. Evaluation and guardrail reports (AG10) are produced **only on developer machines and in
+CI**; the running application never uploads them.
+
+**Option (B) — allowing aggregate metrics later — is rejected until this document is amended first.**
+Any future change must specify, before any code ships: default on/off; how consent is obtained and
+withdrawn; the destination; retention period; how a user deletes what was already sent; and a
+field-level allowlist of what can **never** be uploaded (raw material, learner text, tutor
+transcripts, provider prompts, keys, URLs, form content). A consent UI and deletion path must land
+in the same change as the weakened promise.
+
+Until that happens, any wiki or plan text that suggests production upload is wrong and must be
+removed, not footnoted.
+
 ## What FocusLoop stores
 
 | Data                                    | Where        | Why                                  |
