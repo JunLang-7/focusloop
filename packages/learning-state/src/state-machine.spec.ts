@@ -323,3 +323,20 @@ describe('config', () => {
     expect(() => resolveStateEngineConfig({ tabLeftThresholdMs: Number.NaN })).toThrow(RangeError);
   });
 });
+
+describe('AGENT_PROPOSAL_EXECUTED', () => {
+  it('is an audit fact: state does not move', () => {
+    const before = { ...createInitialState(T0), state: 'FOCUSED' as const };
+    const event = {
+      id: 'e-proposal',
+      sessionId: SESSION,
+      at: at(1_000),
+      type: 'AGENT_PROPOSAL_EXECUTED' as const,
+      source: 'agent' as const,
+      payload: { proposalId: 'p1', kind: 'structural-write', idempotencyKey: 'k1' },
+    };
+    const result = reduceState(before, event);
+    expect(result.state.state).toBe('FOCUSED');
+    expect(result.transition).toBeNull();
+  });
+});

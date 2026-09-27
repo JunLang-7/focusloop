@@ -4,6 +4,7 @@ import type {
   DomainMessageKey,
   Intervention,
   InterventionOutcome,
+  AgentProposal,
   LearningCheckpoint,
   LearningEvent,
   LearningEventSource,
@@ -167,6 +168,34 @@ interface ResumeCardRow {
   accepted_at: string | null;
   dismissed_at: string | null;
   resume_latency_ms: number | null;
+}
+
+interface AgentProposalRow {
+  id: string;
+  session_id: string;
+  kind: string;
+  payload: string;
+  proposed_at: string;
+  expires_at: string;
+  proposal_hash: string;
+  state_fingerprint: string;
+  idempotency_key: string;
+  created_by: string;
+  status: string;
+  confirmed_at: string | null;
+  executed_at: string | null;
+  event_id: string | null;
+  refusal_reason: string | null;
+}
+
+/** Proposal plus its audit outcome — what AG8's audit log needs. */
+export interface StoredAgentProposal {
+  readonly proposal: AgentProposal;
+  readonly status: string;
+  readonly confirmedAt: string | null;
+  readonly executedAt: string | null;
+  readonly eventId: string | null;
+  readonly refusalReason: string | null;
 }
 
 function parseJsonArray(value: string): string[] {
@@ -727,6 +756,90 @@ export class FocusLoopStore {
     return this.getResumeTiming(checkpointId);
   }
 
+  // --------------------------------------------------------- agent proposals
+
+  /**
+   * Inserts a proposal. Returns false when the id or idempotency key already
+   * exists (hostile replay of the same insert).
+   */
+  insertAgentProposal(proposal: AgentProposal): boolean {
+    const exists = this.db
+      .prepare('SELECT 1 FROM agent_proposals WHERE id = ? OR idempotency_key = ?;')
+      .get(proposal.id, proposal.idempotencyKey);
+    if (exists !== undefined) return false;
+    const result = this.db
+      .prepare(
+        `INSERT INTO agent_proposals
+           (id, session_id, kind, payload, proposed_at, expires_at, proposal_hash,
+            state_fingerprint, idempotency_key, created_by, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'proposed');`,
+      )
+      .run(
+        proposal.id,
+        proposal.sessionId,
+        proposal.kind,
+        JSON.stringify(proposal.payload),
+        proposal.proposedAt,
+        proposal.expiresAt,
+        proposal.proposalHash,
+        proposal.stateFingerprint,
+        proposal.idempotencyKey,
+        proposal.createdBy,
+      );
+    return result.changes > 0;
+  }
+
+  getAgentProposal(proposalId: string): StoredAgentProposal | null {
+    const row = this.db.prepare('SELECT * FROM agent_proposals WHERE id = ?;').get(proposalId) as
+      AgentProposalRow | undefined;
+    return row === undefined ? null : mapAgentProposal(row);
+  }
+
+  getAgentProposalByIdempotencyKey(key: string): StoredAgentProposal | null {
+    const row = this.db
+      .prepare('SELECT * FROM agent_proposals WHERE idempotency_key = ?;')
+      .get(key) as AgentProposalRow | undefined;
+    return row === undefined ? null : mapAgentProposal(row);
+  }
+
+  /** Conditional update: only advances proposed → confirmed. Returns false if the row was not in that state. */
+  markAgentProposalConfirmed(proposalId: string, at: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_proposals
+           SET status = 'confirmed', confirmed_at = ?
+         WHERE id = ? AND status = 'proposed';`,
+      )
+      .run(at, proposalId);
+    return result.changes > 0;
+  }
+
+  markAgentProposalRefused(proposalId: string, reason: string, at: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_proposals
+           SET status = 'refused', refusal_reason = ?, confirmed_at = ?
+         WHERE id = ? AND status IN ('proposed', 'confirmed');`,
+      )
+      .run(reason, at, proposalId);
+    return result.changes > 0;
+  }
+
+  /**
+   * Conditional update: only advances confirmed → executed.
+   * Returns false when already executed — the idempotent second execute.
+   */
+  markAgentProposalExecuted(proposalId: string, eventId: string, at: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE agent_proposals
+           SET status = 'executed', executed_at = ?, event_id = ?
+         WHERE id = ? AND status = 'confirmed' AND executed_at IS NULL;`,
+      )
+      .run(at, eventId, proposalId);
+    return result.changes > 0;
+  }
+
   // ----------------------------------------------------------------- misc
 
   setMeta(key: string, value: string): void {
@@ -823,5 +936,27 @@ function mapCheckpoint(row: CheckpointRow): LearningCheckpoint {
       params: parseJson<Record<string, string>>(row.next_action_params, {}),
     },
     createdAt: row.created_at,
+  };
+}
+
+function mapAgentProposal(row: AgentProposalRow): StoredAgentProposal {
+  return {
+    proposal: {
+      id: row.id,
+      sessionId: row.session_id,
+      kind: row.kind as AgentProposal['kind'],
+      payload: parseJson<Record<string, unknown>>(row.payload, {}),
+      proposedAt: row.proposed_at,
+      expiresAt: row.expires_at,
+      proposalHash: row.proposal_hash,
+      stateFingerprint: row.state_fingerprint,
+      idempotencyKey: row.idempotency_key,
+      createdBy: row.created_by,
+    },
+    status: row.status,
+    confirmedAt: row.confirmed_at,
+    executedAt: row.executed_at,
+    eventId: row.event_id,
+    refusalReason: row.refusal_reason,
   };
 }

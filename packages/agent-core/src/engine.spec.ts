@@ -1646,4 +1646,40 @@ describe('FocusLoopEngine', () => {
       }
     });
   });
+
+  describe('structural proposal envelope', () => {
+    it('propose → confirm → execute is the only structural write path', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const proposal = ctx.engine.proposeStructuralChange({
+        sessionId: session.id,
+        kind: 'structural-write',
+        payload: { op: 'demo' },
+        createdBy: 'engine-test',
+        idempotencyKey: 'engine-key-1',
+      });
+      expect(proposal).not.toBeNull();
+
+      const confirmed = ctx.engine.confirmProposal({
+        proposalId: proposal!.id,
+        sessionId: session.id,
+        expectedHash: proposal!.proposalHash,
+      });
+      expect(confirmed.ok).toBe(true);
+
+      const first = ctx.engine.executeProposal({
+        proposalId: proposal!.id,
+        sessionId: session.id,
+        idempotencyKey: proposal!.idempotencyKey,
+      });
+      const second = ctx.engine.executeProposal({
+        proposalId: proposal!.id,
+        sessionId: session.id,
+        idempotencyKey: proposal!.idempotencyKey,
+      });
+
+      expect(first).toMatchObject({ ok: true, status: 'executed' });
+      expect(second).toMatchObject({ ok: true, status: 'already-executed' });
+      if (first.ok && second.ok) expect(second.eventId).toBe(first.eventId);
+    });
+  });
 });

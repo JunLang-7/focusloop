@@ -6,12 +6,15 @@ import {
 } from '@focusloop/shared-types';
 import type { FocusLoopService } from '../service';
 import {
+  parseConfirmProposal,
   parseCourseId,
   parseDispatchRequest,
   parseEndSession,
+  parseExecuteProposal,
   parseImportMaterial,
   parseInsightsRequest,
   parseNoArgs,
+  parseProposeStructuralChange,
   parseTutorAsk,
   parseResolveIntervention,
   parseResolveRescue,
@@ -237,6 +240,21 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.getAgentContext,
       parse: parseNoArgs,
       handle: () => engine.getAgentContext(),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.proposeStructuralChange,
+      parse: parseProposeStructuralChange,
+      handle: (request) => engine.proposeStructuralChange(request),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.confirmProposal,
+      parse: parseConfirmProposal,
+      handle: (request) => engine.confirmProposal(request),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.executeProposal,
+      parse: parseExecuteProposal,
+      handle: (request) => engine.executeProposal(request),
     }),
     defineHandler({
       channel: IPC_CHANNELS.askTutor,

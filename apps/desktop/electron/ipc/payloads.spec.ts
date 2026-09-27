@@ -8,12 +8,15 @@ import {
 } from '@focusloop/shared-types';
 import { payload } from './payloads';
 import {
+  parseConfirmProposal,
   parseCourseId,
   parseDispatchRequest,
   parseEndSession,
+  parseExecuteProposal,
   parseImportMaterial,
   parseInsightsRequest,
   parseNoArgs,
+  parseProposeStructuralChange,
   parseResolveIntervention,
   parseResumeDecision,
   parseSessionId,
@@ -180,5 +183,70 @@ describe('the preload and the main process agree on every payload', () => {
         }),
       ),
     ).toMatchObject({ interventionId: 'i1', accepted: true });
+
+    expect(
+      parseProposeStructuralChange(
+        IPC_CHANNELS.proposeStructuralChange,
+        payload.proposeStructuralChange({
+          sessionId: 'session-1',
+          kind: 'structural-write',
+          payload: { op: 'demo' },
+          createdBy: 'test-tool',
+          idempotencyKey: 'k1',
+        }),
+      ),
+    ).toMatchObject({ sessionId: 'session-1', kind: 'structural-write' });
+
+    expect(
+      parseConfirmProposal(
+        IPC_CHANNELS.confirmProposal,
+        payload.confirmProposal({
+          proposalId: 'p1',
+          sessionId: 'session-1',
+          expectedHash: 'abc',
+        }),
+      ),
+    ).toEqual({ proposalId: 'p1', sessionId: 'session-1', expectedHash: 'abc' });
+
+    expect(
+      parseExecuteProposal(
+        IPC_CHANNELS.executeProposal,
+        payload.executeProposal({
+          proposalId: 'p1',
+          sessionId: 'session-1',
+          idempotencyKey: 'k1',
+        }),
+      ),
+    ).toEqual({ proposalId: 'p1', sessionId: 'session-1', idempotencyKey: 'k1' });
+  });
+
+  it('hostile proposal payloads are refused at the boundary', () => {
+    expect(() =>
+      parseProposeStructuralChange(IPC_CHANNELS.proposeStructuralChange, {
+        sessionId: 's',
+        kind: 'shrink-task',
+        payload: {},
+        createdBy: 'x',
+        idempotencyKey: 'k',
+      }),
+    ).toThrowError(/unknown proposal kind/);
+
+    expect(() =>
+      parseConfirmProposal(IPC_CHANNELS.confirmProposal, {
+        proposalId: 'p',
+        sessionId: 's',
+        // missing expectedHash
+      }),
+    ).toThrowError(/expectedHash/);
+
+    expect(() =>
+      parseProposeStructuralChange(IPC_CHANNELS.proposeStructuralChange, {
+        sessionId: 's',
+        kind: 'structural-write',
+        payload: 'not-an-object',
+        createdBy: 'x',
+        idempotencyKey: 'k',
+      }),
+    ).toThrowError(/payload/);
   });
 });

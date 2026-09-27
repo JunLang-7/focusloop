@@ -13,6 +13,7 @@ export * from './tutor';
 export * from './tutor-ask';
 export * from './dashboard';
 export * from './insights';
+export * from './proposal';
 export * from './engine';
 /**
  * A supported in-memory harness (deterministic clock + sqlite `:memory:`), used

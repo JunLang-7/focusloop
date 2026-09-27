@@ -373,5 +373,16 @@ export const zh: Record<MessageKey, string> = {
   'tutor.rejection.unquoted-confirmation': '模型没有引用你写过的话，因此导师不会把它显示为确认。',
   'tutor.rejection.not-from-the-material':
     '模型引用的章节不在你当前查看的内容中，因此导师不会显示这条回答。',
+  'proposal.refusal.unknown-proposal': '这项变更已不可用。',
+  'proposal.refusal.wrong-session': '这项变更属于另一个会话。',
+  'proposal.refusal.expired': '这项变更提议已过期，请重新发起。',
+  'proposal.refusal.state-changed':
+    '提议准备好之后状态发生了变化，因此没有执行。请查看最新状态后再试。',
+  'proposal.refusal.hash-mismatch': '这次确认与展示过的变更不一致。',
+  'proposal.refusal.already-confirmed': '这项变更已经确认过了。',
+  'proposal.refusal.already-executed': '这项变更已经执行过了。',
+  'proposal.refusal.already-refused': '这项变更已经拒绝过了。',
+  'proposal.refusal.not-confirmed': '请先确认，变更才能执行。',
+  'proposal.refusal.forged-id': '变更标识无效。',
   'reason.none': '现在不需要任何建议。',
 };
