@@ -1377,6 +1377,57 @@ export class FocusLoopEngine {
     };
   }
 
+  // ------------------------------------------------------- agent memory clear
+
+  /**
+   * Clears agent memory for one session — ADR
+   * `docs/wiki/adr/0001-agent-memory-deletion.md`.
+   *
+   * - **Working**: tutor transcript and the last outbound prompt (physical, in-process).
+   * - **Episodic**: events, checkpoints, interventions, outcomes, resume_cards, proposals
+   *   (physical, SQLite).
+   * - **Audit**: opaque `agent_memory_clears` row (session id, timestamp, actor) — no content.
+   *
+   * Session catalog and course structure stay. Dashboard/insights read the deleted tables, so
+   * their episodic aggregates drop to empty for this session: derived paths are invalidated by
+   * deletion, not by a side channel.
+   */
+  clearAgentMemory(
+    sessionId: string,
+    options: { actor?: string } = {},
+  ): { clearedAt: string; actor: string } | null {
+    if (this.store.getSession(sessionId) === null) return null;
+    const actor = options.actor ?? 'user';
+    const clearedAt = this.clock();
+    this.transcript.forget(sessionId);
+    /*
+     * The outbound prompt is the learner's question verbatim. `endSession` cleared it; clearing memory
+     * did not, so a cleared session stayed readable through the Outbound Inspector. The ADR already
+     * named this class as deleted on clear — the code only did half of it.
+     */
+    this.outboundBySession.delete(sessionId);
+
+    const run = this.store.transaction(() => {
+      this.store.clearSessionEpisodic(sessionId);
+      this.store.recordAgentMemoryClear(sessionId, clearedAt, actor);
+    });
+    run();
+
+    /*
+     * Report the row that is actually in the audit. `recordAgentMemoryClear` keeps the first clear
+     * (`ON CONFLICT DO NOTHING`), so returning this call's timestamp would make a second clear name a
+     * moment the audit does not contain.
+     */
+    const row = this.store.getAgentMemoryClear(sessionId);
+    return row === null ? { clearedAt, actor } : { clearedAt: row.clearedAt, actor: row.actor };
+  }
+
+  /** Opaque audit for a cleared session, or null if it was never cleared. */
+  getAgentMemoryClear(sessionId: string): { clearedAt: string; actor: string } | null {
+    const row = this.store.getAgentMemoryClear(sessionId);
+    return row === null ? null : { clearedAt: row.clearedAt, actor: row.actor };
+  }
+
   // ---------------------------------------------------------------- settings
 
   getSettings(): AppSettings {

@@ -501,6 +501,118 @@ describe('FocusLoopStore', () => {
     });
   });
 
+  describe('agent memory clear', () => {
+    const T = '2026-01-01T00:00:00.000Z';
+
+    function seedSession(id = 'session-1'): void {
+      store.saveCourse(courseFixture());
+      store.saveSession({
+        session: {
+          id,
+          courseId: 'course-1',
+          startedAt: T,
+          state: 'READY',
+          completedTaskIds: ['t1'],
+          updatedAt: T,
+        },
+        engineState: createInitialState(T),
+      });
+    }
+
+    it('physically deletes episodic rows for one session', () => {
+      seedSession();
+      store.appendEvent({
+        id: 'e1',
+        sessionId: 'session-1',
+        at: T,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 't1' },
+      });
+      store.saveCheckpoint({
+        ...({
+          id: 'cp1',
+          sessionId: 'session-1',
+          conceptId: 'c1',
+          conceptTitle: 'C',
+          goal: 'G',
+          mastered: [],
+          unresolved: [],
+          currentTaskId: 't1',
+          currentTaskTitle: 'T',
+          currentStep: 1,
+          frictionState: 'FOCUSED',
+          nextBestAction: { key: 'action.read.summarise', params: {} },
+          createdAt: T,
+        } as never),
+      });
+
+      expect(store.listEvents('session-1').length).toBeGreaterThan(0);
+      expect(store.listCheckpoints('session-1').length).toBeGreaterThan(0);
+
+      store.clearSessionEpisodic('session-1');
+
+      expect(store.listEvents('session-1')).toEqual([]);
+      expect(store.listCheckpoints('session-1')).toEqual([]);
+      expect(store.getSession('session-1')).not.toBeNull();
+      expect(store.getCourse('course-1')).not.toBeNull();
+    });
+
+    it('deletes a resume card whose checkpoint row is already gone', () => {
+      seedSession();
+      /*
+       * A card can outlive its checkpoint. The delete used to go through
+       * `checkpoint_id IN (SELECT id FROM checkpoints WHERE session_id = ?)`, which cannot match a card
+       * whose checkpoint is missing — so this row survived a "clear" and stayed readable.
+       */
+      store.saveResumeShown('checkpoint-that-does-not-exist', 'session-1', T);
+      expect(store.listResumeTimings('session-1')).toHaveLength(1);
+
+      store.clearSessionEpisodic('session-1');
+
+      expect(store.listResumeTimings('session-1')).toEqual([]);
+    });
+
+    it('deletes proposal rows for the session, so a cleared proposal is not readable', () => {
+      seedSession();
+      /*
+       * The proposal payload is built from the learner's own context, so a row that survives the clear
+       * is personal content that is still queryable — the failure ADR 0001 exists to prevent.
+       * `agent_proposals` landed after the ADR was written, and the delete did not cover it.
+       */
+      store.insertAgentProposal({
+        id: 'p1',
+        sessionId: 'session-1',
+        kind: 'structural-write',
+        payload: { excerpt: 'LEARNER_MATERIAL_EXCERPT' },
+        proposedAt: T,
+        expiresAt: T,
+        proposalHash: 'hash-1',
+        stateFingerprint: 'fp-1',
+        idempotencyKey: 'k1',
+        createdBy: 'test-tool',
+      });
+      expect(store.getAgentProposal('p1')).not.toBeNull();
+
+      store.clearSessionEpisodic('session-1');
+
+      expect(store.getAgentProposal('p1')).toBeNull();
+      expect(store.getAgentProposalByIdempotencyKey('k1')).toBeNull();
+    });
+
+    it('records an opaque clear audit once', () => {
+      seedSession();
+      expect(store.recordAgentMemoryClear('session-1', T, 'user')).toBe(true);
+      expect(store.recordAgentMemoryClear('session-1', T, 'user')).toBe(false);
+      expect(store.getAgentMemoryClear('session-1')).toEqual({
+        sessionId: 'session-1',
+        clearedAt: T,
+        actor: 'user',
+      });
+      expect(store.getAgentMemoryClear('missing')).toBeNull();
+    });
+  });
+
   describe('agent proposals', () => {
     const T = '2026-09-25T12:00:00.000Z';
     const proposal = (id = 'p1', key = 'k1') => ({

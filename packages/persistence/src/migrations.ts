@@ -268,6 +268,17 @@ export const MIGRATIONS: readonly Migration[] = [
         ON agent_proposals(session_id, proposed_at, id);
     `,
   },
+  {
+    id: '0006-agent-memory-clears',
+    sql: `
+      -- ADR 0001 (agent memory deletion): opaque audit. No content columns.
+      CREATE TABLE IF NOT EXISTS agent_memory_clears (
+        session_id TEXT PRIMARY KEY,
+        cleared_at TEXT NOT NULL,
+        actor TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

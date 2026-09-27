@@ -756,6 +756,68 @@ export class FocusLoopStore {
     return this.getResumeTiming(checkpointId);
   }
 
+  // ------------------------------------------------------- agent memory clear
+
+  /**
+   * Physically deletes episodic rows for one session (ADR 0001).
+   *
+   * Interventions/outcomes first (FK-shaped joins), then checkpoints → resume_cards,
+   * then events and proposals. The session row and course catalog are left alone.
+   */
+  clearSessionEpisodic(sessionId: string): void {
+    const run = this.db.transaction(() => {
+      this.db
+        .prepare(
+          `DELETE FROM outcomes WHERE session_id = ? OR intervention_id IN
+             (SELECT id FROM interventions WHERE session_id = ?);`,
+        )
+        .run(sessionId, sessionId);
+      this.db.prepare('DELETE FROM interventions WHERE session_id = ?;').run(sessionId);
+      /*
+       * By `session_id`, not through the checkpoint join. `resume_cards` carries the session id itself,
+       * and a card whose checkpoint row is already gone would survive a join-based delete — leaving
+       * "cleared" data behind for exactly the rows nobody would think to look at.
+       */
+      this.db.prepare('DELETE FROM resume_cards WHERE session_id = ?;').run(sessionId);
+      this.db.prepare('DELETE FROM checkpoints WHERE session_id = ?;').run(sessionId);
+      this.db.prepare('DELETE FROM learning_events WHERE session_id = ?;').run(sessionId);
+      /*
+       * `agent_proposals` too. Its payload is built from the learner's own context, so a surviving row
+       * is cleared content that `getAgentProposal` still hands back. The table landed after this ADR was
+       * written and the delete did not cover it. A pending proposal dies with the context it was computed
+       * against, which is the point: confirming it afterwards would apply a write to a world that is gone.
+       */
+      this.db.prepare('DELETE FROM agent_proposals WHERE session_id = ?;').run(sessionId);
+    });
+    run();
+  }
+
+  /** Records an opaque clear (no content). Returns false if already recorded. */
+  recordAgentMemoryClear(sessionId: string, clearedAt: string, actor: string): boolean {
+    const result = this.db
+      .prepare(
+        `INSERT INTO agent_memory_clears (session_id, cleared_at, actor)
+         VALUES (?, ?, ?)
+         ON CONFLICT(session_id) DO NOTHING;`,
+      )
+      .run(sessionId, clearedAt, actor);
+    return result.changes > 0;
+  }
+
+  getAgentMemoryClear(sessionId: string): {
+    sessionId: string;
+    clearedAt: string;
+    actor: string;
+  } | null {
+    const row = this.db
+      .prepare(
+        'SELECT session_id, cleared_at, actor FROM agent_memory_clears WHERE session_id = ?;',
+      )
+      .get(sessionId) as { session_id: string; cleared_at: string; actor: string } | undefined;
+    if (row === undefined) return null;
+    return { sessionId: row.session_id, clearedAt: row.cleared_at, actor: row.actor };
+  }
+
   // --------------------------------------------------------- agent proposals
 
   /**
