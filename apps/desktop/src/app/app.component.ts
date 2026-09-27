@@ -24,6 +24,7 @@ import { STATE_KEYS } from './core/i18n/labels';
 import { applyLanguage } from './core/language';
 import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
 import { applyTheme, resolveTheme } from './core/theme';
+import { contextInspectorVisibleOn } from './core/inspector-visibility';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
 import { AgentContextPanelComponent } from './components/agent-context-panel.component';
@@ -241,7 +242,15 @@ const PEEK_CLOSE_DELAY_MS = 150;
 
     <fl-agent-panel />
     <fl-resume-card />
-    <fl-agent-context-panel />
+    <!--
+      The inspector is a fixed overlay, and the dashboard is where it does harm: it sits across the
+      "today" card in the sidebar and the totals that screen exists to show. Kept on every other route,
+      collapsed to one line in the corner until it is asked for. Developer builds only either way — the
+      panel itself gates on simulatorEnabled, which the main process reports.
+    -->
+    @if (contextInspectorVisible()) {
+      <fl-agent-context-panel />
+    }
     <fl-simulator-bar />
   `,
 })
@@ -249,6 +258,19 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly stateService = inject(AppStateService);
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
+
+  /**
+   * Where the shell is, as a signal.
+   *
+   * The router's own URL is not reactive; this mirrors it so the shell can gate what it lays over a screen
+   * by route (see `contextInspectorVisibleOn`). Set on the navigation that actually completed, which is the
+   * URL the screen is showing rather than the one that was requested.
+   */
+  private readonly currentUrl = signal(this.router.url);
+  protected readonly contextInspectorVisible = computed(() =>
+    contextInspectorVisibleOn(this.currentUrl()),
+  );
+
   private unsubscribe: (() => void) | null = null;
   private routerSubscription: Subscription | null = null;
   private peekTimer: ReturnType<typeof setTimeout> | null = null;
@@ -345,6 +367,7 @@ export class AppComponent implements OnInit, OnDestroy {
         // A peek never survives a navigation: the click that moved screens was the
         // pointer's whole intent.
         this.endPeek();
+        this.currentUrl.set(this.router.url);
         if (!this.router.url.startsWith('/focus')) {
           this.sidebar.update(leaveFocusScreen);
         }

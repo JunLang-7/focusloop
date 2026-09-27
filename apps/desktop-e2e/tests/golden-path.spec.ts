@@ -1006,6 +1006,67 @@ test('the tutor asks the main process, and says so when no model is connected', 
   await expect(window.getByTestId('tutor-panel')).toBeVisible();
 
   /*
+   * The panel stays inside the window, and it opens on the side where it fits. That is the whole of the fix
+   * — it used to be pinned below, where this control sits near the bottom edge, so it hung off the window
+   * with its question box half outside — and until this line nothing checked it: the placement was measured,
+   * applied as a class, and never read back, so the suite passed whether the component measured the right
+   * element, the wrong one, or never measured at all.
+   *
+   * Which side is expected is derived from the geometry measured here, not written into the test. Writing
+   * `'above'` is what this test did first, and the Windows runner answered `'below'`: the panel's height
+   * follows the length of its text, the two runners lay that text out at different sizes, and the side
+   * flips with it. An assertion that only holds on the machine it was written on tests that machine.
+   */
+  const panel = window.getByTestId('tutor-panel');
+  const panelBox = await panel.boundingBox();
+  const anchorBox = await window.getByTestId('tutor-entry').boundingBox();
+  /*
+   * Asked of the page rather than the test: an Electron window has no viewport for `viewportSize()` to
+   * report, and it returns null there. `globalThis` rather than `window` because this file's Playwright
+   * page is called `window` and shadows the DOM global inside this callback — which the typecheck caught
+   * after the runtime did not, since Playwright runs these files without checking them.
+   */
+  const viewportHeight = await window.evaluate(() => globalThis.innerHeight);
+  if (panelBox === null || anchorBox === null) {
+    throw new Error('the panel and the control it hangs from must both be laid out');
+  }
+
+  // Inside the window: the property a learner notices, and the one the pinned-below panel broke.
+  expect(panelBox.y, 'the panel starts inside the window').toBeGreaterThanOrEqual(0);
+  expect(panelBox.y + panelBox.height, 'the panel ends inside the window').toBeLessThanOrEqual(
+    viewportHeight + 1,
+  );
+
+  // Beside its control, not over it: a panel overlapping the control it belongs to would mean the component
+  // measured something that is not the control.
+  const placement = await panel.getAttribute('data-placement');
+  if (placement === 'above') {
+    expect(panelBox.y + panelBox.height, 'an above panel ends at its control').toBeLessThanOrEqual(
+      anchorBox.y + 1,
+    );
+  } else {
+    expect(placement, 'below is the only other side').toBe('below');
+    expect(panelBox.y, 'a below panel starts at its control').toBeGreaterThanOrEqual(
+      anchorBox.y + anchorBox.height - 1,
+    );
+  }
+
+  /*
+   * And the side the geometry asked for. The stylesheet's gap between panel and control is the only number
+   * restated here; the branches are the rule's two unambiguous halves, and the cramped tie-break — neither
+   * side fits — is posed directly in `panel-placement.spec.ts`, which needs no window. Exactly one branch
+   * runs: the panel is never short enough for both sides.
+   */
+  const gap = 8;
+  const roomBelow = viewportHeight - (anchorBox.y + anchorBox.height) - gap;
+  const roomAbove = anchorBox.y - gap;
+  if (roomBelow >= panelBox.height) {
+    expect(placement, 'a panel with room below opens below').toBe('below');
+  } else if (roomAbove >= panelBox.height) {
+    expect(placement, 'a panel without room below opens above').toBe('above');
+  }
+
+  /*
    * Ask is disabled until a mode is chosen *and* something is written. The engine refuses an empty question
    * with `no-question` and a sentence, which is right for a caller that sends one — and the wrong thing to
    * let a learner do, because a button that can only ever produce a refusal should not be pressable.
@@ -1030,7 +1091,7 @@ test('the tutor asks the main process, and says so when no model is connected', 
   await expect(result).toContainText('No model is connected');
   await expect(result).toContainText(stepTitle);
 
-  // A fallback is not a dead end: the step it was asked about is still underneath it.
+  // A fallback is not a dead end: the step it was asked about is still on the screen behind it.
   await expect(window.getByTestId('task-title')).toBeVisible();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 
@@ -1064,7 +1125,12 @@ test('the tutor asks the main process, and says so when no model is connected', 
   await expect(window.getByTestId('tutor-panel')).toBeHidden();
   await window.getByTestId('tutor-entry').click();
   await expect(window.getByTestId('tutor-panel')).toBeVisible();
-  await window.getByTestId('task-title').click();
+  /*
+   * Focus is moved off the panel without pressing anything on the page. The panel opens above the control
+   * row once there is no room below it, and what it then sits over is the step's own title — so a click
+   * aimed at that title tests the layout rather than the thing being asserted, which is where focus is.
+   */
+  await window.getByTestId('tutor-question').evaluate((element) => element.blur());
   await window.keyboard.press('Escape');
   await expect(window.getByTestId('tutor-panel')).toBeVisible();
 

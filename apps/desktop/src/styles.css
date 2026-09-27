@@ -1253,12 +1253,30 @@ body:has(.simulator) .agent-context {
   right: 0;
   top: calc(100% + 8px);
   width: 360px;
+  /*
+   * The panel scrolls rather than runs off the window: six mode buttons wrap to two rows in a narrow
+   * window and an answer adds a result block, so its height is its content and nothing here can assume
+   * a number small enough to fit. Which side it opens on is measured — `core/panel-placement.ts`.
+   */
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
   padding: 14px;
   border: 1px solid var(--accent-border);
   border-radius: var(--radius);
   background: var(--bg-elevated);
   box-shadow: var(--shadow-md);
   z-index: 40;
+}
+
+/*
+ * Above the control when there is no room below it. The focus screen puts this control in a row near the
+ * bottom edge, where a panel pinned below opened into the ~100px left under it and hung off the window
+ * with its question box half outside the screen. The class is set from the measurement, never guessed:
+ * the panel opens below unless the room says otherwise.
+ */
+.tutor__panel--above {
+  top: auto;
+  bottom: calc(100% + 8px);
 }
 
 .tutor__modes {

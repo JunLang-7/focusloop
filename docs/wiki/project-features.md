@@ -416,7 +416,9 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 5. **数据与边界**：Context 展示 AG1 报告（omission 与截断）；Outbound 展示 system+prompt 原文与
    `system.length + prompt.length` 字符数（与预算公式一致）；未发送时显示空态。
 6. **状态与证据**：Context 已合并 — `63acc28` (#99)；Outbound — 本 issue (#112)。
-7. **已知限制**：两层报告，差异可解释（Tutor 在 AG1 之上再裁剪）；离线/无模型时 Outbound 为空是预期。
+7. **已知限制**：**数据面板（`/dashboard`）上不渲染**——那一页要读的正是被浮层遮住的统计，其余路由保持
+   （`core/inspector-visibility.ts`）；两层报告，差异可解释（Tutor 在 AG1 之上再裁剪）；离线/无模型时
+   Outbound 为空是预期。
 8. **依赖**：AG1、AG3（有出站才可看）。
 9. **怎么验证**：engine 单测（字符数 = 实际交给 provider 的字符串长度）+ IPC `parseSessionId` +
    e2e 空态/Tab 切换。

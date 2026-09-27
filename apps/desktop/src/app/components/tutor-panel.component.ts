@@ -1,8 +1,9 @@
 import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
-import type { ElementRef } from '@angular/core';
+import type { ElementRef, OnDestroy } from '@angular/core';
 import type { TutorMode } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
+import { resolvePanelPlacement, type PanelPlacement } from '../core/panel-placement';
 import {
   TUTOR_MODE_KEYS,
   TUTOR_MODE_ORDER,
@@ -13,20 +14,24 @@ import {
   tutorSourceLine,
 } from '../core/tutor-view';
 
+/** The distance the panel keeps from its control, matching the stylesheet's `calc(100% + 8px)`. */
+const PANEL_GAP_PX = 8;
+
 /**
  * "Ask about this step" (AG3 step three).
  *
  * The entry point, the six modes, the question, and the one screen that stands in when there is no answer.
  * The decisions behind all of it — whether the entry is offered, how a reply is labelled, what a refusal
- * looks like, and where the "not included" list comes from — live in `core/tutor-view.ts` so they are
- * falsifiable without a window; this file is the markup that calls them.
+ * looks like, where the "not included" list comes from, and which way the panel opens — live in
+ * `core/*.ts` so they are falsifiable without a window; this file is the markup that calls them, plus the
+ * one thing that cannot be decided away from the DOM: measuring where it fits.
  */
 @Component({
   selector: 'fl-tutor-panel',
   standalone: true,
   template: `
     @if (visible()) {
-      <div class="tutor">
+      <div class="tutor" #anchor>
         <button
           type="button"
           class="btn btn--small btn--ghost"
@@ -41,8 +46,11 @@ import {
         @if (open()) {
           <section
             class="tutor__panel"
+            #panel
             role="dialog"
             data-testid="tutor-panel"
+            [class.tutor__panel--above]="placement() === 'above'"
+            [attr.data-placement]="placement()"
             [attr.aria-label]="t('tutor.title')"
             (keydown.escape)="onEscape($event)"
           >
@@ -132,7 +140,7 @@ import {
     }
   `,
 })
-export class TutorPanelComponent {
+export class TutorPanelComponent implements OnDestroy {
   private readonly state = inject(AppStateService);
   private readonly i18n = inject(I18nService);
 
@@ -156,6 +164,20 @@ export class TutorPanelComponent {
 
   private readonly entryButton = viewChild<ElementRef<HTMLButtonElement>>('entry');
   private readonly questionInput = viewChild<ElementRef<HTMLTextAreaElement>>('questionInput');
+
+  /** The panel's containing block, so its box is the anchor the placement is measured against. */
+  private readonly anchor = viewChild<ElementRef<HTMLElement>>('anchor');
+  private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+
+  private readonly placementState = signal<PanelPlacement>('below');
+
+  /** Which way the panel is opening; the stylesheet has one rule per value. */
+  protected readonly placement = this.placementState.asReadonly();
+
+  /** A resize changes the room on both sides of an anchor that has not moved. */
+  private readonly onWindowResize = (): void => {
+    this.place();
+  };
 
   protected readonly visible = computed(() =>
     tutorEntryVisible(this.state.snapshot(), this.state.currentTask()?.id ?? null),
@@ -196,6 +218,59 @@ export class TutorPanelComponent {
     effect(() => {
       if (this.open()) this.questionInput()?.nativeElement.focus();
     });
+
+    /*
+     * Measured, not assumed. The panel's height is its content — six mode buttons wrap to two rows in a
+     * narrow window, and an answer adds a result block — so the decision has to follow the element. A
+     * ResizeObserver reports both the first layout and every later change, which is why there is no
+     * "measure once when it opens" call here, and why a panel that grows past the room under it flips.
+     *
+     * The row the control sits in is observed as well, because the anchor can move without resizing:
+     * opening the stuck-reason chooser makes that flex row wrap, the button drops to the next line, and a
+     * placement decided a moment earlier is then wrong. A translation fires no resize on the anchor; it
+     * does change the row's height.
+     */
+    effect((onCleanup) => {
+      const panel = this.panel()?.nativeElement;
+      if (panel === undefined) return;
+
+      const observer = new ResizeObserver(() => {
+        this.place();
+      });
+      observer.observe(panel);
+      const row = this.anchor()?.nativeElement.parentElement;
+      if (row !== null && row !== undefined) observer.observe(row);
+      this.place();
+
+      onCleanup(() => {
+        observer.disconnect();
+      });
+    });
+
+    window.addEventListener('resize', this.onWindowResize);
+  }
+
+  ngOnDestroy(): void {
+    window.removeEventListener('resize', this.onWindowResize);
+  }
+
+  /**
+   * Which way the panel fits right now. Only the geometry is here; the rule is in `core/panel-placement.ts`.
+   */
+  private place(): void {
+    const anchor = this.anchor()?.nativeElement;
+    const panel = this.panel()?.nativeElement;
+    if (anchor === undefined || panel === undefined) return;
+
+    const box = anchor.getBoundingClientRect();
+    this.placementState.set(
+      resolvePanelPlacement(
+        { top: box.top, bottom: box.bottom },
+        panel.getBoundingClientRect().height,
+        window.innerHeight,
+        PANEL_GAP_PX,
+      ),
+    );
   }
 
   /**
