@@ -4,7 +4,12 @@
  * These live in one place so a new learning state — or a new intervention action
  * — cannot be added without someone deciding how it reads in both languages.
  */
-import type { InterventionAction, LearningState, StuckReason } from '@focusloop/shared-types';
+import type {
+  InterventionAction,
+  LearningState,
+  StuckReason,
+  TutorFallbackReason,
+} from '@focusloop/shared-types';
 import type { MessageKey } from './messages.en';
 
 export const STATE_KEYS: Record<LearningState, MessageKey> = {
@@ -49,6 +54,26 @@ export const KIND_KEYS: Record<string, MessageKey> = {
   read: 'kind.read',
   practice: 'kind.practice',
   quiz: 'kind.quiz',
+};
+
+/**
+ * Tutor fallback codes → sentences.
+ *
+ * The domain returns only the closed `TutorFallbackReason`; this is the renderer's
+ * side of the "no domain package produces a sentence" rule (see `docs/architecture.md`).
+ * Four unavailabilities and five rejections — both languages are required by typecheck
+ * and by `tutor-view.spec.ts`'s totality test.
+ */
+export const TUTOR_FALLBACK_KEYS: Record<TutorFallbackReason, MessageKey> = {
+  'no-question': 'tutor.unavailable.no-question',
+  'request-too-long': 'tutor.unavailable.request-too-long',
+  'no-model': 'tutor.unavailable.no-model',
+  'provider-failed': 'tutor.unavailable.provider-failed',
+  unparseable: 'tutor.rejection.unparseable',
+  'unexpected-part': 'tutor.rejection.unexpected-part',
+  'missing-part': 'tutor.rejection.missing-part',
+  'unquoted-confirmation': 'tutor.rejection.unquoted-confirmation',
+  'not-from-the-material': 'tutor.rejection.not-from-the-material',
 };
 
 export function kindLabel(kind: string, t: (key: MessageKey) => string): string {
