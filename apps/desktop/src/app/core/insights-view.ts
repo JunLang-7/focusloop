@@ -98,7 +98,12 @@ export function visibleShares(shares: readonly StateShare[]): StateShare[] {
 }
 
 /**
- * Share of a window spent on task, 0..1.
+ * Share of the window's *recorded* time spent on task, 0..1.
+ *
+ * The denominator moved when silence stopped being counted: it is the time the app can stand behind,
+ * not the session's wall-clock, so `DISTRACTED` appears here only when a departure was witnessed. The
+ * dashboard prints that in words beneath the row it annotates (`dashboard.focusRatio.hint`), because a
+ * ratio whose denominator is implicit is exactly how the old one came to say "99.6% away".
  *
  * `RESUMING` counts: the learner has already accepted the way back in. `DISTRACTED`
  * and `INTERRUPTED` are the states this product exists to shorten, so they are

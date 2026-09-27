@@ -224,12 +224,14 @@ events through `reduceState` — the same function the live engine uses — and 
 was entered and left. The dashboard therefore cannot drift away from the state machine, and adding a
 state or a transition needs no dashboard change at all.
 
-**2. Silence is not focus.** A learner who walks away emits no events, so a naive reconstruction
-counts the whole gap as `FOCUSED`. The engine would not have: its idle threshold would have moved
-them to `DISTRACTED`. The same rule is applied here — at most `idleThresholdMs` of a silent stretch is
-credited to the state it was in, and the overflow is attributed to `DISTRACTED`. The consequence is
-that a window's `totalMs` equals the time its sessions were open, and the ring shows how that time was
-actually spent.
+**2. Silence is not focus, and it is not away either.** A learner who walks away emits no events, so a
+naive reconstruction counts the whole gap as `FOCUSED`. The engine would not have: its idle threshold
+would have moved them to `DISTRACTED`. But the opposite guess — charging the gap as `DISTRACTED` — is
+worse than the first, because it invents an absence nobody observed. So silence is credited to the state
+it was in for at most `idleThresholdMs` and **not counted past that**, and an absence the app actually
+witnessed (`TAB_LEFT`, an idle report) keeps its whole stretch. The consequence is that a window's
+`totalMs` is the time the app can stand behind, **not** the wall-clock its sessions were open; the labels
+that read it say so, as does `docs/wiki/project-features.md` §D2.
 
 Two further details are easy to get wrong and are pinned by tests:
 

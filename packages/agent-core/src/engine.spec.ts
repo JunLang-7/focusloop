@@ -114,6 +114,10 @@ describe('FocusLoopEngine', () => {
 
       const summary = ctx.engine.getInsights('session');
       expect(summary.sessionCount).toBe(1);
+      /*
+       * Witnessed time, which for this fixture happens to equal the session's length: both stretches are
+       * under the idle threshold. A fixture three minutes wide would read 120_000, not its own length.
+       */
       expect(summary.totalMs).toBe(30_000);
       expect(summary.tasksCompleted).toBe(1);
       expect(summary.stateShares.reduce((sum, s) => sum + s.durationMs, 0)).toBe(summary.totalMs);

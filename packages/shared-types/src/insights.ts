@@ -56,7 +56,11 @@ export interface InsightsSummary {
   readonly from: string;
   /** End of the window, inclusive — "now" is part of the window it closes. */
   readonly to: string;
-  /** Total time inside the window, across every session in it. */
+  /**
+   * Time inside the window the app can stand behind: what its events witnessed, across every session in
+   * the window. Deliberately not the wall-clock those sessions spanned — silence is not evidence, and
+   * counting it produced a dashboard that called a quiet hour of reading "away".
+   */
   readonly totalMs: number;
   readonly sessionCount: number;
   readonly tasksCompleted: number;

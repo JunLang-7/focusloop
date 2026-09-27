@@ -6,11 +6,16 @@
  * 1. **Nothing is stored twice.** The summary is rebuilt from the event log by
  *    replaying it through the real state machine, so the dashboard cannot
  *    disagree with the engine about what happened.
- * 2. **Silence is not focus.** A learner who walks away generates no events, so a
- *    naive reconstruction would count the whole gap as `FOCUSED`. The engine's own
- *    idle threshold says otherwise, and the same rule is applied here: at most
- *    `idleThresholdMs` of a silent stretch is credited to the state it was in, and
- *    the overflow is attributed to `DISTRACTED`.
+ * 2. **Silence is neither focus nor away.** A learner who walks away generates no
+ *    events, so a naive reconstruction would count the whole gap as `FOCUSED`. The
+ *    opposite guess is worse: charging it as `DISTRACTED` invents an absence nobody
+ *    observed, which is how a quiet hour of reading came out as "99.6% 离开中" and a
+ *    session left open overnight filed sixteen hours of it against the learner.
+ *    Silence is credited to the state it was in for at most `idleThresholdMs` and
+ *    not counted past that, while an absence the app actually witnessed (`TAB_LEFT`,
+ *    an idle report) keeps its whole stretch. `totalMs` is therefore the time the app
+ *    can stand behind, not the session's wall-clock; the labels that read it, the
+ *    wiki page for this feature, and `docs/architecture.md` say so.
  */
 import {
   createInitialState,
@@ -73,7 +78,10 @@ export function localDateKey(date: Date): string {
  * Rebuilds the learning-state timeline of one session by replaying its events
  * through the same reducer the live engine uses.
  *
- * `untilIso` bounds an open session; a closed one is bounded by its own `endedAt`.
+ * `untilIso` bounds an open session; a closed one is bounded by its own `endedAt`. The segments account
+ * for the time the events witness — the idle threshold after each one, and for an open session no more
+ * than that after its last — and leave the rest out rather than filling it with a state nobody measured.
+ * See `credit` below for why that matters to a learner reading their own dashboard.
  */
 export function buildStateTimeline(
   session: LearningSession,
@@ -92,18 +100,33 @@ export function buildStateTimeline(
   const { idleThresholdMs } = resolveStateEngineConfig(config);
   const segments: StateSegment[] = [];
 
+  /**
+   * Charges a stretch of silence to the state the engine was in.
+   *
+   * The app reports what it witnessed and nothing else. A state it actually measured — `DISTRACTED`
+   * arrives from a `TAB_LEFT` or an idle report the bridge sent — keeps the whole stretch, because that
+   * absence was observed. Silence between two events is a different thing entirely: it is not evidence of
+   * anything, so it is capped at the idle threshold.
+   *
+   * The cap is a product decision that borrows the engine's constant rather than the engine's own rule:
+   * `evaluateTimeBasedState` measures away and idle from an *explicit* report (`awaySince`, `idleSince`),
+   * and without one it leaves a silent learner `FOCUSED` indefinitely. This replay has no such report to
+   * go on between two events, so it takes the threshold as "how long a silence may be credited" and
+   * stops guessing past it.
+   *
+   * The uncapped version charged every quiet stretch as `DISTRACTED`, and that is where the dashboard's
+   * "99.6% 离开中" came from: a 59-minute session with two events in it spent 35 of those minutes being
+   * called away, and a session left open overnight put sixteen hours of 离开中 into the day. The learner
+   * was at the desk; the app simply had nothing to say about the time and said "away" instead.
+   *
+   * What is neither credited nor charged is not counted at all, so `totalMs` is the time the app can
+   * stand behind rather than the wall-clock a session window happened to span.
+   */
   const credit = (state: LearningState, fromMs: number, toMs: number): void => {
     const span = toMs - fromMs;
     if (span <= 0) return;
-    if (state === 'DISTRACTED') {
-      segments.push({ state, fromMs, toMs });
-      return;
-    }
-    const credited = Math.min(span, idleThresholdMs);
+    const credited = state === 'DISTRACTED' ? span : Math.min(span, idleThresholdMs);
     if (credited > 0) segments.push({ state, fromMs, toMs: fromMs + credited });
-    if (span > credited) {
-      segments.push({ state: 'DISTRACTED', fromMs: fromMs + credited, toMs });
-    }
   };
 
   let engineState = createInitialState(session.startedAt);
@@ -117,7 +140,18 @@ export function buildStateTimeline(
     cursor = atMs;
   }
 
-  credit(engineState.state, cursor, limitMs);
+  /*
+   * The tail, which is bounded differently for an open session and for a closed one.
+   *
+   * A closed session ends at an action: the learner pressed stop, and an action is a witness. An open
+   * session has none, so its tail counts for one idle threshold and no further — the app cannot tell
+   * "still focused" from "still away" four days later, and charging the whole span to `DISTRACTED` is
+   * what filed sixteen hours of 离开中 against a day from a single `TAB_LEFT`, and four days against the
+   * all-time window. `DISTRACTED` is still kept whole *within* the session, where the next event bounds
+   * it; this only stops an unwitnessed tail from running to `now`.
+   */
+  const tailLimitMs = session.endedAt === undefined ? cursor + idleThresholdMs : limitMs;
+  credit(engineState.state, cursor, Math.min(tailLimitMs, limitMs));
   return segments;
 }
 

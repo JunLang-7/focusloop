@@ -156,6 +156,15 @@ const DONUT_RADIUS = 42;
                   }
                 </ul>
               </div>
+              <!--
+                A footnote to both columns rather than a third one. The donut row is a flex row with the
+                ring on a fixed basis and the legend growing; a paragraph placed inside it took a line to
+                itself and pushed the legend off the ring's row. Below the row it spans the panel, which
+                is what a note about both columns should do.
+              -->
+              <p class="muted small" data-testid="focus-ratio-hint">
+                {{ t('dashboard.focusRatio.hint') }}
+              </p>
             }
           </div>
 

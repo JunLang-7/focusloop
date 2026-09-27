@@ -302,6 +302,43 @@ test('the dashboard re-aggregates when the window changes', async () => {
   await expect(window.locator('.donut svg circle').first()).toBeVisible();
   await expect(window.getByTestId('focus-ratio')).toContainText('%');
 
+  // The footnote belongs below the row it annotates, and the ring and its legend belong on that same
+  // row. Both are layout facts, so they are measured rather than read off the template — the revision
+  // of this note that was written into the template instead of measured is the one that pushed the
+  // legend off the ring's row and took a whole review round to notice.
+  const ring = await window.locator('.donut').boundingBox();
+  const legend = await window.locator('.legend').boundingBox();
+  const rowBox = await window.locator('.donut-row').boundingBox();
+  const hint = await window.getByTestId('focus-ratio-hint').boundingBox();
+  if (ring === null || legend === null || rowBox === null || hint === null) {
+    throw new Error('the ring, its legend, their row and the hint must all be laid out');
+  }
+
+  const overlap =
+    Math.min(ring.y + ring.height, legend.y + legend.height) - Math.max(ring.y, legend.y);
+  /*
+   * Side by side when the row is wide enough for both, wrapped when it is not. The wrap is a responsive
+   * decision, not the defect: the Windows runner measures a row that cannot hold both and wraps, where
+   * `overlap` is -20 there and +132 here. Asserting the overlap unconditionally asserted this machine's
+   * window width — the same mistake the tutor test made with `'above'`, caught the same way, by CI. The
+   * width is measured, so the expectation follows the layout instead of assuming it; a legend that wraps
+   * while the row *does* have room for it is still caught, because then `sideBySide` is true.
+   */
+  if (rowBox.width >= ring.width + legend.width) {
+    expect(overlap, "the legend shares the ring's row instead of sitting under it").toBeGreaterThan(
+      Math.min(ring.height, legend.height) / 2,
+    );
+  }
+  expect(hint.y, 'the hint sits below the row').toBeGreaterThanOrEqual(
+    rowBox.y + rowBox.height - 1,
+  );
+  // The row, not the ring: a hint boxed into the ring's column is exactly the ring's width, so comparing
+  // against the ring would pass for the one layout this line exists to catch. The hint and the row are
+  // both block children of the same panel, so they are equally wide when the hint is a footnote to both.
+  expect(hint.width, 'the hint spans the row, not one column of it').toBeGreaterThanOrEqual(
+    rowBox.width - 1,
+  );
+
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 

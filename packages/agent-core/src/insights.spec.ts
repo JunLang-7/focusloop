@@ -75,10 +75,17 @@ describe('localDateKey', () => {
 });
 
 describe('buildStateTimeline', () => {
-  it('covers the whole session, whatever the state', () => {
+  it('counts only the stretch it can stand behind, and invents no absence', () => {
+    /*
+     * An hour-long session with nothing in it. The app witnessed nothing, so it reports the one stretch it
+     * can vouch for — the idle threshold after the session started — and stays silent about the other 58
+     * minutes. Charging those as `DISTRACTED` is what turned a quiet evening of reading into
+     * "99.6% 离开中" on the dashboard: the learner was at the desk, and the app said "away".
+     */
     const segments = buildStateTimeline(session(at(15, 10), at(15, 11)), [], at(15, 11));
-    const covered = segments.reduce((sum, s) => sum + (s.toMs - s.fromMs), 0);
-    expect(covered).toBe(60 * 60_000);
+    expect(segments).toEqual([
+      { state: 'READY', fromMs: Date.parse(at(15, 10)), toMs: Date.parse(at(15, 10, 2)) },
+    ]);
   });
 
   it('attributes an event-free stretch to the state that was running', () => {
@@ -90,8 +97,9 @@ describe('buildStateTimeline', () => {
     ]);
   });
 
-  it('does not credit silence beyond the idle threshold, and calls the rest DISTRACTED', () => {
-    // 10 minutes of nothing. The engine's idle threshold is 2 minutes.
+  it('credits silence up to the idle threshold, and counts nothing past it', () => {
+    // 10 minutes of nothing. The engine's idle threshold is 2 minutes: that is what the app witnessed, and
+    // the other 8 are not evidence of anything — least of all of being away.
     const events = [event('e1', 'TASK_STARTED', at(15, 10), { taskId: 't1' })];
     const segments = buildStateTimeline(
       session(at(15, 10), at(15, 10, 10)),
@@ -100,8 +108,27 @@ describe('buildStateTimeline', () => {
     );
     expect(segments).toEqual([
       { state: 'FOCUSED', fromMs: Date.parse(at(15, 10)), toMs: Date.parse(at(15, 10, 2)) },
-      { state: 'DISTRACTED', fromMs: Date.parse(at(15, 10, 2)), toMs: Date.parse(at(15, 10, 10)) },
     ]);
+  });
+
+  it('keeps a measured absence whole — away is what the bridge reported, not what silence hints at', () => {
+    // `TAB_LEFT` then `TAB_RETURNED`: the learner really was away, and the whole hour is theirs to see.
+    const events = [
+      event('e1', 'TASK_STARTED', at(15, 10), { taskId: 't1' }),
+      event('e2', 'TAB_LEFT', at(15, 10, 1)),
+      event('e3', 'TAB_RETURNED', at(15, 11, 1), { awayMs: 60 * 60_000 }),
+    ];
+    const segments = buildStateTimeline(
+      session(at(15, 10), at(15, 11, 30)),
+      events,
+      at(15, 11, 30),
+    );
+    const away = segments.find((s) => s.state === 'DISTRACTED');
+    expect(away).toEqual({
+      state: 'DISTRACTED',
+      fromMs: Date.parse(at(15, 10, 1)),
+      toMs: Date.parse(at(15, 11, 1)),
+    });
   });
 
   it('honours a custom idle threshold', () => {
@@ -114,6 +141,24 @@ describe('buildStateTimeline', () => {
     );
     const focused = segments.find((s) => s.state === 'FOCUSED');
     expect(focused?.toMs).toBe(Date.parse(at(15, 10, 1)));
+  });
+
+  it('bounds the tail of an open session at its last event plus the idle threshold', () => {
+    /*
+     * `TAB_LEFT` is a witnessed departure, but nothing witnesses how long it lasted: the app was left
+     * open, so there is no end action to bound it. The tail is capped like any other silent stretch —
+     * the alternative charged four days of `DISTRACTED` to the learner for one tab switch, and kept
+     * growing while the app stayed open.
+     */
+    const events = [
+      event('e1', 'TASK_STARTED', at(15, 10), { taskId: 't1' }),
+      event('e2', 'TAB_LEFT', at(15, 10, 1)),
+    ];
+    const segments = buildStateTimeline(session(at(15, 10)), events, at(18, 12));
+    expect(segments).toEqual([
+      { state: 'FOCUSED', fromMs: Date.parse(at(15, 10)), toMs: Date.parse(at(15, 10, 1)) },
+      { state: 'DISTRACTED', fromMs: Date.parse(at(15, 10, 1)), toMs: Date.parse(at(15, 10, 3)) },
+    ]);
   });
 
   it('bounds an open session at `until`', () => {
@@ -171,7 +216,7 @@ describe('buildInsightsSummary', () => {
     ]);
   });
 
-  it('counts the session duration across the states it passed through', () => {
+  it('counts the time it can stand behind, across the states it passed through', () => {
     const summary = buildInsightsSummary({
       range: 'session',
       now: at(15, 12),
@@ -179,8 +224,9 @@ describe('buildInsightsSummary', () => {
       courses: COURSES,
       currentSessionId: SESSION_ID,
     });
-    // 10:00 → 11:00, with two events inside it.
-    expect(summary.totalMs).toBe(60 * 60_000);
+    // 10:00 → 11:00 with events at 10:00 and 10:30: two stretches of the idle threshold, 4 minutes, not the
+    // hour the window happened to span.
+    expect(summary.totalMs).toBe(4 * 60_000);
     const shares = summary.stateShares.reduce((sum, s) => sum + s.share, 0);
     expect(shares).toBeCloseTo(1, 10);
     const durations = summary.stateShares.reduce((sum, s) => sum + s.durationMs, 0);
@@ -233,9 +279,18 @@ describe('buildInsightsSummary', () => {
   });
 
   it('splits a stretch that crosses local midnight across both days', () => {
+    /*
+     * Driven by events, with the threshold given here rather than taken from the default: an event-free
+     * session accounts for two minutes now, so a fixture that leaned on the default would quietly turn
+     * into a test of the threshold value instead of a test of the split.
+     */
     const overnight = source({
-      session: session(at(15, 23, 0), at(16, 1, 0)),
-      events: [],
+      // Ends at the second event, so the only minute-pair under test is the one that straddles midnight.
+      session: session(at(15, 23, 59), at(16, 0, 1)),
+      events: [
+        event('e1', 'TASK_STARTED', at(15, 23, 59), { taskId: 't1' }),
+        event('e2', 'TASK_COMPLETED', at(16, 0, 1), { taskId: 't1' }),
+      ],
     });
     const summary = buildInsightsSummary({
       range: 'week',
@@ -243,12 +298,13 @@ describe('buildInsightsSummary', () => {
       sources: [overnight],
       courses: COURSES,
       currentSessionId: SESSION_ID,
+      config: { idleThresholdMs: 5 * 60_000 },
     });
-    // 23:00 → 00:00 is one hour, capped by the 2-minute idle rule.
     const first = summary.daily.find((day) => day.date === dayKey(15));
     const second = summary.daily.find((day) => day.date === dayKey(16));
-    expect(first?.durationMs).toBeGreaterThan(0);
-    expect(second?.durationMs).toBeGreaterThan(0);
+    // One minute on each side of midnight, from the event pair rather than from the threshold.
+    expect(first?.durationMs).toBe(60_000);
+    expect(second?.durationMs).toBe(60_000);
     expect((first?.durationMs ?? 0) + (second?.durationMs ?? 0)).toBe(summary.totalMs);
   });
 
