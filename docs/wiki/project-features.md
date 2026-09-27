@@ -68,42 +68,42 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 
 ## 3. 功能总览表
 
-| 分组    | 功能                           | 状态        | 证据                                                           | 当前边界                                      |
-| ------- | ------------------------------ | ----------- | -------------------------------------------------------------- | --------------------------------------------- |
-| A 学习  | 内置演示课程                   | E2E 验证    | golden path                                                    | 用于演示与开发验证                            |
-| A 学习  | 本机材料导入（`.txt` / `.md`） | E2E 验证    | `af2e74f` (#81)                                                | 不支持 PDF / Word / 网页抓取                  |
-| A 学习  | 课程与微任务生成               | CI 绿       | `micro-task-generator.ts`                                      | 确定性规则，不是模型生成                      |
-| A 学习  | 课程浏览                       | CI 绿       | 课程页 + store 读取                                            | 单人、本地课程为单位                          |
-| A 学习  | Focus Session 计时             | E2E 验证    | golden path                                                    | 计时由桌面 UI 管理                            |
-| A 学习  | 任务生命周期（暂停/继续/延长） | E2E 验证    | `257efe0` (#76)、`2b4934f` (#75)                               | 计时结束后延长一分钟                          |
-| B 干预  | 学习状态机（八态）             | CI 绿       | `packages/learning-state`                                      | 确定性状态机，不做心理诊断                    |
-| B 干预  | 「我卡住了」六类原因           | E2E 验证    | `534bc1c` (#100)                                               | 原因先被记录，再决定行动                      |
-| B 干预  | 干预策略（确定性 8 类 action） | CI 绿       | `packages/intervention-policy`                                 | 模型不决定是否打断                            |
-| B 干预  | 干预结果记录与 Dashboard 汇总  | CI 绿       | outcome 事件 + Dashboard                                       | 记录展示/接受/拒绝/完成                       |
-| B 干预  | Rescue 计划与成功评估器        | 分支完成    | `0f19c9f`（无 PR）                                             | 未合并；SHRINK/SPLIT 仍未实现                 |
-| C 恢复  | Learning Checkpoint            | CI 绿       | `buildCheckpoint` + store                                      | 内容主要从任务进度推导                        |
-| C 恢复  | Resume Card（统一版）          | E2E 验证    | `packages/continuity` + Dashboard                              | 只有一档，不区分离开时长                      |
-| C 恢复  | Resume 三档 + 重新参与指标     | 分支完成    | `0f19c9f`（无 PR）                                             | 未合并；指标口径需按 §4.C3 改名               |
-| D 观察  | Dashboard                      | CI 绿       | 当前 Session 与跨 Session 两类视图                             | 指标全部本地重算                              |
-| D 观察  | Insights（四个时间窗）         | CI 绿       | 状态占比、日历、课程占比                                       | 不依赖远端分析服务                            |
-| D 观察  | 学习事件时间线                 | CI 绿       | 相邻重复事件折叠                                               | 是过程记录，不是能力评价                      |
-| E 环境  | 浏览器 Bridge（MV3）           | CI 绿       | 扩展 + 本机 bridge                                             | 不读 URL / 标题 / 正文 / Cookie               |
-| E 环境  | Demo Event Simulator           | CI 绿       | 开发版显示，打包版隐藏                                         | 仅开发模式                                    |
-| E 环境  | 中英文界面                     | E2E 验证    | `messages.en/zh.ts` + 编译期强制                               | 设置存本地                                    |
-| E 环境  | 主题（跟随系统 / 浅 / 深）     | CI 绿       | token 门禁（禁用字面色值）                                     | 设置存本地                                    |
-| E 环境  | 离线运行                       | E2E 验证    | Mock Provider                                                  | 无账号、无网络可完成核心流程                  |
-| E 环境  | 可选 DeepSeek Provider         | 已合并      | `packages/llm-provider`                                        | `main` 的正常 UI 流程不调用它                 |
-| E 环境  | Agent Context Inspector（AG1） | 已合并      | `63acc28` (#99)                                                | 见 §4.F1 的两视图说明                         |
-| F Agent | AG1 Learning Context           | 已合并      | `63acc28` (#99)                                                | 边界与 omission 已合并；13 类事件投影在分支上 |
-| F Agent | AG2 Stuck Rescue               | 已合并      | `534bc1c` (#100)                                               | 动作仍是文案，未真正改写任务                  |
-| F Agent | AG3 Contextual Tutor           | **PR 已开** | PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101) | 未合并；i18n 违规待修（见 §4.F3）             |
-| F Agent | AG4 Task Adaptation            | 设计完成    | 方案页 AG4                                                     | 只有一个 commit 的动作，无 AdaptiveTask       |
-| F Agent | AG5 Cognitive Resume           | 已合并      | 统一卡；三档在 `0f19c9f`                                       | 见 §4.C3                                      |
-| F Agent | AG6 Learning Reflection        | 设计完成    | 方案页 AG6                                                     | 无偏好模型，无复盘链路                        |
-| F Agent | AG7 Agent Memory               | 设计完成    | 方案页 AG7                                                     | episodic 数据已有，无 scope/删除语义          |
-| F Agent | AG8 Tools & Actions            | 设计完成    | 方案页 AG8                                                     | 无 tool contract / 权限 / 确认                |
-| F Agent | AG9 Model Runtime              | 设计完成    | `AIProvider` 抽象                                              | 无结构化输出 / abort / 流式                   |
-| F Agent | AG10 Evaluation & Guardrails   | 分支完成    | `0f19c9f`（无 PR）                                             | `main` 上只有工程测试，无场景数据集           |
+| 分组    | 功能                           | 状态        | 证据                                                           | 当前边界                                                    |
+| ------- | ------------------------------ | ----------- | -------------------------------------------------------------- | ----------------------------------------------------------- |
+| A 学习  | 内置演示课程                   | E2E 验证    | golden path                                                    | 用于演示与开发验证                                          |
+| A 学习  | 本机材料导入（`.txt` / `.md`） | E2E 验证    | `af2e74f` (#81)                                                | 不支持 PDF / Word / 网页抓取                                |
+| A 学习  | 课程与微任务生成               | CI 绿       | `micro-task-generator.ts`                                      | 确定性规则，不是模型生成                                    |
+| A 学习  | 课程浏览                       | CI 绿       | 课程页 + store 读取                                            | 单人、本地课程为单位                                        |
+| A 学习  | Focus Session 计时             | E2E 验证    | golden path                                                    | 计时由桌面 UI 管理                                          |
+| A 学习  | 任务生命周期（暂停/继续/延长） | E2E 验证    | `257efe0` (#76)、`2b4934f` (#75)                               | 计时结束后延长一分钟                                        |
+| B 干预  | 学习状态机（八态）             | CI 绿       | `packages/learning-state`                                      | 确定性状态机，不做心理诊断                                  |
+| B 干预  | 「我卡住了」六类原因           | E2E 验证    | `534bc1c` (#100)                                               | 原因先被记录，再决定行动                                    |
+| B 干预  | 干预策略（确定性 8 类 action） | CI 绿       | `packages/intervention-policy`                                 | 模型不决定是否打断                                          |
+| B 干预  | 干预结果记录与 Dashboard 汇总  | CI 绿       | outcome 事件 + Dashboard                                       | 记录展示/接受/拒绝/完成                                     |
+| B 干预  | Rescue 计划与成功评估器        | 分支完成    | `0f19c9f`（无 PR）                                             | 未合并；SHRINK/SPLIT 仍未实现                               |
+| C 恢复  | Learning Checkpoint            | CI 绿       | `buildCheckpoint` + store                                      | 内容主要从任务进度推导                                      |
+| C 恢复  | Resume Card（统一版）          | E2E 验证    | `packages/continuity` + Dashboard                              | 只有一档，不区分离开时长                                    |
+| C 恢复  | Resume 三档 + 重新参与指标     | 分支完成    | `0f19c9f`（无 PR）                                             | 未合并；指标口径需按 §4.C3 改名                             |
+| D 观察  | Dashboard                      | CI 绿       | 当前 Session 与跨 Session 两类视图                             | 指标全部本地重算                                            |
+| D 观察  | Insights（四个时间窗）         | CI 绿       | 状态占比、日历、课程占比                                       | 不依赖远端分析服务                                          |
+| D 观察  | 学习事件时间线                 | CI 绿       | 相邻重复事件折叠                                               | 是过程记录，不是能力评价                                    |
+| E 环境  | 浏览器 Bridge（MV3）           | CI 绿       | 扩展 + 本机 bridge                                             | 不读 URL / 标题 / 正文 / Cookie                             |
+| E 环境  | Demo Event Simulator           | CI 绿       | 开发版显示，打包版隐藏                                         | 仅开发模式                                                  |
+| E 环境  | 中英文界面                     | E2E 验证    | `messages.en/zh.ts` + 编译期强制                               | 设置存本地                                                  |
+| E 环境  | 主题（跟随系统 / 浅 / 深）     | CI 绿       | token 门禁（禁用字面色值）                                     | 设置存本地                                                  |
+| E 环境  | 离线运行                       | E2E 验证    | Mock Provider                                                  | 无账号、无网络可完成核心流程                                |
+| E 环境  | 可选 DeepSeek Provider         | 已合并      | `packages/llm-provider`                                        | `main` 的正常 UI 流程不调用它                               |
+| E 环境  | Agent Context Inspector（AG1） | 已合并      | `63acc28` (#99)                                                | 见 §4.F1 的两视图说明                                       |
+| F Agent | AG1 Learning Context           | 已合并      | `63acc28` (#99)                                                | 边界与 omission 已合并；13 类事件投影在分支上               |
+| F Agent | AG2 Stuck Rescue               | 已合并      | `534bc1c` (#100)                                               | 动作仍是文案，未真正改写任务                                |
+| F Agent | AG3 Contextual Tutor           | **PR 已开** | PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101) | 未合并；i18n 违规待修（见 §4.F3）                           |
+| F Agent | AG4 Task Adaptation            | 设计完成    | 方案页 AG4                                                     | 只有一个 commit 的动作，无 AdaptiveTask                     |
+| F Agent | AG5 Cognitive Resume           | 已合并      | 统一卡；三档在 `0f19c9f`                                       | 见 §4.C3                                                    |
+| F Agent | AG6 Learning Reflection        | 设计完成    | 方案页 AG6                                                     | 无偏好模型，无复盘链路                                      |
+| F Agent | AG7 Agent Memory               | **PR 已开** | [ADR 0001](./adr/0001-agent-memory-deletion.md) + PR #129      | 删除语义已冻结，清除原语在本 PR；scope/保留期与检查 UI 未做 |
+| F Agent | AG8 Tools & Actions            | 设计完成    | 方案页 AG8                                                     | 无 tool contract / 权限 / 确认                              |
+| F Agent | AG9 Model Runtime              | 设计完成    | `AIProvider` 抽象                                              | 无结构化输出 / abort / 流式                                 |
+| F Agent | AG10 Evaluation & Guardrails   | 分支完成    | `0f19c9f`（无 PR）                                             | `main` 上只有工程测试，无场景数据集                         |
 
 > 「CI 绿」指该能力所在 PR 的全部必需检查在 `main` 上通过（`quality` ×3 OS、`golden path` ×2、
 > `coverage`、`package (smoke)`、CodeQL、`analyze`）。「E2E 验证」表示 `golden path` 里有对应的
@@ -407,17 +407,19 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 8. **依赖**：AG9 才能成为统一 Runtime。
 9. **怎么验证**：`llm-provider` 单测（错误归类、URL 规范化）。
 
-#### E7 Agent Context Inspector — 已合并
+#### E7 Agent Inspector (Context + Outbound) — Outbound 已交付
 
-1. **定位**：看清「Agent 现在能看到什么」，包括被裁掉的部分。
-2. **用户怎么用**：开发模式打开面板。
-3. **何时发生**：读取当前上下文构建结果。
-4. **永不做什么**：不是完整数据库视图；不是完整 Provider 请求视图。
-5. **数据与边界**：展示 AG1 报告（含 omission 与截断长度）；不显示未授权的跨课程内容。
-6. **状态与证据**：已合并 — `63acc28` (#99)。
-7. **已知限制**：与「实际送模内容」是两层报告，容易误读；见 §4.F1 的两视图定义。
-8. **依赖**：AG1。
-9. **怎么验证**：engine/IPC 单测 + Inspector 组件单测。
+1. **定位**：看清「Agent 现在能看到什么」（Context）与「这一次实际发给 Provider 什么」（Outbound）。
+2. **用户怎么用**：开发模式打开面板，切换 Context / Outbound 两个 Tab。
+3. **何时发生**：Context 每次刷新读取；Outbound 在每次 Tutor ask 之后更新（仅内存）。
+4. **永不做什么**：不是完整数据库视图；Outbound 内容不落库、不写日志；打包构建不显示面板。
+5. **数据与边界**：Context 展示 AG1 报告（omission 与截断）；Outbound 展示 system+prompt 原文与
+   `system.length + prompt.length` 字符数（与预算公式一致）；未发送时显示空态。
+6. **状态与证据**：Context 已合并 — `63acc28` (#99)；Outbound — 本 issue (#112)。
+7. **已知限制**：两层报告，差异可解释（Tutor 在 AG1 之上再裁剪）；离线/无模型时 Outbound 为空是预期。
+8. **依赖**：AG1、AG3（有出站才可看）。
+9. **怎么验证**：engine 单测（字符数 = 实际交给 provider 的字符串长度）+ IPC `parseSessionId` +
+   e2e 空态/Tab 切换。
 
 ### F. Agent 能力（AG1–AG10）
 
@@ -431,7 +433,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 6. **状态与证据**：已合并 — `63acc28` (#99)；`shared-types/src/agent-context.ts` +
    `agent-core/src/agent-context.ts`。
 7. **已知限制**：其一，**Inspector 一致性必须按两个视图理解**——「Agent Context Inspector」显示
-   Agent 可访问的数据，「Outbound Request Inspector」（AG9 交付）显示这次实际发给 Provider 的内容。
+   Agent 可访问的数据，「Outbound Request Inspector」**已交付**（#112）显示这次实际发给 Provider 的内容。
    二者不可能相同，因为 Tutor 会在 AG1 上下文之上再裁剪。方案页原先要求「完全一致」的表述已修正。
    其二，`main` 上只有边界与 omission；**13 类事件的逐类型投影 allowlist
    （`AgentContextEvent`）只存在于分支 `0f19c9f`**，未合并。
@@ -512,7 +514,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 8. **依赖**：AG7。
 9. **怎么验证**：待实现。
 
-#### F7 AG7 Agent Memory — 设计完成
+#### F7 AG7 Agent Memory — PR 已开（删除语义已冻结）
 
 1. **定位**：记忆分层且**可检查、可删除**，不是黑箱画像。
 2. **用户怎么用**（计划）：隐私页查看 scope、来源、时间与删除影响；清除前确认。
@@ -520,13 +522,14 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 4. **永不做什么**：不复制完整日志或材料；不存诊断/智力/人格/心理健康推断。
 5. **数据与边界**（计划）：`getMemorySummary` / `listMemory` / `deletePreference` /
    `clearAgentMemory`；每类有 purpose、来源、保留期、读取者。
-6. **状态与证据**：设计完成 — 方案页 AG7；episodic 数据本身已存在（events / checkpoints /
+6. **状态与证据**：**PR 已开** — [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110）；`clearAgentMemory` +
+   `agent_memory_clears` 审计与 write→clear→query 回归测试在本 PR（#129）的 `agent-core` / `persistence` 里；episodic 行本身已存在（events / checkpoints /
    outcomes / resume_cards）。
-7. **已知限制**：**删除语义尚未冻结**（分析发现 #9）。必须在实现前明确定义：物理删除 / 软删除 /
-   访问 tombstone、Dashboard 是否仍可使用、审计日志是否保留被删对象标识、缓存与派生结果如何失效。
-   否则「数据还在但 Agent 看不到」只是一句愿望。
-8. **依赖**：隐私 ADR、persistence migrations。
-9. **怎么验证**：待实现；需包含删除后不可回流的回归测试。
+7. **已知限制**：**删除语义已按 ADR 0001 冻结**（物理删除；Dashboard 不得使用被清除行；
+   审计仅 opaque id + 时间 + actor）。未交付：scope 检查 UI、preference 删除、按时间窗的批量清理。
+8. **依赖**：ADR 0001、persistence migrations。
+9. **怎么验证**：`agent-core/src/memory-clear.spec.ts`（每类写→清→查空，含 dashboard/context/transcript）
+   - `persistence` store 单测。
 
 #### F8 AG8 Tools & Actions — 设计完成
 

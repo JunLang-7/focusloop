@@ -74,6 +74,17 @@ const api: FocusLoopApi = {
     ),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getBridgeInfo, payload.none()),
   getAgentContext: () => ipcRenderer.invoke(IPC_CHANNELS.getAgentContext, payload.none()),
+  getOutboundRequest: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.getOutboundRequest, payload.sessionId(sessionId)),
+  proposeStructuralChange: (request) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.proposeStructuralChange,
+      payload.proposeStructuralChange(request),
+    ),
+  confirmProposal: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.confirmProposal, payload.confirmProposal(request)),
+  executeProposal: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.executeProposal, payload.executeProposal(request)),
   askTutor: (request) => ipcRenderer.invoke(IPC_CHANNELS.askTutor, payload.askTutor(request)),
 
   getSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getSettings, payload.none()),

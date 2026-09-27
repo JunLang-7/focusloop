@@ -68,7 +68,7 @@ Home
 - 差距：隐私规则尚未形成独立、可审计的字段级 allowlist 文档；缺少面向恶意/敏感事件 payload 的固定回归语料。
 - **Inspector 不是“一个面板”，而是两个**（原表述自相矛盾，已修正）：
   - **Context Inspector**：Agent **可访问**的数据。对应 `agent:context` 报告、omission 与截断长度。
-  - **Outbound Request Inspector**：这一次**实际发给 Provider** 的内容（AG9 交付）。
+  - **Outbound Request Inspector**：这一次**实际发给 Provider** 的内容（已交付，见 #112）。
   - 二者在多处必然不同，因为 Tutor 会在 AG1 上下文之上再次裁剪并拼装 system / preamble / question。
     因此验收标准不能写“两者一致”，只能写“**两者都有视图，且差异可被解释**”。
 - 验收标准：任意 session 只包含当前课程路径所需数据；材料、事件、总 prompt 均在声明上限内；所有裁剪都有 omission；不得出现其他课程内容、完整日志、密钥、URL path/query、表单内容；**Context Inspector 与 Outbound Request Inspector 都存在，且从任一侧可追溯到另一侧**；无 session 返回显式空上下文。
@@ -126,19 +126,19 @@ Home
 - 风险：小样本伪规律；把情境行为当人格；确认疲劳；反馈循环；跨课程偏好错误泛化。
 - 实施步骤：先写伦理/语言规范 → 定义统计特征和最小样本 → reflection proposal（只读）→ confirmation → preference store/UI → 效果对照 → weekly summary。
 
-### AG7 Memory — 设计完成（episodic 数据已存在，统一 Memory 能力未形成）
+### AG7 Memory — PR 已开（删除语义已按 ADR 0001 冻结，清除原语见 PR #129）
 
 - 当前证据：当前 session/context 是 working-memory 等价物；events/checkpoints/interventions/outcomes 是 episodic 数据；SQLite local-first 且有迁移与 round-trip 测试。
 - 差距：没有明确 Memory scopes API；没有按目的/保留期查询与删除；没有 learner-preference schema/store/inspection；Tutor transcript 是进程内临时状态且生命周期未在产品层说明。
 - 验收标准：Working/Episodic/Preference 三类边界清晰；每类有 purpose、来源、保留期、读取者；偏好显式、可编辑、可单项删/全清；清除后上下文与反思不再引用；禁止存储诊断、智力、人格、心理健康推断；所有 query 有数量/时间窗上限。
-- **删除语义必须先冻结，否则不得开工**（原表述只有一句愿望：“清除后不可被查询”）。实现前必须回答：
-  1. 清除是**物理删除**、**软删除**还是**访问 tombstone**？
-  2. Dashboard 与 Insights 是否仍能使用被清除的数据（若可以，就说明它并未真正删掉）？
-  3. 审计日志是否保留被删对象的标识？保留多久？
-  4. 缓存、checkpoint 与派生结果如何失效（含“删除后不可回流”的回归测试）？
+- **删除语义已冻结** — 见 [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110）：
+  1. Working / Episodic / Preference 均为**物理删除**（Preference 待 AG6/AG7 实现时同规则）。
+  2. Dashboard/Insights **不得**再使用被清除的 episodic 行；派生路径由删表自然清空。
+  3. 审计仅保留 `session_id` + `cleared_at` + `actor`（`agent_memory_clears`）。
+  4. 无长驻缓存；失效 = 删读取面（transcript Map + episodic 表），回归测试覆盖 dashboard / context / transcript。
 - 依赖：privacy ADR、persistence migrations；AG6/AG4 消费其能力。
 - 风险：删除不彻底（派生表/缓存）；scope creep；长期日志增长；同步功能未来破坏 local-first 假设。
-- 实施步骤：Data Inventory → MemoryPolicy/Query contract → episodic bounded queries → preference migration/repository → inspection & delete UI → cache invalidation tests → privacy regression。
+- 实施步骤：~~删除语义冻结（已完成，ADR 0001）~~ → Data Inventory → MemoryPolicy/Query contract → episodic bounded queries → preference migration/repository → inspection & delete UI → cache invalidation tests → privacy regression。
 
 ### AG8 Tool & Action — 设计完成（`main` 上只有 domain commands，没有 Agent Tool 系统）
 
@@ -211,7 +211,10 @@ Home
 
 ### Phase 4：Memory 与完整 Resume（AG7 + AG5）
 
-1. 有界 episodic queries 与 retention/delete。
+> **前置**：[ADR 0001 — Agent memory deletion](./adr/0001-agent-memory-deletion.md) 已接受（#110），
+> 删除语义按该 ADR 执行；AG7 实现不得另行发明清除规则。
+
+1. 有界 episodic queries 与 retention/delete（物理删除，见 ADR 0001）。
 2. preference store 仅建基础 CRUD，不启用自动推断。
 3. checkpoint 纳入有界 Tutor/Rescue evidence。
 4. adaptive state restore、long-gap refresher。
@@ -257,4 +260,5 @@ AG1/2/3/基础 AG5 的收口不必等关键路径，可并行交付并尽快形�
 
 如果下一轮只安排一个可交付切片，选择：**“Resume 三档 + success metric，但不引入新 LLM 能力”**。它复用现有 checkpoint/resume 强项、风险低、可 deterministic 测试，且直接增强最有辨识度的 Demo。并行补 AG10 scenario harness 与 AG1 privacy fixtures。
 
-进入 AG4 前的硬门槛：AG8 的 structural-write confirmation 与 idempotency 测试已通过。进入 AG6 前的硬门槛：AG7 的 preference inspection/delete 已交付。
+进入 AG4 前的硬门槛：AG8 的 structural-write confirmation 与 idempotency 测试已通过
+（**已满足**：确认信封 + 幂等 + 审计 + 四条 DoD 测试，见 #114）。进入 AG6 前的硬门槛：AG7 的 preference inspection/delete 已交付。
