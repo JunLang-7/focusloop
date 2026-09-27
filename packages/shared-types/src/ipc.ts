@@ -12,6 +12,7 @@ import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
 import type { LearningState } from './state';
 import type { TutorAnswer, TutorAskRequest } from './tutor';
+import type { OutboundRequest } from './outbound';
 import type {
   AgentProposal,
   AgentProposalKind,
@@ -46,6 +47,7 @@ export const IPC_CHANNELS = {
   getDashboard: 'focusloop:dashboard:get',
   getInsights: 'focusloop:insights:get',
   getAgentContext: 'focusloop:agent:context',
+  getOutboundRequest: 'focusloop:agent:outbound-request',
   proposeStructuralChange: 'focusloop:agent:propose',
   confirmProposal: 'focusloop:agent:confirm-proposal',
   executeProposal: 'focusloop:agent:execute-proposal',
@@ -268,6 +270,13 @@ export interface FocusLoopApi {
    * and `node:crypto`, into a sandboxed page that has neither.
    */
   getAgentContext(): Promise<AgentContextReport>;
+  /**
+   * Last outbound request for this session — the second inspector view.
+   *
+   * Development-only content (learner text); never persisted. Returns null when
+   * nothing has been sent yet for the session.
+   */
+  getOutboundRequest(sessionId: string): Promise<OutboundRequest | null>;
 
   /**
    * Builds a structural proposal bound to the session's current state.

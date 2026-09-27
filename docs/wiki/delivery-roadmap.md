@@ -68,7 +68,7 @@ Home
 - 差距：隐私规则尚未形成独立、可审计的字段级 allowlist 文档；缺少面向恶意/敏感事件 payload 的固定回归语料。
 - **Inspector 不是“一个面板”，而是两个**（原表述自相矛盾，已修正）：
   - **Context Inspector**：Agent **可访问**的数据。对应 `agent:context` 报告、omission 与截断长度。
-  - **Outbound Request Inspector**：这一次**实际发给 Provider** 的内容（AG9 交付）。
+  - **Outbound Request Inspector**：这一次**实际发给 Provider** 的内容（已交付，见 #112）。
   - 二者在多处必然不同，因为 Tutor 会在 AG1 上下文之上再次裁剪并拼装 system / preamble / question。
     因此验收标准不能写“两者一致”，只能写“**两者都有视图，且差异可被解释**”。
 - 验收标准：任意 session 只包含当前课程路径所需数据；材料、事件、总 prompt 均在声明上限内；所有裁剪都有 omission；不得出现其他课程内容、完整日志、密钥、URL path/query、表单内容；**Context Inspector 与 Outbound Request Inspector 都存在，且从任一侧可追溯到另一侧**；无 session 返回显式空上下文。
