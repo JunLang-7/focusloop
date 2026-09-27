@@ -2,11 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type {
   AgentContext,
   AgentContextReport,
+  AgentProposal,
+  AgentProposalKind,
+  ConfirmProposalRequest,
   Course,
   DashboardSummary,
   DispatchEventRequest,
   DispatchEventResponse,
   EndSessionRequest,
+  ExecuteProposalRequest,
   ImportMaterialResponse,
   InsightRange,
   InsightsSummary,
@@ -17,6 +21,9 @@ import type {
   LearningSession,
   MaterialDocument,
   MicroTask,
+  OutboundRequest,
+  ProposalConfirmResult,
+  ProposalExecuteResult,
   ResolveInterventionRequest,
   ResumeCardView,
   RescueView,
@@ -73,7 +80,7 @@ import {
 import { parseMaterial } from '@focusloop/material-parser';
 import type { FocusLoopStore, SessionRecord } from '@focusloop/persistence';
 import {
-  completeWithFallback,
+  AgentRuntime,
   type CompleteWithFallbackResult,
   type ProviderSelection,
 } from '@focusloop/llm-provider';
@@ -82,6 +89,7 @@ import { buildInsightsSummary, type InsightsSessionSource } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
+import { confirmAgentProposal, createAgentProposal, executeAgentProposal } from './proposal';
 import {
   TutorTranscript,
   composeRetryPrompt,
@@ -137,6 +145,11 @@ export interface FocusLoopEngineOptions {
 export class FocusLoopEngine {
   private readonly store: FocusLoopStore;
   private readonly providers: ProviderSelection;
+  /**
+   * The one door to providers: serialisable request data, in-process abort
+   * options, text vs structured modes. Skills never talk to `AIProvider` directly.
+   */
+  private readonly runtime: AgentRuntime;
   private readonly clock: () => string;
   private readonly idFactory: () => string;
   private readonly simulatorEnabled: boolean;
@@ -151,10 +164,26 @@ export class FocusLoopEngine {
    * a working aid whose value ends with the session. AG7 is where this becomes durable, deliberately.
    */
   private readonly transcript = new TutorTranscript();
+  /**
+   * Last outbound tutor request per session — the Outbound Request Inspector's data.
+   *
+   * In memory only: the prompt contains learner text, so it is never written to the store and never
+   * logged. Cleared when the session ends, with the transcript.
+   */
+  private readonly outboundBySession = new Map<string, OutboundRequest>();
+  /**
+   * How many sessions' outbound requests may be held at once.
+   *
+   * `endSession` drops the entry, but an *abandoned* session never reaches it, and its question plus
+   * material excerpt would then sit in the heap for the life of the process — the opposite of \"for the
+   * current session only\". The bound is small because only the newest is ever interesting.
+   */
+  private static readonly MAX_OUTBOUND_SESSIONS = 4;
 
   constructor(options: FocusLoopEngineOptions) {
     this.store = options.store;
     this.providers = options.providers;
+    this.runtime = new AgentRuntime(options.providers);
     this.clock = options.clock ?? (() => new Date().toISOString());
     this.idFactory = options.idFactory ?? (() => randomUUID());
     this.stateConfig = options.stateConfig ?? {};
@@ -277,6 +306,7 @@ export class FocusLoopEngine {
      * is not in the store, so this is the one place it can leak per-session.
      */
     this.transcript.forget(request.sessionId);
+    this.outboundBySession.delete(request.sessionId);
     return session;
   }
 
@@ -436,6 +466,8 @@ export class FocusLoopEngine {
       return this.unavailable('no-model', context, unsentReport(built.report));
     }
 
+    // Recorded immediately before the hand-off: the Outbound Inspector shows what left, not a rebuild.
+    this.rememberOutbound(request.sessionId, built.system, built.prompt);
     let completion = await this.complete(built.system, built.prompt);
     if (completion.degraded) {
       /*
@@ -528,6 +560,7 @@ export class FocusLoopEngine {
           detail: 'the answer could not be asked for again: it would have gone over the limit',
         });
       } else {
+        this.rememberOutbound(request.sessionId, built.system, composed.prompt);
         completion = await this.complete(built.system, composed.prompt);
         sent = {
           turns: built.report.sent.turns,
@@ -631,12 +664,41 @@ export class FocusLoopEngine {
    * the labels. Anything the model returns beyond it is caught by the clip, which reports.
    */
   private complete(system: string, prompt: string): Promise<CompleteWithFallbackResult> {
-    return completeWithFallback(this.providers, {
+    return this.runtime.completeText({
       system,
       prompt,
       maxTokens: 2048,
       temperature: 0.3,
     });
+  }
+
+  /**
+   * Stores the exact strings about to be handed to the provider.
+   *
+   * Memory only — never the store, never a log line. The character total is
+   * `system.length + prompt.length`, the same formula as `sent.inputCharacters`,
+   * so the inspector figure cannot drift from the string it describes.
+   */
+  private rememberOutbound(sessionId: string, system: string, prompt: string): void {
+    // Re-insert so eviction follows insertion order and the oldest session goes first.
+    this.outboundBySession.delete(sessionId);
+    this.outboundBySession.set(sessionId, {
+      sessionId,
+      at: this.clock(),
+      system,
+      prompt,
+      inputCharacters: system.length + prompt.length,
+    });
+    while (this.outboundBySession.size > FocusLoopEngine.MAX_OUTBOUND_SESSIONS) {
+      const oldest = this.outboundBySession.keys().next().value;
+      if (oldest === undefined) break;
+      this.outboundBySession.delete(oldest);
+    }
+  }
+
+  /** Last outbound request for this session, or null if nothing has been sent. */
+  getOutboundRequest(sessionId: string): OutboundRequest | null {
+    return this.outboundBySession.get(sessionId) ?? null;
   }
 
   getSessionProgress(sessionId: string) {
@@ -1287,7 +1349,7 @@ export class FocusLoopEngine {
    * failure it degrades to the mock provider and reports why.
    */
   async enrich(prompt: string, system?: string): Promise<CompleteWithFallbackResult> {
-    return completeWithFallback(this.providers, {
+    return this.runtime.completeText({
       prompt,
       ...(system === undefined ? {} : { system }),
       maxTokens: 256,
@@ -1295,9 +1357,14 @@ export class FocusLoopEngine {
     });
   }
 
-  providerInfo(): { id: string; model: string; offline: boolean } {
+  providerInfo(): { id: string; model: string; offline: boolean; degraded: boolean } {
     const provider = this.providers.primary;
-    return { id: provider.id, model: provider.model, offline: provider.offline };
+    return {
+      id: provider.id,
+      model: provider.model,
+      offline: provider.offline,
+      degraded: this.runtime.degraded,
+    };
   }
 
   configSnapshot(): {
@@ -1316,8 +1383,9 @@ export class FocusLoopEngine {
    * Clears agent memory for one session — ADR
    * `docs/wiki/adr/0001-agent-memory-deletion.md`.
    *
-   * - **Working**: tutor transcript (physical, in-process).
-   * - **Episodic**: events, checkpoints, interventions, outcomes, resume_cards (physical, SQLite).
+   * - **Working**: tutor transcript and the last outbound prompt (physical, in-process).
+   * - **Episodic**: events, checkpoints, interventions, outcomes, resume_cards, proposals
+   *   (physical, SQLite).
    * - **Audit**: opaque `agent_memory_clears` row (session id, timestamp, actor) — no content.
    *
    * Session catalog and course structure stay. Dashboard/insights read the deleted tables, so
@@ -1332,6 +1400,12 @@ export class FocusLoopEngine {
     const actor = options.actor ?? 'user';
     const clearedAt = this.clock();
     this.transcript.forget(sessionId);
+    /*
+     * The outbound prompt is the learner's question verbatim. `endSession` cleared it; clearing memory
+     * did not, so a cleared session stayed readable through the Outbound Inspector. The ADR already
+     * named this class as deleted on clear — the code only did half of it.
+     */
+    this.outboundBySession.delete(sessionId);
 
     const run = this.store.transaction(() => {
       this.store.clearSessionEpisodic(sessionId);
@@ -1377,6 +1451,36 @@ export class FocusLoopEngine {
   setShowMaterialText(showMaterialText: boolean): AppSettings {
     this.store.setMeta(SHOW_MATERIAL_TEXT_KEY, showMaterialText ? 'true' : 'false');
     return this.getSettings();
+  }
+
+  // --------------------------------------------------- structural proposals
+
+  private proposalDeps() {
+    return { store: this.store, now: this.clock, idFactory: this.idFactory };
+  }
+
+  /**
+   * Builds a structural proposal bound to the session's current state.
+   * The learner (or a later tool) must confirm it before it can execute.
+   */
+  proposeStructuralChange(input: {
+    sessionId: string;
+    kind: AgentProposalKind;
+    payload: Record<string, unknown>;
+    createdBy: string;
+    idempotencyKey: string;
+    ttlMs?: number;
+  }): AgentProposal | null {
+    return createAgentProposal(this.proposalDeps(), input);
+  }
+
+  confirmProposal(request: ConfirmProposalRequest): ProposalConfirmResult {
+    return confirmAgentProposal(this.proposalDeps(), request);
+  }
+
+  /** The only structural write path: confirmed + idempotent + audited. */
+  executeProposal(request: ExecuteProposalRequest): ProposalExecuteResult {
+    return executeAgentProposal(this.proposalDeps(), request);
   }
 }
 

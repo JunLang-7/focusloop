@@ -69,6 +69,24 @@ describe('parseDispatchRequest', () => {
     expectFailure(() => parseDispatchRequest(CHANNEL, { ...valid, source: 'malware' }));
   });
 
+  /*
+   * `AGENT_PROPOSAL_EXECUTED` is the audit record of a privileged action. It is in the learning-event
+   * vocabulary, so before this gate the renderer could write it — for a proposal that never existed —
+   * and the audit trail would be forgeable by the layer it is evidence about. Source is not enough of
+   * a check: `agent` is an accepted source on this channel.
+   */
+  it('rejects an agent-only event type even with the agent source', () => {
+    const error = expectFailure(() =>
+      parseDispatchRequest(CHANNEL, {
+        ...valid,
+        type: 'AGENT_PROPOSAL_EXECUTED',
+        source: 'agent',
+        payload: { proposalId: 'never-existed', kind: 'shrink-task', idempotencyKey: 'k' },
+      }),
+    );
+    expect(error.message).toContain('written by the agent command layer');
+  });
+
   it('rejects a non-object payload field', () => {
     expectFailure(() => parseDispatchRequest(CHANNEL, { ...valid, payload: 'x' }));
     expectFailure(() => parseDispatchRequest(CHANNEL, { ...valid, payload: [] }));

@@ -183,6 +183,62 @@ describe('agent memory clear (ADR 0001)', () => {
     expect(raw).not.toContain('HELP_REQUESTED');
   });
 
+  it('Working: clear forgets the outbound request, so the recorded prompt is not readable', async () => {
+    const prompts: string[] = [];
+    const scripted = createTestEngine({
+      providers: createProviderSelection(capturingProvider(prompts)),
+    });
+    try {
+      const { session } = scripted.engine.startSession(DEMO_COURSE_ID);
+      await scripted.engine.askTutor({
+        sessionId: session.id,
+        mode: 'HINT',
+        question: 'SECRET_OUTBOUND_QUESTION',
+      });
+      expect(scripted.engine.getOutboundRequest(session.id)?.prompt).toContain(
+        'SECRET_OUTBOUND_QUESTION',
+      );
+
+      scripted.engine.clearAgentMemory(session.id);
+
+      /*
+       * The map was only cleared by `endSession`, so a cleared session's prompt — the learner's question
+       * verbatim — stayed readable through the Outbound Inspector. The ADR already named this class as
+       * deleted on clear; the code did not do it.
+       */
+      expect(scripted.engine.getOutboundRequest(session.id)).toBeNull();
+    } finally {
+      scripted.close();
+    }
+  });
+
+  it('Episodic: clear deletes the session proposal rows as well', () => {
+    const { engine, store } = ctx;
+    const { session } = engine.startSession(DEMO_COURSE_ID);
+    store.insertAgentProposal({
+      id: 'p1',
+      sessionId: session.id,
+      kind: 'structural-write',
+      payload: { excerpt: 'SECRET_PROPOSAL_EXCERPT' },
+      proposedAt: '2026-01-01T00:00:00.000Z',
+      expiresAt: '2026-01-01T00:05:00.000Z',
+      proposalHash: 'hash-1',
+      stateFingerprint: 'fp-1',
+      idempotencyKey: 'k1',
+      createdBy: 'test-tool',
+    });
+    expect(store.getAgentProposal('p1')).not.toBeNull();
+
+    engine.clearAgentMemory(session.id);
+
+    /*
+     * A pending proposal computed against the context we just deleted must not survive the clear: the
+     * row is the learner's own excerpt, and confirming it afterwards would apply a write against a
+     * world that no longer exists.
+     */
+    expect(store.getAgentProposal('p1')).toBeNull();
+  });
+
   it('Returns null for an unknown session', () => {
     expect(ctx.engine.clearAgentMemory('no-such-session')).toBeNull();
   });

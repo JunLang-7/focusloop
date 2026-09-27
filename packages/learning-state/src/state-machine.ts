@@ -265,6 +265,11 @@ export function reduceState(
         awaitingResume: false,
       });
 
+    case 'AGENT_PROPOSAL_EXECUTED':
+      // Audit fact only: a confirmed structural proposal ran. It is not a
+      // learning-state transition, so the state machine ignores it.
+      return stay({ lastEventAt: event.at });
+
     default: {
       const exhaustive: never = event;
       return stay({ lastEventAt: (exhaustive as LearningEvent).at });
