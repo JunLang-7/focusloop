@@ -1,4 +1,5 @@
 import {
+  isAgentProposalKind,
   isInsightRange,
   isLocale,
   isStuckReason,
@@ -7,7 +8,10 @@ import {
   LEARNING_EVENT_TYPES,
   SESSION_END_REASONS,
   TUTOR_LIMITS,
+  type ConfirmProposalRequest,
   type DispatchEventRequest,
+  type ExecuteProposalRequest,
+  type ProposeStructuralChangeRequest,
   type EndSessionRequest,
   type ImportMaterialRequest,
   type InsightsRequest,
@@ -70,6 +74,16 @@ function asOptionalString(
 
 const EVENT_TYPES = new Set<string>(LEARNING_EVENT_TYPES);
 const EVENT_SOURCES = new Set<string>(['user', 'extension', 'simulator', 'system', 'agent']);
+
+/**
+ * Events only the agent command layer may write.
+ *
+ * `AGENT_PROPOSAL_EXECUTED` exists to say "this proposal ran". The dispatch channel carries the whole
+ * vocabulary and accepts every source, so without this gate a renderer could write that record — for
+ * a proposal that never existed — and the audit trail would be forgeable by the very layer whose
+ * privileged actions it is supposed to be evidence about.
+ */
+const AGENT_ONLY_EVENT_TYPES = new Set<string>(['AGENT_PROPOSAL_EXECUTED']);
 const MAX_PAYLOAD_BYTES = 4 * 1024;
 
 /** Validates the payload of `focusloop:event:dispatch`. */
@@ -78,6 +92,9 @@ export function parseDispatchRequest(channel: string, value: unknown): DispatchE
   const sessionId = asString(channel, record, 'sessionId');
   const type = asString(channel, record, 'type');
   if (!EVENT_TYPES.has(type)) fail(channel, `unknown learning event type "${type}"`);
+  if (AGENT_ONLY_EVENT_TYPES.has(type)) {
+    fail(channel, `"${type}" is written by the agent command layer, not dispatched`);
+  }
 
   const source = asString(channel, record, 'source');
   if (!EVENT_SOURCES.has(source)) fail(channel, `unknown event source "${source}"`);
@@ -309,4 +326,61 @@ export function parseTutorAsk(channel: string, value: unknown): TutorAskRequest 
   }
 
   return { sessionId, mode, question };
+}
+
+/** Validates the payload of `focusloop:agent:propose`. */
+export function parseProposeStructuralChange(
+  channel: string,
+  value: unknown,
+): ProposeStructuralChangeRequest {
+  const record = asRecord(channel, value);
+  const sessionId = asString(channel, record, 'sessionId');
+  const kind = asString(channel, record, 'kind');
+  if (!isAgentProposalKind(kind)) fail(channel, `unknown proposal kind "${kind}"`);
+  const createdBy = asString(channel, record, 'createdBy');
+  const idempotencyKey = asString(channel, record, 'idempotencyKey');
+  if (idempotencyKey.length > 200) fail(channel, '"idempotencyKey" is too long');
+
+  const payload = record['payload'];
+  if (typeof payload !== 'object' || payload === null || Array.isArray(payload)) {
+    fail(channel, '"payload" must be an object');
+  }
+  const bytes = Buffer.byteLength(JSON.stringify(payload), 'utf8');
+  if (bytes > 16 * 1024) fail(channel, '"payload" exceeds 16KB');
+
+  const ttlMs = record['ttlMs'];
+  if (ttlMs !== undefined && ttlMs !== null) {
+    if (typeof ttlMs !== 'number' || !Number.isFinite(ttlMs) || ttlMs <= 0) {
+      fail(channel, '"ttlMs" must be a positive number when present');
+    }
+  }
+
+  return {
+    sessionId,
+    kind,
+    payload: payload as Record<string, unknown>,
+    createdBy,
+    idempotencyKey,
+    ...(ttlMs === undefined || ttlMs === null ? {} : { ttlMs }),
+  };
+}
+
+/** Validates the payload of `focusloop:agent:confirm-proposal`. */
+export function parseConfirmProposal(channel: string, value: unknown): ConfirmProposalRequest {
+  const record = asRecord(channel, value);
+  return {
+    proposalId: asString(channel, record, 'proposalId'),
+    sessionId: asString(channel, record, 'sessionId'),
+    expectedHash: asString(channel, record, 'expectedHash'),
+  };
+}
+
+/** Validates the payload of `focusloop:agent:execute-proposal`. */
+export function parseExecuteProposal(channel: string, value: unknown): ExecuteProposalRequest {
+  const record = asRecord(channel, value);
+  return {
+    proposalId: asString(channel, record, 'proposalId'),
+    sessionId: asString(channel, record, 'sessionId'),
+    idempotencyKey: asString(channel, record, 'idempotencyKey'),
+  };
 }

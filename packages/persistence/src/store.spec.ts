@@ -500,4 +500,75 @@ describe('FocusLoopStore', () => {
       expect(store.listEvents('session-2')).toHaveLength(0);
     });
   });
+
+  describe('agent proposals', () => {
+    const T = '2026-09-25T12:00:00.000Z';
+    const proposal = (id = 'p1', key = 'k1') => ({
+      id,
+      sessionId: 'session-1',
+      kind: 'structural-write' as const,
+      payload: { op: 'demo' },
+      proposedAt: T,
+      expiresAt: '2026-09-25T12:05:00.000Z',
+      proposalHash: 'hash-1',
+      stateFingerprint: 'fp-1',
+      idempotencyKey: key,
+      createdBy: 'test-tool',
+    });
+
+    it('inserts and round-trips a proposal', () => {
+      expect(store.insertAgentProposal(proposal())).toBe(true);
+      const loaded = store.getAgentProposal('p1');
+      expect(loaded?.proposal.id).toBe('p1');
+      expect(loaded?.proposal.createdBy).toBe('test-tool');
+      expect(loaded?.status).toBe('proposed');
+      expect(loaded?.proposal.payload).toEqual({ op: 'demo' });
+    });
+
+    it('rejects a duplicate id or idempotency key', () => {
+      expect(store.insertAgentProposal(proposal('p1', 'k1'))).toBe(true);
+      expect(store.insertAgentProposal(proposal('p1', 'k2'))).toBe(false);
+      expect(store.insertAgentProposal(proposal('p2', 'k1'))).toBe(false);
+    });
+
+    it('looks up by idempotency key', () => {
+      store.insertAgentProposal(proposal('p1', 'k1'));
+      expect(store.getAgentProposalByIdempotencyKey('k1')?.proposal.id).toBe('p1');
+      expect(store.getAgentProposalByIdempotencyKey('nope')).toBeNull();
+    });
+
+    it('advances proposed → confirmed → executed, and refuses bad transitions', () => {
+      store.insertAgentProposal(proposal());
+      expect(store.markAgentProposalConfirmed('p1', T)).toBe(true);
+      expect(store.markAgentProposalConfirmed('p1', T)).toBe(false);
+      expect(store.markAgentProposalExecuted('p1', 'e1', T)).toBe(true);
+      expect(store.markAgentProposalExecuted('p1', 'e2', T)).toBe(false);
+      expect(store.markAgentProposalConfirmed('p1', T)).toBe(false);
+
+      const loaded = store.getAgentProposal('p1');
+      expect(loaded?.status).toBe('executed');
+      expect(loaded?.eventId).toBe('e1');
+      expect(loaded?.executedAt).toBe(T);
+    });
+
+    it('refuses from proposed or confirmed but not from executed', () => {
+      store.insertAgentProposal(proposal('p1', 'k1'));
+      expect(store.markAgentProposalRefused('p1', 'expired', T)).toBe(true);
+      expect(store.markAgentProposalRefused('p1', 'expired', T)).toBe(false);
+
+      store.insertAgentProposal(proposal('p2', 'k2'));
+      expect(store.markAgentProposalConfirmed('p2', T)).toBe(true);
+      expect(store.markAgentProposalRefused('p2', 'state-changed', T)).toBe(true);
+
+      store.insertAgentProposal(proposal('p3', 'k3'));
+      store.markAgentProposalConfirmed('p3', T);
+      store.markAgentProposalExecuted('p3', 'e3', T);
+      expect(store.markAgentProposalRefused('p3', 'expired', T)).toBe(false);
+    });
+
+    it('returns null for unknown proposal ids', () => {
+      expect(store.getAgentProposal('missing')).toBeNull();
+      expect(store.getAgentProposalByIdempotencyKey('missing')).toBeNull();
+    });
+  });
 });

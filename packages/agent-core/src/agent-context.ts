@@ -397,6 +397,9 @@ function projectEvent(event: unknown): AgentContextEvent | null {
       const reason = sessionEndReason(payload['reason']);
       return reason === null ? null : { ...common, type, payload: { reason } };
     }
+    case 'AGENT_PROPOSAL_EXECUTED':
+      // Audit fact for the log; the agent does not need proposal ids or keys.
+      return { ...common, type, payload: {} };
     default:
       return null;
   }
@@ -420,7 +423,8 @@ function isLearningEventType(value: unknown): value is LearningEvent['type'] {
     value === 'IDLE_ENDED' ||
     value === 'RESUME_REQUESTED' ||
     value === 'RESUME_DISMISSED' ||
-    value === 'SESSION_ENDED'
+    value === 'SESSION_ENDED' ||
+    value === 'AGENT_PROPOSAL_EXECUTED'
   );
 }
 

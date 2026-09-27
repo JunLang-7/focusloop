@@ -2,11 +2,15 @@ import { randomUUID } from 'node:crypto';
 import type {
   AgentContext,
   AgentContextReport,
+  AgentProposal,
+  AgentProposalKind,
+  ConfirmProposalRequest,
   Course,
   DashboardSummary,
   DispatchEventRequest,
   DispatchEventResponse,
   EndSessionRequest,
+  ExecuteProposalRequest,
   ImportMaterialResponse,
   InsightRange,
   InsightsSummary,
@@ -18,6 +22,8 @@ import type {
   MaterialDocument,
   MicroTask,
   OutboundRequest,
+  ProposalConfirmResult,
+  ProposalExecuteResult,
   ResolveInterventionRequest,
   ResumeCardView,
   RescueView,
@@ -74,7 +80,7 @@ import {
 import { parseMaterial } from '@focusloop/material-parser';
 import type { FocusLoopStore, SessionRecord } from '@focusloop/persistence';
 import {
-  completeWithFallback,
+  AgentRuntime,
   type CompleteWithFallbackResult,
   type ProviderSelection,
 } from '@focusloop/llm-provider';
@@ -83,6 +89,7 @@ import { buildInsightsSummary, type InsightsSessionSource } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
+import { confirmAgentProposal, createAgentProposal, executeAgentProposal } from './proposal';
 import {
   TutorTranscript,
   composeRetryPrompt,
@@ -138,6 +145,11 @@ export interface FocusLoopEngineOptions {
 export class FocusLoopEngine {
   private readonly store: FocusLoopStore;
   private readonly providers: ProviderSelection;
+  /**
+   * The one door to providers: serialisable request data, in-process abort
+   * options, text vs structured modes. Skills never talk to `AIProvider` directly.
+   */
+  private readonly runtime: AgentRuntime;
   private readonly clock: () => string;
   private readonly idFactory: () => string;
   private readonly simulatorEnabled: boolean;
@@ -171,6 +183,7 @@ export class FocusLoopEngine {
   constructor(options: FocusLoopEngineOptions) {
     this.store = options.store;
     this.providers = options.providers;
+    this.runtime = new AgentRuntime(options.providers);
     this.clock = options.clock ?? (() => new Date().toISOString());
     this.idFactory = options.idFactory ?? (() => randomUUID());
     this.stateConfig = options.stateConfig ?? {};
@@ -651,7 +664,7 @@ export class FocusLoopEngine {
    * the labels. Anything the model returns beyond it is caught by the clip, which reports.
    */
   private complete(system: string, prompt: string): Promise<CompleteWithFallbackResult> {
-    return completeWithFallback(this.providers, {
+    return this.runtime.completeText({
       system,
       prompt,
       maxTokens: 2048,
@@ -1336,7 +1349,7 @@ export class FocusLoopEngine {
    * failure it degrades to the mock provider and reports why.
    */
   async enrich(prompt: string, system?: string): Promise<CompleteWithFallbackResult> {
-    return completeWithFallback(this.providers, {
+    return this.runtime.completeText({
       prompt,
       ...(system === undefined ? {} : { system }),
       maxTokens: 256,
@@ -1344,9 +1357,14 @@ export class FocusLoopEngine {
     });
   }
 
-  providerInfo(): { id: string; model: string; offline: boolean } {
+  providerInfo(): { id: string; model: string; offline: boolean; degraded: boolean } {
     const provider = this.providers.primary;
-    return { id: provider.id, model: provider.model, offline: provider.offline };
+    return {
+      id: provider.id,
+      model: provider.model,
+      offline: provider.offline,
+      degraded: this.runtime.degraded,
+    };
   }
 
   configSnapshot(): {
@@ -1382,6 +1400,36 @@ export class FocusLoopEngine {
   setShowMaterialText(showMaterialText: boolean): AppSettings {
     this.store.setMeta(SHOW_MATERIAL_TEXT_KEY, showMaterialText ? 'true' : 'false');
     return this.getSettings();
+  }
+
+  // --------------------------------------------------- structural proposals
+
+  private proposalDeps() {
+    return { store: this.store, now: this.clock, idFactory: this.idFactory };
+  }
+
+  /**
+   * Builds a structural proposal bound to the session's current state.
+   * The learner (or a later tool) must confirm it before it can execute.
+   */
+  proposeStructuralChange(input: {
+    sessionId: string;
+    kind: AgentProposalKind;
+    payload: Record<string, unknown>;
+    createdBy: string;
+    idempotencyKey: string;
+    ttlMs?: number;
+  }): AgentProposal | null {
+    return createAgentProposal(this.proposalDeps(), input);
+  }
+
+  confirmProposal(request: ConfirmProposalRequest): ProposalConfirmResult {
+    return confirmAgentProposal(this.proposalDeps(), request);
+  }
+
+  /** The only structural write path: confirmed + idempotent + audited. */
+  executeProposal(request: ExecuteProposalRequest): ProposalExecuteResult {
+    return executeAgentProposal(this.proposalDeps(), request);
   }
 }
 

@@ -18,6 +18,8 @@ export const LEARNING_EVENT_TYPES = [
   'RESUME_REQUESTED',
   'RESUME_DISMISSED',
   'SESSION_ENDED',
+  /** Audit trail for a confirmed structural proposal that actually ran. */
+  'AGENT_PROPOSAL_EXECUTED',
 ] as const;
 
 export type LearningEventType = (typeof LEARNING_EVENT_TYPES)[number];
@@ -68,6 +70,16 @@ export type IdleEndedEvent = LearningEventBase<'IDLE_ENDED', { idleMs: number }>
 export type ResumeRequestedEvent = LearningEventBase<'RESUME_REQUESTED', { checkpointId: string }>;
 export type ResumeDismissedEvent = LearningEventBase<'RESUME_DISMISSED', { checkpointId: string }>;
 export type SessionEndedEvent = LearningEventBase<'SESSION_ENDED', { reason: SessionEndReason }>;
+/**
+ * The envelope's domain event: a confirmed proposal ran once.
+ *
+ * Deliberately not in `STATE_AFFECTING_EVENTS` — executing a proposal is an
+ * audit fact, not a transition in the learning state machine.
+ */
+export type AgentProposalExecutedEvent = LearningEventBase<
+  'AGENT_PROPOSAL_EXECUTED',
+  { proposalId: string; kind: string; idempotencyKey: string }
+>;
 
 export type SessionEndReason = 'user' | 'completed' | 'timeout' | 'crashed';
 
@@ -86,7 +98,8 @@ export type LearningEvent =
   | IdleEndedEvent
   | ResumeRequestedEvent
   | ResumeDismissedEvent
-  | SessionEndedEvent;
+  | SessionEndedEvent
+  | AgentProposalExecutedEvent;
 
 export type LearningEventOf<TType extends LearningEventType> = Extract<
   LearningEvent,
