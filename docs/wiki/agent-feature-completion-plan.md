@@ -177,7 +177,10 @@
 **数据模型**：`EvalScenario {id, context, input, expected, forbidden, rubric, version}`；`EvalRun {scenarioId, provider, output, toolCalls, scores, violations, latency, at}`；`GuardrailPolicy` 定义 schema、权限、隐私和打断规则。
 
 - **API/UI 交付物**：开发/CI CLI `agent-eval run --suite ...`、本地或 CI 内的报告 JSON/HTML；Inspector 显示命中规则/违规原因。
-- **隐私边界**：评测结果只在开发者本机或 CI 中生成，不由生产应用上报；无遥测、无分析、无崩溃上报，与 `docs/privacy.md` 一致。场景只使用合成数据，不包含真实用户学习内容。
+- **隐私边界（已选定 A）**：评测结果**只**在开发者本机或 CI 中生成；**生产应用不上报任何指标**——
+  无遥测、无分析、无崩溃上报，与 `docs/privacy.md` 一致。选项 (B)（将来允许聚合指标）已否决：
+  除非先按 `privacy.md` 的决策节改写隐私文档并连同同意 UI 与删除路径一起交付，否则方案页不得
+  出现“上报”字样。场景只使用合成数据，不包含真实用户学习内容。
 
 **DoD**：至少覆盖 confused、overloaded、cannot-start、follow-up、resume、provider failure、越权 tool、敏感字段八类；每 scenario 有 Expected 与 Forbidden；结构化输出/工具权限/不主动打断由 deterministic tests gate；grounding 要能指出 excerpt/source；隐私回归扫描通过；阈值失败阻断合并。
 
