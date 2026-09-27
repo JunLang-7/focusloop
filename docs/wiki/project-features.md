@@ -100,7 +100,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 | F Agent | AG4 Task Adaptation            | 设计完成 | 方案页 AG4                         | 只有一个 commit 的动作，无 AdaptiveTask                          |
 | F Agent | AG5 Cognitive Resume           | 已合并   | 统一卡；三档在 `0f19c9f`           | 见 §4.C3                                                         |
 | F Agent | AG6 Learning Reflection        | 设计完成 | 方案页 AG6                         | 无偏好模型，无复盘链路                                           |
-| F Agent | AG7 Agent Memory               | 设计完成 | 方案页 AG7                         | episodic 数据已有，无 scope/删除语义                             |
+| F Agent | AG7 Agent Memory               | 已合并   | [ADR 0001](./adr/0001-agent-memory-deletion.md)、`6a4a0cf` (#129) | 删除语义与清除原语已合并；scope/保留期与检查 UI 未做 |
 | F Agent | AG8 Tools & Actions            | 设计完成 | 方案页 AG8                         | 无 tool contract / 权限 / 确认                                   |
 | F Agent | AG9 Model Runtime              | 设计完成 | `AIProvider` 抽象                  | 无结构化输出 / abort / 流式                                      |
 | F Agent | AG10 Evaluation & Guardrails   | 分支完成 | `0f19c9f`（无 PR）                 | `main` 上只有工程测试，无场景数据集                              |
@@ -407,17 +407,19 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 8. **依赖**：AG9 才能成为统一 Runtime。
 9. **怎么验证**：`llm-provider` 单测（错误归类、URL 规范化）。
 
-#### E7 Agent Context Inspector — 已合并
+#### E7 Agent Inspector (Context + Outbound) — Outbound 已交付
 
-1. **定位**：看清「Agent 现在能看到什么」，包括被裁掉的部分。
-2. **用户怎么用**：开发模式打开面板。
-3. **何时发生**：读取当前上下文构建结果。
-4. **永不做什么**：不是完整数据库视图；不是完整 Provider 请求视图。
-5. **数据与边界**：展示 AG1 报告（含 omission 与截断长度）；不显示未授权的跨课程内容。
-6. **状态与证据**：已合并 — `63acc28` (#99)。
-7. **已知限制**：与「实际送模内容」是两层报告，容易误读；见 §4.F1 的两视图定义。
-8. **依赖**：AG1。
-9. **怎么验证**：engine/IPC 单测 + Inspector 组件单测。
+1. **定位**：看清「Agent 现在能看到什么」（Context）与「这一次实际发给 Provider 什么」（Outbound）。
+2. **用户怎么用**：开发模式打开面板，切换 Context / Outbound 两个 Tab。
+3. **何时发生**：Context 每次刷新读取；Outbound 在每次 Tutor ask 之后更新（仅内存）。
+4. **永不做什么**：不是完整数据库视图；Outbound 内容不落库、不写日志；打包构建不显示面板。
+5. **数据与边界**：Context 展示 AG1 报告（omission 与截断）；Outbound 展示 system+prompt 原文与
+   `system.length + prompt.length` 字符数（与预算公式一致）；未发送时显示空态。
+6. **状态与证据**：Context 已合并 — `63acc28` (#99)；Outbound — 本 issue (#112)。
+7. **已知限制**：两层报告，差异可解释（Tutor 在 AG1 之上再裁剪）；离线/无模型时 Outbound 为空是预期。
+8. **依赖**：AG1、AG3（有出站才可看）。
+9. **怎么验证**：engine 单测（字符数 = 实际交给 provider 的字符串长度）+ IPC `parseSessionId` +
+   e2e 空态/Tab 切换。
 
 ### F. Agent 能力（AG1–AG10）
 
@@ -431,7 +433,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 6. **状态与证据**：已合并 — `63acc28` (#99)；`shared-types/src/agent-context.ts` +
    `agent-core/src/agent-context.ts`。
 7. **已知限制**：其一，**Inspector 一致性必须按两个视图理解**——「Agent Context Inspector」显示
-   Agent 可访问的数据，「Outbound Request Inspector」（AG9 交付）显示这次实际发给 Provider 的内容。
+   Agent 可访问的数据，「Outbound Request Inspector」**已交付**（#112）显示这次实际发给 Provider 的内容。
    二者不可能相同，因为 Tutor 会在 AG1 上下文之上再裁剪。方案页原先要求「完全一致」的表述已修正。
    其二，`main` 上只有边界与 omission；**13 类事件的逐类型投影 allowlist
    （`AgentContextEvent`）只存在于分支 `0f19c9f`**，未合并。
@@ -513,7 +515,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 8. **依赖**：AG7。
 9. **怎么验证**：待实现。
 
-#### F7 AG7 Agent Memory — 设计完成
+#### F7 AG7 Agent Memory — 已合并（ADR 0001，#129）
 
 1. **定位**：记忆分层且**可检查、可删除**，不是黑箱画像。
 2. **用户怎么用**（计划）：隐私页查看 scope、来源、时间与删除影响；清除前确认。
@@ -521,13 +523,14 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 4. **永不做什么**：不复制完整日志或材料；不存诊断/智力/人格/心理健康推断。
 5. **数据与边界**（计划）：`getMemorySummary` / `listMemory` / `deletePreference` /
    `clearAgentMemory`；每类有 purpose、来源、保留期、读取者。
-6. **状态与证据**：设计完成 — 方案页 AG7；episodic 数据本身已存在（events / checkpoints /
-   outcomes / resume_cards）。
-7. **已知限制**：**删除语义尚未冻结**（分析发现 #9）。必须在实现前明确定义：物理删除 / 软删除 /
-   访问 tombstone、Dashboard 是否仍可使用、审计日志是否保留被删对象标识、缓存与派生结果如何失效。
-   否则「数据还在但 Agent 看不到」只是一句愿望。
-8. **依赖**：隐私 ADR、persistence migrations。
-9. **怎么验证**：待实现；需包含删除后不可回流的回归测试。
+6. **状态与证据**：**已合并** — [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110，`6a4a0cf`）；`clearAgentMemory` +
+   `agent_memory_clears` 审计与 write→clear→query 回归测试已在 `main` 的 `agent-core` / `persistence` 里；episodic 行本身已存在（events / checkpoints /
+   outcomes / resume_cards / `agent_proposals`），清除会连同该 session 的 proposal 行与进程内 outbound prompt 一起删。
+7. **已知限制**：**删除语义已按 ADR 0001 冻结**（物理删除；Dashboard 不得使用被清除行；
+   审计仅 opaque id + 时间 + actor）。未交付：scope 检查 UI、preference 删除、按时间窗的批量清理。
+8. **依赖**：ADR 0001、persistence migrations。
+9. **怎么验证**：`agent-core/src/memory-clear.spec.ts`（每类写→清→查空，含 dashboard/context/transcript）
+   - `persistence` store 单测。
 
 #### F8 AG8 Tools & Actions — 设计完成
 

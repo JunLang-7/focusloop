@@ -1,22 +1,25 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
 import type { AgentContext, AgentContextReport } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 
+type InspectorTab = 'context' | 'outbound';
+
 /**
- * Developer-mode inspector: exactly what the agent is given about the current moment.
+ * Developer-mode inspector: two views, not one.
  *
- * This exists because the rest of the agent is invisible. Without it, the first question asked of any
- * wrong answer — "what did it actually know?" — has no answer, and every later debugging session
- * starts by guessing.
+ * - **Context** — what the agent *can access*: the `agent:context` report, its
+ *   omissions and truncation lengths.
+ * - **Outbound** — what was *actually sent* to the provider on the last ask:
+ *   the assembled system + prompt strings and their total size.
  *
- * It displays what `getAgentContext` returned and derives nothing itself. The first version built the
- * context here by importing the builder directly, and the typecheck refused it: `@focusloop/agent-core`
- * pulls in `engine.ts`, which imports `node:crypto`, which a sandboxed renderer has no business
- * resolving. The refusal was right for a second reason too — an inspector that computes its own
- * version eventually shows something the agent never receives.
+ * The two differ on purpose (the Tutor clips the AG1 context again before
+ * assembling). This component displays what the main process built and derives
+ * neither view itself — an inspector that recomputes eventually shows something
+ * the agent never received.
  *
- * Developer mode only; it is absent from a packaged build.
+ * Developer mode only; absent from a packaged build. The Outbound tab holds
+ * learner text: never persisted, never logged (see `docs/privacy.md`).
  */
 @Component({
   selector: 'fl-agent-context-panel',
@@ -28,51 +31,105 @@ import { I18nService } from '../core/i18n/i18n.service';
           {{ t('agent.inspector.title') }}
         </summary>
 
-        @if (report().context; as context) {
-          <dl class="agent-context__grid">
-            <dt>{{ t('agent.inspector.state') }}</dt>
-            <dd data-testid="agent-context-state">{{ context.learningState }}</dd>
+        <div
+          class="agent-context__tabs"
+          role="tablist"
+          [attr.aria-label]="t('agent.inspector.title')"
+        >
+          <button
+            type="button"
+            class="btn btn--small"
+            role="tab"
+            data-testid="inspector-tab-context"
+            [attr.aria-selected]="tab() === 'context'"
+            [class.is-active]="tab() === 'context'"
+            (click)="tab.set('context')"
+          >
+            {{ t('agent.inspector.tab.context') }}
+          </button>
+          <button
+            type="button"
+            class="btn btn--small"
+            role="tab"
+            data-testid="inspector-tab-outbound"
+            [attr.aria-selected]="tab() === 'outbound'"
+            [class.is-active]="tab() === 'outbound'"
+            (click)="tab.set('outbound')"
+          >
+            {{ t('agent.inspector.tab.outbound') }}
+          </button>
+        </div>
 
-            <dt>{{ t('agent.inspector.concept') }}</dt>
-            <dd>{{ context.concept.title ?? '—' }}</dd>
+        @if (tab() === 'context') {
+          @if (report().context; as context) {
+            <dl class="agent-context__grid">
+              <dt>{{ t('agent.inspector.state') }}</dt>
+              <dd data-testid="agent-context-state">{{ context.learningState }}</dd>
 
-            <dt>{{ t('agent.inspector.task') }}</dt>
-            <dd data-testid="agent-context-task">{{ taskLine(context) }}</dd>
+              <dt>{{ t('agent.inspector.concept') }}</dt>
+              <dd>{{ context.concept.title ?? '—' }}</dd>
 
-            <dt>{{ t('agent.inspector.material') }}</dt>
-            <dd data-testid="agent-context-material">{{ materialLine(context) }}</dd>
+              <dt>{{ t('agent.inspector.task') }}</dt>
+              <dd data-testid="agent-context-task">{{ taskLine(context) }}</dd>
 
-            <dt>{{ t('agent.inspector.events') }}</dt>
-            <dd data-testid="agent-context-events">{{ eventLine(context) }}</dd>
-          </dl>
+              <dt>{{ t('agent.inspector.material') }}</dt>
+              <dd data-testid="agent-context-material">{{ materialLine(context) }}</dd>
 
-          <!--
-            Gated on the learner's own material-text control, not shown unconditionally. The inspector
-            is a new surface, and a new surface quietly ignoring a switch somebody deliberately built
-            is how a control stops meaning anything.
-          -->
-          @if (showMaterial() && context.material.text.length > 0) {
-            <pre class="agent-context__text">{{ context.material.text }}</pre>
-          }
+              <dt>{{ t('agent.inspector.events') }}</dt>
+              <dd data-testid="agent-context-events">{{ eventLine(context) }}</dd>
+            </dl>
 
-          <!-- The account of what was left out is the point of the panel, not an appendix to it. -->
-          @if (report().omissions.length > 0) {
-            <p class="eyebrow">{{ t('agent.inspector.omitted') }}</p>
-            <ul class="agent-context__omissions" data-testid="agent-context-omissions">
-              <!--
-                The detail alone. It already says what it is ("8 earlier events are not included"), and
-                prefixing it with the raw field name printed an untranslated machine token in a panel
-                that is otherwise fully translated.
-              -->
-              @for (omission of report().omissions; track omission.field + omission.detail) {
-                <li>{{ omission.detail }}</li>
-              }
-            </ul>
+            <!--
+              Gated on the learner's own material-text control, not shown unconditionally. The inspector
+              is a new surface, and a new surface quietly ignoring a switch somebody deliberately built
+              is how a control stops meaning anything.
+            -->
+            @if (showMaterial() && context.material.text.length > 0) {
+              <pre class="agent-context__text">{{ context.material.text }}</pre>
+            }
+
+            <!-- The account of what was left out is the point of the panel, not an appendix to it. -->
+            @if (report().omissions.length > 0) {
+              <p class="eyebrow">{{ t('agent.inspector.omitted') }}</p>
+              <ul class="agent-context__omissions" data-testid="agent-context-omissions">
+                <!--
+                  The detail alone. It already says what it is ("8 earlier events are not included"), and
+                  prefixing it with the raw field name printed an untranslated machine token in a panel
+                  that is otherwise fully translated.
+                -->
+                @for (omission of report().omissions; track omission.field + omission.detail) {
+                  <li>{{ omission.detail }}</li>
+                }
+              </ul>
+            }
+          } @else {
+            <p class="muted small" data-testid="agent-context-empty">
+              {{ t('agent.inspector.none') }}
+            </p>
           }
         } @else {
-          <p class="muted small" data-testid="agent-context-empty">
-            {{ t('agent.inspector.none') }}
+          <p class="muted small agent-context__privacy" data-testid="outbound-privacy">
+            {{ t('agent.inspector.outbound.privacy') }}
           </p>
+
+          @if (outbound(); as sent) {
+            <dl class="agent-context__grid">
+              <dt>{{ t('agent.inspector.outbound.chars') }}</dt>
+              <dd data-testid="outbound-chars">{{ sent.inputCharacters }}</dd>
+            </dl>
+
+            @if (sent.system.length > 0) {
+              <p class="eyebrow">{{ t('agent.inspector.outbound.system') }}</p>
+              <pre class="agent-context__text" data-testid="outbound-system">{{ sent.system }}</pre>
+            }
+
+            <p class="eyebrow">{{ t('agent.inspector.outbound.prompt') }}</p>
+            <pre class="agent-context__text" data-testid="outbound-prompt">{{ sent.prompt }}</pre>
+          } @else {
+            <p class="muted small" data-testid="outbound-empty">
+              {{ t('agent.inspector.outbound.none') }}
+            </p>
+          }
         }
       </details>
     }
@@ -85,6 +142,7 @@ export class AgentContextPanelComponent {
   protected readonly t = this.i18n.t;
   protected readonly enabled = () => this.state.runtime()?.simulatorEnabled ?? false;
   protected readonly showMaterial = this.state.showMaterialText;
+  protected readonly tab = signal<InspectorTab>('context');
 
   /**
    * The context the main process built, not one assembled here.
@@ -96,6 +154,8 @@ export class AgentContextPanelComponent {
   protected readonly report = computed<AgentContextReport>(
     () => this.state.agentContext() ?? { context: null, omissions: [] },
   );
+
+  protected readonly outbound = this.state.outboundRequest;
 
   protected taskLine(context: AgentContext): string {
     const { title, step, totalSteps, estimatedMinutes } = context.task;

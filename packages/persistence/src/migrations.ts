@@ -243,6 +243,42 @@ export const MIGRATIONS: readonly Migration[] = [
         ON outcomes(intervention_id, at, id);
     `,
   },
+  {
+    id: '0005-agent-proposals',
+    sql: `
+      -- AG4/AG8 confirmation envelope: one row per proposal, with its audit outcome.
+      CREATE TABLE IF NOT EXISTS agent_proposals (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        payload TEXT NOT NULL,
+        proposed_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        proposal_hash TEXT NOT NULL,
+        state_fingerprint TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL UNIQUE,
+        created_by TEXT NOT NULL,
+        status TEXT NOT NULL,
+        confirmed_at TEXT,
+        executed_at TEXT,
+        event_id TEXT,
+        refusal_reason TEXT
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_proposals_session
+        ON agent_proposals(session_id, proposed_at, id);
+    `,
+  },
+  {
+    id: '0006-agent-memory-clears',
+    sql: `
+      -- ADR 0001 (agent memory deletion): opaque audit. No content columns.
+      CREATE TABLE IF NOT EXISTS agent_memory_clears (
+        session_id TEXT PRIMARY KEY,
+        cleared_at TEXT NOT NULL,
+        actor TEXT NOT NULL
+      );
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

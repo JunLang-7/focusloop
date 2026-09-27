@@ -57,8 +57,8 @@
 - **DoD**：同一输入构建结果字节级稳定；无 session 返回 null；材料/事件超限有 omission 记录；敏感字段过滤在 main/domain 生效而非只靠 UI；Tutor、Rescue、Resume 使用同一个 builder。
 - **Inspector 一致性只能是“两个视图各自一致”**（原表述自相矛盾，已修正）：
   - **Context Inspector** 显示 Agent **可访问**的数据，且必须与实际传给 builder 的输入一致；
-  - **Outbound Request Inspector**（AG9 交付）显示这一次实际发给 Provider 的字符串，且必须与
-    `sent.inputCharacters` 这类报告一致。
+  - **Outbound Request Inspector** **已交付**（#112）显示这一次实际发给 Provider 的字符串，且与
+    `sent.inputCharacters` 使用同一公式（`system.length + prompt.length`）。
   - Context 与 Tutor 的 prompt 是两层：Tutor 会在 AG1 上下文之上再裁剪，因此两者**不可能相同**，
     Inspector 与送模内容也就不可能“完全一致”。验收只能要求“两个视图都存在、差异可解释”。
 
@@ -134,9 +134,10 @@
 
 **DoD**：scope、TTL、权限明确；working 自动过期，episodic 可按 session/time window 查询；删除单项和清空全部可验证且不删课程/学习事实（除非用户明确要求）；所有 memory 访问有审计；AgentContext 只读取最小窗口。
 
-- **删除语义必须在写代码前冻结**（原文只有“清除后不可被查询”这一句愿望）：清除是物理删除、软删除还是
-  tombstone？Dashboard 是否仍能使用？审计日志是否保留被删对象标识、保留多久？缓存、checkpoint 与派生
-  结果如何失效？四个问题都有答案之前，“数据还在但 Agent 看不到”不成立。
+- **删除语义已冻结** — [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110）：
+  Working/Episodic/Preference 均为**物理删除**；Dashboard/Insights 不得再用被清除的 episodic 行；
+  审计仅存 session_id + cleared_at + actor；派生路径靠删表失效，并有 write→clear→query 回归测试
+  （dashboard / context / transcript）。在 ADR 之前，“数据还在但 Agent 看不到”不成立。
 
 **测试矩阵**：P—scope 隔离、TTL、分页、删除幂等；I—session 重启/多 session 查询/清除后 context；B—跨用户/跨 session、未知 scope、批量删除保护；U—检查、单项删除、全部清除确认/空态；S—敏感字段 schema denylist、日志脱敏、数据库残留扫描；M—查询上限、清除耗时。
 
