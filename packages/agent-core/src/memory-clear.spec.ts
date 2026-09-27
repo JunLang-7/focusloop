@@ -239,6 +239,21 @@ describe('agent memory clear (ADR 0001)', () => {
     expect(store.getAgentProposal('p1')).toBeNull();
   });
 
+  it('Audit: the engine reports the stored clear, or null before one', () => {
+    const { engine } = ctx;
+    const { session } = engine.startSession(DEMO_COURSE_ID);
+    /*
+     * The reader the audit exists for — "was this session cleared, and when?" — was the one part of
+     * this feature with no caller in a test, which put agent-core two statements under the coverage
+     * threshold. Reading it before a clear must say null, not a zero timestamp.
+     */
+    expect(engine.getAgentMemoryClear(session.id)).toBeNull();
+
+    const audit = engine.clearAgentMemory(session.id, { actor: 'system' });
+
+    expect(engine.getAgentMemoryClear(session.id)).toEqual(audit);
+  });
+
   it('Returns null for an unknown session', () => {
     expect(ctx.engine.clearAgentMemory('no-such-session')).toBeNull();
   });
