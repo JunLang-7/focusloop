@@ -17,7 +17,10 @@ permissions:
 jobs:
   coverage:
     name: coverage (domain packages)
-    runs-on: ubuntu-latest
+    # Pinned, not `ubuntu-latest`: that label moves to Ubuntu 26 on 19 October 2026
+    # (actions/runner-images#14748). 24.04 is the image it points at today and is an LTS; the reasoning
+    # is written out in `ci.yml`'s `quality` job (#18).
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
