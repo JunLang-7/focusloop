@@ -58,7 +58,9 @@ under `prefers-reduced-motion: reduce`. Colours reuse existing theme tokens.
 - `apps/desktop-e2e/tests/focus-notice.spec.ts` drives the real offline Electron app: timer expiry,
   help/resume precedence, fold without dismissal across an evaluation and route remount, keyboard
   folding/reopening, all three help choices, new-session reset, reduced motion, and geometry at
-  1280×900, 1024×768 and 800×700. It also checks the CSS branch with the simulator element absent
+  1280×900, 1024×768 and 800×700. The small-window cases explicitly force 15px classic scrollbars
+  to cover the width loss seen on macOS CI, independently of the developer's OS scrollbar preference.
+  It also checks the CSS branch with the simulator element absent
   (not a claim of testing a packaged production build).
 - The existing golden-path tests now assert the focus resume's non-modal contract instead of a
   modal focus trap, and still exercise the original rescue lifecycle.

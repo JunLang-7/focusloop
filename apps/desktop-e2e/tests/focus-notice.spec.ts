@@ -101,6 +101,15 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     await taskIsUnobstructed(page);
     await expect(page.getByTestId('resume-continue')).toBeInViewport({ ratio: 1 });
     await page.screenshot({ path: info.outputPath('resume.png') });
+    // CI macOS uses space-consuming scrollbars, unlike this developer machine's
+    // overlay scrollbars. Exercise that width loss explicitly, not only by OS label.
+    const classicScrollbars = await page.addStyleTag({
+      content: `
+      .content::-webkit-scrollbar,
+      .focus-stage::-webkit-scrollbar,
+      .focus-notice__body::-webkit-scrollbar { width: 15px; height: 15px; }
+    `,
+    });
     for (const viewport of [
       { width: 1024, height: 768 },
       { width: 800, height: 700 },
@@ -110,6 +119,7 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
       await expect(page.getByTestId('task-title')).toBeInViewport({ ratio: 1 });
       await expect(page.getByTestId('resume-continue')).toBeInViewport({ ratio: 1 });
     }
+    await classicScrollbars.evaluate((node) => node.parentNode?.removeChild(node));
     await page.setViewportSize({ width: 1280, height: 900 });
 
     await toggle.focus();

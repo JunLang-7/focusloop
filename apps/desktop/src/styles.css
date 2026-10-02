@@ -2489,17 +2489,19 @@ fl-focus-notice {
   background: var(--bg-elevated);
 }
 
-/* In a narrow window keep the clock beside, rather than above, the task. The
-   reserved notice row must not turn a short task into three stacked screens. */
+/* In a narrow window keep the clock beside, rather than above, the task. Leave
+   enough copy width even with classic (space-consuming) scrollbars: an extra
+   instruction line otherwise pushes the task beyond the reserved notice row. */
 @media (max-width: 900px) {
   .focus-workspace:has(.focus-notice) .focus-task--active {
-    grid-template-columns: minmax(0, 1fr) 100px;
+    grid-template-columns: minmax(0, 1fr) 80px;
     grid-template-areas: 'copy clock' 'controls controls';
+    column-gap: 12px;
     text-align: left;
   }
 
   .focus-workspace:has(.focus-notice) .focus-clock {
-    width: 100px;
+    width: 80px;
   }
 
   .focus-workspace:has(.focus-notice) .focus-clock__value {
