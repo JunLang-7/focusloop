@@ -240,8 +240,10 @@ const PEEK_CLOSE_DELAY_MS = 150;
       </button>
     </div>
 
-    <fl-agent-panel />
-    <fl-resume-card />
+    @if (!onFocusRoute()) {
+      <fl-agent-panel />
+      <fl-resume-card />
+    }
     <!--
       The inspector is a fixed overlay, and the dashboard is where it does harm: it sits across the
       "today" card in the sidebar and the totals that screen exists to show. Kept on every other route,
@@ -267,6 +269,7 @@ export class AppComponent implements OnInit, OnDestroy {
    * URL the screen is showing rather than the one that was requested.
    */
   private readonly currentUrl = signal(this.router.url);
+  protected readonly onFocusRoute = computed(() => this.currentUrl().split(/[?#]/)[0] === '/focus');
   protected readonly contextInspectorVisible = computed(() =>
     contextInspectorVisibleOn(this.currentUrl()),
   );

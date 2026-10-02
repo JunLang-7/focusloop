@@ -30,6 +30,8 @@ import type {
   ThemePreference,
 } from '@focusloop/shared-types';
 
+import type { FocusNoticeFold } from './focus-notice';
+
 declare global {
   interface Window {
     focusloop: FocusLoopApi;
@@ -76,6 +78,8 @@ export class AppStateService {
   readonly rescue = signal<RescueView | null>(null);
   readonly rescuePauseRequest = signal(0);
   readonly rescueContinueRequest = signal(0);
+  /** Presentation only: folding must never dismiss a rescue or a checkpoint. */
+  readonly focusNoticeFold = signal<FocusNoticeFold>({ sessionId: null, folded: false });
   readonly lastError = signal<string | null>(null);
   readonly busy = signal(false);
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
