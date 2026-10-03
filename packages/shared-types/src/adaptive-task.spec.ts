@@ -1,0 +1,89 @@
+import { describe, expect, it } from 'vitest';
+import { ADAPTIVE_TASK_LIMITS, isAdaptiveTaskDraft, type AdaptiveTaskDraft } from './adaptive-task';
+
+const draft = (): AdaptiveTaskDraft => ({
+  operation: 'SHRINK_TASK',
+  sessionId: 's1',
+  sourceTaskId: 't1',
+  conceptId: 'c1',
+  sourceEstimatedMinutes: 8,
+  estimatedMinutes: 2,
+  focus: { source: 'concept-key-point', index: 0, text: 'BST order is preserved.' },
+  requiresConfirmation: true,
+});
+
+describe('adaptive task draft contract', () => {
+  it('accepts a bounded, confirmation-required draft after JSON round-trip', () => {
+    expect(isAdaptiveTaskDraft(JSON.parse(JSON.stringify(draft())))).toBe(true);
+    expect(
+      isAdaptiveTaskDraft({
+        ...draft(),
+        focus: { source: 'material-sentence', text: '树的顺序保持不变。' },
+      }),
+    ).toBe(true);
+  });
+  it.each([
+    null,
+    [],
+    'text',
+    new Date(),
+    { ...draft(), operation: 'SPLIT_TASK' },
+    { ...draft(), requiresConfirmation: false },
+    { ...draft(), estimatedMinutes: Infinity },
+    { ...draft(), sourceEstimatedMinutes: NaN },
+    { ...draft(), estimatedMinutes: 0 },
+    { ...draft(), estimatedMinutes: 6 },
+    { ...draft(), sourceEstimatedMinutes: 2 },
+    { ...draft(), sessionId: '' },
+    { ...draft(), sourceTaskId: ' ' },
+    { ...draft(), conceptId: 'x'.repeat(ADAPTIVE_TASK_LIMITS.idCharacters + 1) },
+    { ...draft(), extra: undefined },
+    { ...draft(), execute: () => {} },
+    { ...draft(), focus: { source: 'model', text: 'invented' } },
+    { ...draft(), focus: { source: 'concept-key-point', index: -1, text: 'point' } },
+    { ...draft(), focus: { source: 'concept-key-point', index: 0.5, text: 'point' } },
+    {
+      ...draft(),
+      focus: { source: 'concept-key-point', index: ADAPTIVE_TASK_LIMITS.keyPoints, text: 'point' },
+    },
+    { ...draft(), focus: { source: 'material-sentence', index: 0, text: 'point' } },
+    { ...draft(), focus: { source: 'material-sentence', text: ' ' } },
+    {
+      ...draft(),
+      focus: {
+        source: 'material-sentence',
+        text: 'x'.repeat(ADAPTIVE_TASK_LIMITS.focusCharacters + 1),
+      },
+    },
+  ])('rejects malformed or unbounded data %#', (value) => {
+    expect(isAdaptiveTaskDraft(value)).toBe(false);
+  });
+  it('bounds Unicode by code points, without silently clipping the grounding evidence', () => {
+    const text = '😀'.repeat(ADAPTIVE_TASK_LIMITS.focusCharacters);
+    expect(isAdaptiveTaskDraft({ ...draft(), focus: { source: 'material-sentence', text } })).toBe(
+      true,
+    );
+    expect(
+      isAdaptiveTaskDraft({
+        ...draft(),
+        focus: { source: 'material-sentence', text: text + '😀' },
+      }),
+    ).toBe(false);
+  });
+  it('rejects accessors without running them, inherited records and symbol metadata', () => {
+    let reads = 0;
+    const accessor = {
+      ...draft(),
+      get sessionId() {
+        reads += 1;
+        return 's1';
+      },
+    };
+    expect(isAdaptiveTaskDraft(accessor)).toBe(false);
+    expect(reads).toBe(0);
+    // Eight own data properties on a non-`Object.prototype` prototype: unlike a prototype-only
+    // object, which is also empty, this can only be rejected by the prototype rule itself.
+    expect(isAdaptiveTaskDraft(Object.assign(Object.create({}), draft()))).toBe(false);
+    expect(isAdaptiveTaskDraft({ ...draft(), [Symbol('metadata')]: 'secret' })).toBe(false);
+  });
+});

@@ -17,6 +17,7 @@ export * from './session';
 export * from './material';
 export * from './material-link';
 export * from './course';
+export * from './adaptive-task';
 export * from './agent-context';
 export * from './tutor';
 export * from './checkpoint';
