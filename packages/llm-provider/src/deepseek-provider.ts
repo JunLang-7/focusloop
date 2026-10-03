@@ -1,5 +1,12 @@
-import type { AIProvider, CompletionRequest, CompletionResult } from '@focusloop/shared-types';
+import type { CompletionRequest, CompletionResult } from '@focusloop/shared-types';
 import { ProviderError } from './errors';
+import {
+  isExecutionAbort,
+  RuntimeDeadlineError,
+  withExecution,
+  type ExecutableAIProvider,
+  type ProviderExecutionOptions,
+} from './execution';
 
 export interface DeepSeekProviderOptions {
   /**
@@ -29,9 +36,10 @@ const DEFAULT_TIMEOUT_MS = 20_000;
 /**
  * Optional real provider. Local-first is preserved: FocusLoop only reaches the
  * network when the user explicitly configures a key, and only the text of the
- * single request is transmitted. Failure always degrades to the mock provider.
+ * single request is transmitted. Provider failures may degrade through the registry
+ * while runtime time remains; deliberate cancellation never launches fallback.
  */
-export class DeepSeekProvider implements AIProvider {
+export class DeepSeekProvider implements ExecutableAIProvider {
   readonly id = 'deepseek';
   readonly model: string;
   readonly offline = false;
@@ -51,6 +59,9 @@ export class DeepSeekProvider implements AIProvider {
     this.model = options.model ?? DEFAULT_MODEL;
     this.baseUrl = trimTrailingSlashes(options.baseUrl ?? DEFAULT_BASE_URL);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+    if (!Number.isFinite(this.timeoutMs) || this.timeoutMs < 0) {
+      throw new RangeError('timeoutMs must be a finite non-negative duration');
+    }
     this.fetchImpl = options.fetchImpl ?? globalThis.fetch;
     this.now = options.now ?? (() => Date.now());
     if (typeof this.fetchImpl !== 'function') {
@@ -67,56 +78,23 @@ export class DeepSeekProvider implements AIProvider {
     return new DeepSeekProvider({ apiKey, ...overrides });
   }
 
-  async complete(request: CompletionRequest): Promise<CompletionResult> {
-    const started = this.now();
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-
-    const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
-    if (request.system) messages.push({ role: 'system', content: request.system });
-    messages.push({ role: 'user', content: request.prompt });
-
+  async complete(
+    request: CompletionRequest,
+    options?: ProviderExecutionOptions,
+  ): Promise<CompletionResult> {
     try {
-      const response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          authorization: `Bearer ${this.apiKey}`,
-        },
-        body: JSON.stringify({
-          model: this.model,
-          messages,
-          stream: false,
-          ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
-          ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
-          ...(request.seed === undefined ? {} : { seed: request.seed }),
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new ProviderError(
-          mapStatusToReason(response.status),
-          this.id,
-          `DeepSeek request failed with status ${response.status}`,
-        );
-      }
-
-      const body = (await response.json()) as DeepSeekChatResponse;
-      const text = body.choices?.[0]?.message?.content;
-      if (typeof text !== 'string' || text.length === 0) {
-        throw new ProviderError('bad-response', this.id, 'DeepSeek returned an empty completion');
-      }
-
-      return {
-        text,
-        providerId: this.id,
-        model: body.model ?? this.model,
-        latencyMs: this.now() - started,
-      };
+      return await withExecution(
+        (signal) => this.fetchCompletion(request, signal),
+        { ...options, deadlineMs: Date.now() + this.timeoutMs },
+        this.id,
+      );
     } catch (error) {
+      if (error instanceof RuntimeDeadlineError) {
+        throw new ProviderError('timeout', this.id, `DeepSeek timed out after ${this.timeoutMs}ms`);
+      }
+      if (isExecutionAbort(error) && options?.signal?.aborted) throw error;
       if (error instanceof ProviderError) throw error;
-      if (error instanceof Error && error.name === 'AbortError') {
+      if (isExecutionAbort(error)) {
         throw new ProviderError('timeout', this.id, `DeepSeek timed out after ${this.timeoutMs}ms`);
       }
       if (error instanceof TypeError) {
@@ -127,9 +105,56 @@ export class DeepSeekProvider implements AIProvider {
         this.id,
         error instanceof Error ? error.message : 'Unknown DeepSeek failure',
       );
-    } finally {
-      clearTimeout(timer);
     }
+  }
+
+  private async fetchCompletion(
+    request: CompletionRequest,
+    signal: AbortSignal,
+  ): Promise<CompletionResult> {
+    const started = this.now();
+
+    const messages: Array<{ role: 'system' | 'user'; content: string }> = [];
+    if (request.system) messages.push({ role: 'system', content: request.system });
+    messages.push({ role: 'user', content: request.prompt });
+
+    const response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: `Bearer ${this.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: this.model,
+        messages,
+        stream: false,
+        ...(request.maxTokens === undefined ? {} : { max_tokens: request.maxTokens }),
+        ...(request.temperature === undefined ? {} : { temperature: request.temperature }),
+        ...(request.seed === undefined ? {} : { seed: request.seed }),
+      }),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new ProviderError(
+        mapStatusToReason(response.status),
+        this.id,
+        `DeepSeek request failed with status ${response.status}`,
+      );
+    }
+
+    const body = (await response.json()) as DeepSeekChatResponse;
+    const text = body.choices?.[0]?.message?.content;
+    if (typeof text !== 'string' || text.length === 0) {
+      throw new ProviderError('bad-response', this.id, 'DeepSeek returned an empty completion');
+    }
+
+    return {
+      text,
+      providerId: this.id,
+      model: body.model ?? this.model,
+      latencyMs: this.now() - started,
+    };
   }
 }
 

@@ -14,3 +14,11 @@ export * from './mock-provider';
 export * from './deepseek-provider';
 export * from './registry';
 export * from './runtime';
+export type { ExecutableAIProvider, ProviderExecutionOptions } from './execution';
+/**
+ * The cancellation/deadline vocabulary, so a caller can classify an outcome without string-matching
+ * `error.name`: `ExecutionAbortError` is the learner's own cancellation, `RuntimeDeadlineError` is
+ * the runtime deadline, and everything else is a provider failure that may still degrade.
+ */
+export { ExecutionAbortError, isExecutionAbort, RuntimeDeadlineError } from './execution';
+export type { ExecutionOptions } from './execution';
