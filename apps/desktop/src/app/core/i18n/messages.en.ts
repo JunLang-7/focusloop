@@ -254,6 +254,32 @@ const en = {
   // No singular form: the badge only renders for a run of two or more.
   'dashboard.events.times': '{count} times',
 
+  /*
+   * The history, in the learner's words rather than the log's. `EVENT_TYPE_KEYS` and
+   * `EVENT_SOURCE_KEYS` are exhaustive over the closed vocabularies, so a new event type cannot ship
+   * without wording here - and the row keeps the exact name on its `title` for the audit tail.
+   */
+  'event.type.SESSION_STARTED': 'Session started',
+  'event.type.TASK_STARTED': 'Step started',
+  'event.type.TASK_COMPLETED': 'Step finished',
+  'event.type.HELP_REQUESTED': 'You asked for help',
+  'event.type.QUIZ_CORRECT': 'Answer was right',
+  'event.type.QUIZ_INCORRECT': 'Answer was wrong',
+  'event.type.TAB_LEFT': 'You left this tab',
+  'event.type.TAB_RETURNED': 'You came back to this tab',
+  'event.type.IDLE_STARTED': 'You went quiet',
+  'event.type.IDLE_ENDED': 'You were back',
+  'event.type.RESUME_REQUESTED': 'You carried on',
+  'event.type.RESUME_DISMISSED': 'You turned the resume down',
+  'event.type.SESSION_ENDED': 'Session ended',
+  'event.type.AGENT_PROPOSAL_EXECUTED': 'A suggested change was applied',
+
+  'event.source.user': 'you',
+  'event.source.extension': 'browser extension',
+  'event.source.simulator': 'demo simulator',
+  'event.source.system': 'the app',
+  'event.source.agent': 'the assistant',
+
   // --------------------------------------------------------- resume card
   'resume.aria': 'Resume where you left off',
   'resume.welcome': 'Welcome back',

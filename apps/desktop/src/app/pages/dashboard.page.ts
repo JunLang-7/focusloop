@@ -8,7 +8,7 @@ import {
 } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService, type MessageKey } from '../core/i18n/i18n.service';
-import { ACTION_KEYS, STATE_KEYS } from '../core/i18n/labels';
+import { ACTION_KEYS, EVENT_SOURCE_KEYS, EVENT_TYPE_KEYS, STATE_KEYS } from '../core/i18n/labels';
 import { groupEvents, type EventGroup } from '../core/events-view';
 import {
   STATE_COLORS,
@@ -364,9 +364,15 @@ const DONUT_RADIUS = 42;
       <h2 class="section-title">{{ t('dashboard.events') }}</h2>
       <ul class="timeline">
         @for (group of eventGroups(); track group.id) {
-          <li>
+          <li data-testid="timeline-row">
             <span class="muted small timeline__at">{{ timeLabel(group) }}</span>
-            <strong>{{ group.type }}</strong>
+            <!--
+              #8: the row reads as history, not as the event log. EVENT_TYPE_KEYS and EVENT_SOURCE_KEYS
+              are exhaustive over the closed vocabularies, so the wording exists in both languages by
+              construction - and the exact name stays on the title attribute, because the audit detail is
+              the reason this list is worth keeping.
+            -->
+            <strong [attr.title]="group.type">{{ eventTypeLabel(group.type) }}</strong>
             @if (group.count > 1) {
               <!--
                 The multiplication sign is the shorthand; the accessible name is the
@@ -377,7 +383,9 @@ const DONUT_RADIUS = 42;
                 ×{{ group.count }}
               </span>
             }
-            <span class="muted small timeline__source">{{ group.source }}</span>
+            <span class="muted small timeline__source" [attr.title]="group.source">{{
+              eventSourceLabel(group.source)
+            }}</span>
           </li>
         } @empty {
           <li class="muted">{{ t('dashboard.events.none') }}</li>
@@ -502,6 +510,24 @@ export class DashboardPage {
   protected actionLabel(action: string): string {
     const key = ACTION_KEYS[action as keyof typeof ACTION_KEYS];
     return key === undefined ? action : this.t(key);
+  }
+
+  /**
+   * The history's wording for what happened.
+   *
+   * The fallback keeps the raw vocabulary visible rather than blanking the row: every type in
+   * `LEARNING_EVENT_TYPES` is in the map, so reaching it means a record naming something this build does
+   * not know, and an unfamiliar word is more useful in an audit tail than an empty one.
+   */
+  protected eventTypeLabel(type: string): string {
+    const key = EVENT_TYPE_KEYS[type as keyof typeof EVENT_TYPE_KEYS];
+    return key === undefined ? type : this.t(key);
+  }
+
+  /** Where it came from - the app was told, or the browser said so. */
+  protected eventSourceLabel(source: string): string {
+    const key = EVENT_SOURCE_KEYS[source as keyof typeof EVENT_SOURCE_KEYS];
+    return key === undefined ? source : this.t(key);
   }
 
   protected bridgeListening(info: BridgeInfo): string {

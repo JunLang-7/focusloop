@@ -609,23 +609,39 @@ test('a run of identical events is folded into one row', async () => {
   /*
    * The previous test restarted the app, so this also pins that the log is restored from
    * the store on launch rather than only built up from events seen in this renderer.
+   *
+   * Against `.timeline li` on purpose: the empty history renders its own row inside the same list, so this
+   * is the assertion that would fail if the history were empty. Everything below counts *event* rows, which
+   * carry their own test id - the empty-state row would otherwise be counted as one.
    */
   await expect(window.locator('.timeline li').first()).not.toContainText('No events recorded');
+  const rows = window.locator('[data-testid="timeline-row"]');
 
   // Break any run that is still open, so the row arithmetic below does not depend on what
   // the previous test happened to leave behind.
   await window.getByTestId('sim-success').click();
-  await expect(window.locator('.timeline li').first()).toContainText('QUIZ_CORRECT');
-  const rowsBefore = await window.locator('.timeline li').count();
+  /*
+   * #8: the row's text is the learner's wording; the enum member is the row's `title`, the way the state
+   * chip's raw value is a data attribute. `toContainText` never consults attributes, so it cannot see it.
+   */
+  await expect(rows.first().locator('strong')).toHaveAttribute('title', 'QUIZ_CORRECT');
+  /*
+   * And the wording beside it, because nothing else asserts it: the unit spec exercises the maps, the
+   * monitor only proves the *absence* of raw vocabulary, and the attribute above would still pass if the
+   * row rendered the wrong key's words.
+   */
+  await expect(rows.first()).toContainText('Answer was right');
+  const rowsBefore = await rows.count();
 
   // A single "overload" fires three HELP_REQUESTED events back to back. That is how one
   // click used to add three identical cards to the log.
   await window.getByTestId('sim-overload').click();
 
-  await expect(window.locator('.timeline li')).toHaveCount(rowsBefore + 1);
+  await expect(rows).toHaveCount(rowsBefore + 1);
 
-  const newest = window.locator('.timeline li').first();
-  await expect(newest).toContainText('HELP_REQUESTED');
+  const newest = rows.first();
+  await expect(newest.locator('strong')).toHaveAttribute('title', 'HELP_REQUESTED');
+  await expect(newest).toContainText('You asked for help');
   await expect(newest.locator('.timeline__count')).toHaveText('×3');
   // The shorthand is not the accessible name.
   await expect(newest.locator('.timeline__count')).toHaveAttribute('aria-label', '3 times');

@@ -242,6 +242,32 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.events': '最近事件',
   'dashboard.events.none': '还没有记录到事件。', // 没有单数形式：这个角标只在两条以上时才出现。
   'dashboard.events.times': '{count} 次',
+
+  /*
+   * 用学习者的说法写历史，而不是用日志的说法。`EVENT_TYPE_KEYS` 与 `EVENT_SOURCE_KEYS` 对封闭词表
+   * 是穷尽的，所以新增事件类型必须先在这里想好说法；行上仍然保留精确名称（title），供审计回溯。
+   */
+  'event.type.SESSION_STARTED': '会话开始',
+  'event.type.TASK_STARTED': '开始这一步',
+  'event.type.TASK_COMPLETED': '完成这一步',
+  'event.type.HELP_REQUESTED': '你请求了帮助',
+  'event.type.QUIZ_CORRECT': '答对了',
+  'event.type.QUIZ_INCORRECT': '答错了',
+  'event.type.TAB_LEFT': '你离开了这个标签页',
+  'event.type.TAB_RETURNED': '你回到了这个标签页',
+  'event.type.IDLE_STARTED': '你停止了操作',
+  'event.type.IDLE_ENDED': '你重新开始操作',
+  'event.type.RESUME_REQUESTED': '你选择继续了',
+  'event.type.RESUME_DISMISSED': '你选择了暂不继续',
+  'event.type.SESSION_ENDED': '会话结束',
+  'event.type.AGENT_PROPOSAL_EXECUTED': '应用了一项建议的变更',
+
+  'event.source.user': '你',
+  'event.source.extension': '浏览器扩展',
+  'event.source.simulator': '演示模拟器',
+  'event.source.system': '应用本身',
+  'event.source.agent': '助手',
+
   // --------------------------------------------------------- resume card
   'resume.aria': '从你停下的地方继续',
   'resume.welcome': '欢迎回来',

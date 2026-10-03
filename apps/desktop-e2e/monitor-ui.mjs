@@ -195,11 +195,43 @@ try {
     if (leaks.length > 0) {
       throw new Error(`the dashboard renders ${leaks.join(', ')}`);
     }
-    const rawEvents = (bridgeText.match(/[A-Z]{2,}(_[A-Z]+)+/g) ?? []).slice(0, 6);
-    record(
-      'note',
-      `dashboard raw event names (deliberately left): ${rawEvents.join(', ') || 'none'}`,
-    );
+  });
+
+  await when('the dashboard history reads as history', async () => {
+    /*
+     * #8, enforced where #135 deliberately left it a note. Every event type has wording in both
+     * languages - `labels.spec.ts` is what keeps that true as the vocabulary grows - so an enum member in
+     * the timeline means a key was left pointing at its own name, which the compiler cannot see and a
+     * learner reads as untranslated machinery.
+     *
+     * Scoped to the timeline rather than the whole body: the page also renders the course title, which can
+     * come from the first heading of a markdown file, so `# DATA_STRUCTURES_NOTES` is a learner's text and
+     * not this bug.
+     *
+     * The types are what this can check. The sources are one word lower-case (`simulator`, `system`) and
+     * cannot be told from ordinary wording by a pattern - that half is the unit spec's, which does reach
+     * them - and neither can it see the `title` attributes, which is the point of putting the raw
+     * vocabulary there. A record naming something this build does not know is also *supposed* to print raw
+     * (the component's fallback), and this would fail on it: that cannot happen in this walk, which runs
+     * against a fresh profile, but it would be the first thing to check if this step ever fires oddly.
+     */
+    const rows = await window.locator('[data-testid="timeline-row"]').count();
+    if (rows === 0) {
+      /*
+       * The empty history renders its own `li` inside the same `ul` (the `@empty` branch at
+       * `dashboard.page.ts:391`), so counting `.timeline li` would be 1 and this guard would never fire -
+       * which is how it was written first, and how it passed vacuously for the case it exists to catch. The
+       * event rows carry a test id of their own for exactly this reason.
+       */
+      throw new Error(
+        `the dashboard has no history rows (${rows} of them), so this guard would prove nothing`,
+      );
+    }
+    const timeline = await window.locator('.timeline').innerText();
+    const rawVocabulary = [...new Set(timeline.match(/[A-Z]{2,}(_[A-Z]+)+/g) ?? [])];
+    if (rawVocabulary.length > 0) {
+      throw new Error(`the timeline shows raw event vocabulary: ${rawVocabulary.join(', ')}`);
+    }
   });
 
   await when('the technical tail renders', async () => {

@@ -247,8 +247,9 @@ the store, and let the window decide which ones contribute.
 
 The log is an audit tail, and left raw it is mostly noise: the demo simulator alone fires three
 `HELP_REQUESTED` events for one click, which used to draw three identical cards. `events-view.ts`
-folds a run of consecutive events sharing a type _and_ a source into one row, rendered as
-`HELP_REQUESTED ×3`.
+folds a run of consecutive events sharing a type _and_ a source into one row, rendered in the
+learner's words with the exact vocabulary on each part's `title` — `You asked for help ×3`, and
+`HELP_REQUESTED` on hover (see [#8](https://github.com/nianpingy-cpu/focusloop/issues/8)).
 
 Two constraints keep that honest:
 
