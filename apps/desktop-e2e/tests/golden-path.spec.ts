@@ -306,7 +306,7 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
   await stateIs('INTERRUPTED');
 
   // 7. The resume card appears and restores the cognitive position.
-  const resume = window.getByRole('dialog', { name: 'Resume where you left off' });
+  const resume = window.getByRole('region', { name: 'Resume where you left off', exact: true });
   await expect(resume).toBeVisible();
   await expect(resume).toContainText('Continue');
   await expect(resume).toContainText('Next step:');
@@ -398,11 +398,15 @@ test('resume is offered once, by the resume card alone', async () => {
   await window.getByTestId('sim-return').click();
 
   // The card is the surface for RESUME; the agent panel must not repeat it.
-  await expect(window.getByRole('dialog', { name: 'Resume where you left off' })).toBeVisible();
+  await expect(
+    window.getByRole('region', { name: 'Resume where you left off', exact: true }),
+  ).toBeVisible();
   await expect(window.locator('.agent')).toBeHidden();
 
   await window.getByTestId('resume-continue').click();
-  await expect(window.getByRole('dialog', { name: 'Resume where you left off' })).toBeHidden();
+  await expect(
+    window.getByRole('region', { name: 'Resume where you left off', exact: true }),
+  ).toBeHidden();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
@@ -629,34 +633,29 @@ test('a run of identical events is folded into one row', async () => {
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
-test('the resume card takes focus, keeps it, and closes on Escape', async () => {
+test('the non-modal resume notice is keyboard reachable and folds without dismissing', async () => {
   await clickSidebarLink('Focus Session');
   await window.getByTestId('sim-distraction').click();
   await window.getByTestId('sim-return').click();
 
-  const dialog = window.getByRole('dialog', { name: 'Resume where you left off' });
-  await expect(dialog).toBeVisible();
+  const resume = window.getByRole('region', { name: 'Resume where you left off', exact: true });
+  await expect(resume).toBeVisible();
+  await expect(window.getByRole('dialog')).toHaveCount(0);
 
-  const focusIsInsideDialog = (): Promise<boolean> =>
-    window.evaluate(() => document.activeElement?.closest('[role=dialog]') !== null);
-
-  /*
-   * The card is the product's central surface — the thing that exists so a learner can get
-   * back into the work — so a learner who cannot use a mouse has to be able to reach it.
-   */
-  await expect.poll(focusIsInsideDialog).toBe(true);
-
-  // Tab stays inside rather than walking off behind the overlay.
-  for (let index = 0; index < 6; index += 1) await window.keyboard.press('Tab');
-  await expect.poll(focusIsInsideDialog).toBe(true);
-
-  // Shift+Tab too, since that is the direction the wrap arithmetic gets wrong.
-  for (let index = 0; index < 4; index += 1) await window.keyboard.press('Shift+Tab');
-  await expect.poll(focusIsInsideDialog).toBe(true);
-
+  const toggle = window.getByTestId('focus-notice-toggle');
+  await toggle.focus();
+  await window.keyboard.press('Tab');
+  await expect(window.getByTestId('resume-continue')).toBeFocused();
   await window.keyboard.press('Escape');
-  await expect(dialog).toBeHidden();
+  await expect(resume).toBeHidden();
+  await expect(toggle).toBeFocused();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 
+  // Reopening still presents the same unresolved choice, rather than recording a dismissal.
+  await window.keyboard.press('Enter');
+  await expect(resume).toBeVisible();
+  await window.getByTestId('resume-continue').click();
+  await expect(resume).toBeHidden();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
@@ -1104,7 +1103,7 @@ test('the reason the learner gives is answered according to which kind of stuck 
   const timer = window.locator('.focus-clock__value');
   const beforeBreak = await timer.innerText();
   await expect(timer).not.toHaveText(beforeBreak, { timeout: 2_000 });
-  await agent.getByRole('button', { name: 'Try this' }).click();
+  await window.getByTestId('notice-break').click();
   const activeRescue = window.getByTestId('agent-accepted');
   await expect(activeRescue).toBeVisible();
   await expect(activeRescue.locator('.agent__plan li')).toHaveCount(2);
