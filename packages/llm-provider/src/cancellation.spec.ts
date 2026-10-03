@@ -8,6 +8,7 @@ import type {
 import { AgentRuntime, type RuntimeExecutionOptions } from './runtime';
 import { DeepSeekProvider } from './deepseek-provider';
 import { ProviderError } from './errors';
+import { ExecutionAbortError, isExecutionAbort, RuntimeDeadlineError } from './execution';
 import { completeWithFallback } from './registry';
 
 const valid = {
@@ -272,5 +273,87 @@ describe('DeepSeek transport cancellation', () => {
     expect(seen?.aborted).toBe(true);
     expect(remove).toHaveBeenCalledWith('abort', expect.any(Function));
     expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
+describe('a provider that aborts its own transport is a provider failure', () => {
+  /*
+   * The caller's signal is untouched here: this is an adapter bounding its own work, not the
+   * learner cancelling. It used to be classified as `AbortError`, which skipped the fallback and
+   * left `streamText` emitting no chunks at all - the opposite of "it always resolves".
+   */
+  const selfAbort = (): Promise<CompletionResult> =>
+    Promise.reject(new DOMException('adapter budget exhausted', 'AbortError'));
+
+  it('degrades completeText to the deterministic fallback', async () => {
+    const fallback = vi.fn(async () => valid);
+    const runtime = new AgentRuntime({
+      primary: provider(selfAbort),
+      fallback: provider(fallback),
+    });
+    const result = await runtime.completeText(request);
+    expect(result.degraded).toBe(true);
+    expect(result.failure).not.toBeNull();
+    expect(result.text).toBe(valid.text);
+    expect(fallback).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports a degraded structured result rather than an aborted one', async () => {
+    const fallback = vi.fn(async () => valid);
+    const runtime = new AgentRuntime({
+      primary: provider(selfAbort),
+      fallback: provider(fallback),
+    });
+    const result = await runtime.executeStructured(data, request);
+    expect(result).toMatchObject({ status: 'degraded', degraded: true });
+    expect(fallback).toHaveBeenCalledTimes(1);
+  });
+
+  it('still classifies deliberate cancellation and the deadline by class, not by name', () => {
+    expect(isExecutionAbort(new ExecutionAbortError())).toBe(true);
+    expect(new RuntimeDeadlineError('test')).toBeInstanceOf(ProviderError);
+  });
+});
+
+describe('expiration on the text paths', () => {
+  it('rejects when the deadline passes during the fallback instead of returning it', async () => {
+    vi.useFakeTimers();
+    const pending = deferred();
+    let seen: AbortSignal | undefined;
+    const runtime = new AgentRuntime({
+      primary: provider(async () => {
+        throw new ProviderError('offline', 'test', 'offline');
+      }),
+      fallback: provider((_request, options) => {
+        seen = options?.signal;
+        return pending.promise;
+      }),
+    });
+    const result = runtime
+      .completeText(request, { deadlineMs: Date.now() + 10 })
+      .catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(seen).toBeDefined();
+    await vi.advanceTimersByTimeAsync(10);
+    expect(await result).toBeInstanceOf(RuntimeDeadlineError);
+    expect(seen?.aborted).toBe(true);
+    pending.release(valid);
+    await Promise.resolve();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('rejects between fragments instead of truncating the story quietly', async () => {
+    vi.useFakeTimers();
+    const long = { ...valid, text: 'x'.repeat(150) };
+    const runtime = new AgentRuntime({ primary: provider(async () => long) });
+    const chunks: string[] = [];
+    const iterate = (async () => {
+      for await (const chunk of runtime.streamText(request, { deadlineMs: Date.now() + 5 })) {
+        chunks.push(chunk);
+        await vi.advanceTimersByTimeAsync(5);
+      }
+    })().catch((error: unknown) => error);
+    expect(await iterate).toBeInstanceOf(RuntimeDeadlineError);
+    expect(chunks).toHaveLength(1);
   });
 });

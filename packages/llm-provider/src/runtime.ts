@@ -9,6 +9,7 @@ import type { CompleteWithFallbackResult, ProviderSelection } from './registry';
 import { completeWithFallback, toProviderFailure } from './registry';
 import {
   assertExecutionActive,
+  ExecutionAbortError,
   isExecutionAbort,
   RuntimeDeadlineError,
   validateExecutionOptions,
@@ -100,7 +101,7 @@ export class AgentRuntime {
       } catch (error) {
         // A caller's failed commit is not a provider failure: never retry/fallback and commit twice.
         if (committing) throw error;
-        const stopped = this.stoppedResult(error, controls);
+        const stopped = this.stoppedResult(controls);
         if (stopped !== null) return stopped;
         failureReason = toProviderFailure(error, this.selection.primary.id).reason;
         break; // transport failures do not gain another retry in this slice
@@ -112,7 +113,9 @@ export class AgentRuntime {
   /**
    * Compatibility display fragments, NOT provider token streaming. The first chunk
    * arrives after full completion; real streaming is tracked separately in #144.
-   * Cancellation/expiration also stop later chunks without committing anything.
+   * Cancellation ends the stream quietly; expiration between fragments rejects with the same
+   * timeout the text API uses, so a caller is never handed a silently truncated story and a
+   * caller that wants a committed value must use `executeStructured`. Nothing here commits.
    */
   async *streamText(
     request: CompletionRequest,
@@ -189,7 +192,7 @@ export class AgentRuntime {
       };
     } catch (error) {
       if (committing) throw error;
-      const stopped = this.stoppedResult(error, controls);
+      const stopped = this.stoppedResult(controls);
       if (stopped !== null) return stopped;
       this.lastDegraded = true;
       return {
@@ -202,21 +205,22 @@ export class AgentRuntime {
     }
   }
 
-  private stoppedResult(
-    error: unknown,
-    controls: ExecutionOptions,
-  ): StructuredRuntimeResult<never> | null {
-    let stopped = error;
+  private stoppedResult(controls: ExecutionOptions): StructuredRuntimeResult<never> | null {
+    let boundary: unknown = null;
     try {
       assertExecutionActive(controls, this.selection.primary.id);
-    } catch (boundary) {
-      stopped = boundary;
+    } catch (thrown) {
+      boundary = thrown;
     }
-    const status = isExecutionAbort(stopped)
-      ? 'aborted'
-      : stopped instanceof RuntimeDeadlineError
-        ? 'expired'
-        : null;
+    // Derived from the boundary this call observed, not from the raw error: an `AbortError` a
+    // provider authored for its own transport is a provider failure, and must degrade like any
+    // other rather than being reported as the learner's own cancellation.
+    const status =
+      boundary instanceof ExecutionAbortError
+        ? 'aborted'
+        : boundary instanceof RuntimeDeadlineError
+          ? 'expired'
+          : null;
     if (status === null) return null;
     this.lastDegraded = false;
     return {
