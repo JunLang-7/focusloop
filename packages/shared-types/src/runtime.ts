@@ -16,7 +16,7 @@ export interface RuntimeRequestData {
   readonly contextBudget: number;
   /** Upper bound on completion tokens the caller is willing to spend. */
   readonly tokenBudget: number;
-  /** Absolute deadline (epoch ms). Past deadline the call must not start. */
+  /** Absolute deadline (epoch ms) for primary, retry and fallback; equality is expired. */
   readonly deadlineMs?: number;
 }
 
