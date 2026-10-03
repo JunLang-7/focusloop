@@ -166,6 +166,9 @@ export const zh: Record<MessageKey, string> = {
   'focus.allDone': '这门课程的所有任务都已完成。',
   // 把总量直接说出来，省得学习者自己去把块加起来。
   'focus.plan.remaining': '还剩约 {time}',
+  'focus.plan.reorder': '重新排序 {title}',
+  'focus.plan.gripHelp': '回车或空格键向下移，加 Shift 向上移；也可以用上下方向键，或者直接拖动。',
+  'focus.plan.moved': '已把 {title} 移到第 {position} 位，共 {total} 项',
   'focus.none.title': '当前没有进行中的会话',
   'focus.none.body': '从一门课程开始会话，即可进入专注工作区。',
   'focus.none.browse': '浏览课程',
@@ -263,6 +266,7 @@ export const zh: Record<MessageKey, string> = {
   'event.type.RESUME_DISMISSED': '你选择了暂不继续',
   'event.type.SESSION_ENDED': '会话结束',
   'event.type.AGENT_PROPOSAL_EXECUTED': '应用了一项建议的变更',
+  'event.type.TASKS_REORDERED': '你更改了顺序',
 
   'event.source.user': '你',
   'event.source.extension': '浏览器扩展',

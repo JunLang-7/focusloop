@@ -974,6 +974,14 @@ function mapSession(row: SessionRow): SessionRecord {
       currentTaskId: row.current_task_id ?? undefined,
       lastActiveTaskId: row.last_active_task_id ?? undefined,
       completedTaskIds: engineState?.completedTaskIds ?? [],
+      /*
+       * Read out of the blob, like `completedTaskIds` above, and defaulted the same way. A session
+       * written before the learner could reorder anything has no `taskOrder` in its JSON, and
+       * `undefined` would travel as far as the renderer, which would then have to know that "no order"
+       * and "an empty order" are the same thing. They are, and saying so once here is cheaper than
+       * every reader having to work it out.
+       */
+      taskOrder: engineState?.taskOrder ?? [],
       updatedAt: row.started_at,
     },
     engineState: engineState as StateEngineState,

@@ -20,6 +20,15 @@ export const LEARNING_EVENT_TYPES = [
   'SESSION_ENDED',
   /** Audit trail for a confirmed structural proposal that actually ran. */
   'AGENT_PROPOSAL_EXECUTED',
+  /**
+   * The learner put the remaining micro tasks in the order they intend to do them.
+   *
+   * Not a learning-state transition, and deliberately not in `STATE_AFFECTING_EVENTS`: nothing about
+   * where the learner is up to changes, only the order they mean to reach it in. It is an event rather
+   * than a column because the order is a decision the learner made, and the log is where decisions are
+   * kept (#23).
+   */
+  'TASKS_REORDERED',
 ] as const;
 
 export type LearningEventType = (typeof LEARNING_EVENT_TYPES)[number];
@@ -80,6 +89,20 @@ export type AgentProposalExecutedEvent = LearningEventBase<
   'AGENT_PROPOSAL_EXECUTED',
   { proposalId: string; kind: string; idempotencyKey: string }
 >;
+/**
+ * The whole intended order of the tasks the learner can still see, front to back.
+ *
+ * The complete list rather than one move, because the reducer cannot resolve a move on its own: it
+ * knows the session, not the course, so "move `t3` to position 1" would have to be replayed against a
+ * task list it does not have. Carrying the result keeps the event self-describing and the reducer free
+ * of course knowledge. The cost is that the client is the only thing that can produce it, so the
+ * reducer validates the shape and leaves the meaning to `applyTaskOrder`, which is where the list it
+ * has to be true of actually exists.
+ */
+export type TasksReorderedEvent = LearningEventBase<
+  'TASKS_REORDERED',
+  { order: readonly string[] }
+>;
 
 export type SessionEndReason = 'user' | 'completed' | 'timeout' | 'crashed';
 
@@ -99,7 +122,8 @@ export type LearningEvent =
   | ResumeRequestedEvent
   | ResumeDismissedEvent
   | SessionEndedEvent
-  | AgentProposalExecutedEvent;
+  | AgentProposalExecutedEvent
+  | TasksReorderedEvent;
 
 export type LearningEventOf<TType extends LearningEventType> = Extract<
   LearningEvent,

@@ -608,3 +608,72 @@ describe('AGENT_PROPOSAL_EXECUTED projection', () => {
     ]);
   });
 });
+
+describe('TASKS_REORDERED projection', () => {
+  function reorderEvent(order: unknown): LearningEvent {
+    return {
+      id: 'e-reorder',
+      sessionId: 's1',
+      at: '2026-01-01T00:00:02.000Z',
+      type: 'TASKS_REORDERED',
+      source: 'user',
+      payload: { order },
+    } as unknown as LearningEvent;
+  }
+
+  it('carries the order itself, so the agent is told more than that something happened', () => {
+    const report = buildAgentContext(source({ events: [reorderEvent(['t3', 't1', 't2'])] }));
+    expect(report.context?.recentEvents).toEqual([
+      {
+        type: 'TASKS_REORDERED',
+        at: '2026-01-01T00:00:02.000Z',
+        source: 'user',
+        payload: { order: ['t3', 't1', 't2'] },
+      },
+    ]);
+    expect(report.omissions.filter((omission) => omission.field === 'events')).toEqual([]);
+  });
+
+  it('accepts an order that names nothing', () => {
+    const report = buildAgentContext(source({ events: [reorderEvent([])] }));
+    expect(report.context?.recentEvents[0]?.payload).toEqual({ order: [] });
+  });
+
+  it.each([
+    ['a bare string', 't1'],
+    ['a number in the list', ['t1', 2]],
+    ['an empty id', ['']],
+    ['a nested list', [['t1']]],
+    ['a null entry', [null]],
+  ])('drops an order that is %s rather than passing it on', (_name, order) => {
+    const report = buildAgentContext(source({ events: [reorderEvent(order)] }));
+    expect(report.context?.recentEvents).toEqual([]);
+    expect(report.omissions).toContainEqual({
+      field: 'events',
+      detail: '1 invalid event is not included',
+    });
+  });
+
+  it('refuses a list longer than the boundary allows, and says so', () => {
+    const tooMany = Array.from(
+      { length: AGENT_CONTEXT_LIMITS.eventListItems + 1 },
+      (_unused, index) => `t${String(index)}`,
+    );
+    const report = buildAgentContext(source({ events: [reorderEvent(tooMany)] }));
+    expect(report.context?.recentEvents).toEqual([]);
+    expect(report.omissions).toContainEqual({
+      field: 'events',
+      detail: '1 invalid event is not included',
+    });
+  });
+
+  it('accepts a list of exactly the allowed length', () => {
+    // The bound is an inclusive limit, and the case above only means anything if this one passes.
+    const atLimit = Array.from(
+      { length: AGENT_CONTEXT_LIMITS.eventListItems },
+      (_unused, index) => `t${String(index)}`,
+    );
+    const report = buildAgentContext(source({ events: [reorderEvent(atLimit)] }));
+    expect(report.context?.recentEvents[0]?.payload).toEqual({ order: atLimit });
+  });
+});

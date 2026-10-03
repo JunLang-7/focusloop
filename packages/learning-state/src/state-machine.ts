@@ -15,6 +15,14 @@ export interface StateEngineState {
   readonly lastActiveTaskId: string | null;
   readonly taskStartedAt: string | null;
   readonly completedTaskIds: readonly string[];
+  /**
+   * The order the learner put the remaining tasks in (#23), front to back. Empty until they reorder.
+   *
+   * Reset by `SESSION_STARTED` rather than carried over, because the issue is explicit that the order
+   * applies to the session and not to the course: the next session is a new decision, and a standing
+   * preference nobody can clear is the opposite of the direct manipulation this is for.
+   */
+  readonly taskOrder: readonly string[];
   readonly consecutiveIncorrect: number;
   /** ISO timestamps of recent HELP_REQUESTED events. */
   readonly recentHelpRequests: readonly string[];
@@ -45,6 +53,7 @@ export function createInitialState(at: string): StateEngineState {
     lastActiveTaskId: null,
     taskStartedAt: null,
     completedTaskIds: [],
+    taskOrder: [],
     consecutiveIncorrect: 0,
     recentHelpRequests: [],
     awaySince: null,
@@ -98,6 +107,29 @@ function isTaskId(payload: Record<string, unknown> | { taskId?: string }): strin
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
 
+/**
+ * An `order` payload, or `null` when it is not one.
+ *
+ * Rejects the whole payload rather than salvaging it: a value that is not a list of non-empty strings
+ * did not come from a learner moving a row, so there is nothing to honour and guessing would invent an
+ * order they never asked for.
+ *
+ * Duplicates are dropped, keeping the first mention, rather than rejected. One id twice is not a
+ * corrupt event - it is an order that cannot be read, because "where does `t3` go" has two answers and
+ * the reader would silently take whichever the search happens to find first. Dropping the repeat is
+ * the smallest change that makes the value mean exactly one thing, and it is the only repair that
+ * cannot reorder anything the learner did not reorder.
+ */
+function orderedTaskIds(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value)) return null;
+  const order: string[] = [];
+  for (const entry of value as readonly unknown[]) {
+    if (typeof entry !== 'string' || entry.length === 0) return null;
+    if (!order.includes(entry)) order.push(entry);
+  }
+  return order;
+}
+
 function withinWindow(timestamps: readonly string[], nowMs: number, windowMs: number): string[] {
   return timestamps.filter((ts) => {
     const ms = Date.parse(ts);
@@ -149,6 +181,7 @@ export function reduceState(
         lastActiveTaskId: null,
         taskStartedAt: null,
         completedTaskIds: [],
+        taskOrder: [],
         consecutiveIncorrect: 0,
         recentHelpRequests: [],
         awaySince: null,
@@ -269,6 +302,22 @@ export function reduceState(
       // Audit fact only: a confirmed structural proposal ran. It is not a
       // learning-state transition, so the state machine ignores it.
       return stay({ lastEventAt: event.at });
+
+    /*
+     * The learner's ordering of the remaining tasks (#23). `stay`, not `apply`: they are in the same
+     * place in the session as they were, and reporting a transition here would file "they changed the
+     * order of the list" as a change of learning state and count it as one.
+     *
+     * Only the shape is checked. Which ids exist, whether any are missing, and what the order should
+     * be when the course has changed underneath it are all questions about a task list this reducer
+     * does not have — `applyTaskOrder` in the renderer answers them, and it is deliberately unable to
+     * do anything with an id it cannot find.
+     */
+    case 'TASKS_REORDERED': {
+      const order = orderedTaskIds(event.payload.order);
+      if (order === null) return stay();
+      return stay({ taskOrder: order });
+    }
 
     default: {
       const exhaustive: never = event;

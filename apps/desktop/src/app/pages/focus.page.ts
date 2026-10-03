@@ -1,4 +1,14 @@
-import { Component, computed, effect, inject, signal, untracked, viewChild } from '@angular/core';
+import {
+  Component,
+  afterRenderEffect,
+  computed,
+  effect,
+  inject,
+  signal,
+  untracked,
+  viewChild,
+  viewChildren,
+} from '@angular/core';
 import type { ElementRef, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import type { MicroTask, MicroTaskKind, StuckReason } from '@focusloop/shared-types';
@@ -23,6 +33,7 @@ import { KIND_GLYPHS, buildPlan } from '../core/session-plan';
 import { keepsRail, type FocusPhase } from '../core/focus-phase';
 import { FocusTimerService } from '../core/focus-timer.service';
 import { PLAN_INITIAL_OPEN, nextPlanOpen, type PlanEvent } from '../core/plan-visibility';
+import { applyTaskOrder, dropIndexFor, reorder, sameOrder } from '../core/task-order';
 import { helpRequestPayload } from '../core/stuck-picker';
 import { TutorPanelComponent } from '../components/tutor-panel.component';
 import { FocusNoticeComponent } from '../components/focus-notice.component';
@@ -291,15 +302,41 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                 @if (plan().blocks.length === 0) {
                   <p class="muted">{{ t('focus.allDone') }}</p>
                 } @else {
-                  <ul class="plan focus-plan__timeline" [style.height.px]="plan().height">
-                    @for (block of plan().blocks; track block.id) {
+                  <ul
+                    class="plan focus-plan__timeline"
+                    #planTrack
+                    [style.height.px]="plan().height"
+                    [attr.data-dragging]="dragging() === null ? null : ''"
+                  >
+                    @for (block of plan().blocks; track block.id; let index = $index) {
                       <li
                         class="plan__block focus-plan__block"
                         data-testid="plan-block"
                         [attr.data-kind]="block.kind"
+                        [attr.data-dragging]="dragging() === block.id ? '' : null"
+                        [attr.data-drop]="dropIndex() === index ? '' : null"
                         [style.top.px]="block.offset"
                         [style.height.px]="block.height"
                       >
+                        <!--
+                          One control for both paths: the grip is a button so the keyboard can reach it
+                          and the pointer can take hold of it. Arrow keys move the row one place; the
+                          pointer drags it. See gripKey and gripDown below.
+                        -->
+                        <button
+                          type="button"
+                          class="plan__grip"
+                          data-testid="plan-grip"
+                          #planGrip
+                          aria-describedby="plan-grip-help"
+                          [attr.data-task-id]="block.id"
+                          [attr.aria-label]="gripLabel(block.title)"
+                          (keydown)="gripKey($event, index)"
+                          (pointerdown)="gripDown($event, index, block.id)"
+                          (pointermove)="gripMove($event)"
+                          (pointerup)="gripUp($event)"
+                          (pointercancel)="gripCancel()"
+                        ></button>
                         <span class="plan__glyph" aria-hidden="true">{{ glyph(block.kind) }}</span
                         ><span class="plan__title">{{ block.title }}</span
                         ><span class="muted small plan__estimate">{{
@@ -316,6 +353,16 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                       </li>
                     }
                   </ul>
+                  <!--
+                    Both are off screen. The help is the grip's description rather than part of its
+                    name, so a screen reader says "Reorder …" and can be asked for the rest. The status
+                    is what makes a keyboard move audible: the row changes place, and nothing else on
+                    the screen would say so.
+                  -->
+                  <p class="visually-hidden" id="plan-grip-help">{{ t('focus.plan.gripHelp') }}</p>
+                  <p class="visually-hidden" role="status" data-testid="reorder-status">
+                    {{ moved() }}
+                  </p>
                 }
               </div>
             }
@@ -348,7 +395,11 @@ export class FocusPage implements OnDestroy {
   private readonly planOpenState = signal(PLAN_INITIAL_OPEN);
   protected readonly planOpen = this.planOpenState.asReadonly();
   private readonly planRoot = viewChild<ElementRef<HTMLElement>>('planRoot');
+  /** The track the blocks are laid out in, measured rather than reasoned about while dragging. */
+  private readonly planTrack = viewChild<ElementRef<HTMLElement>>('planTrack');
   private readonly planTrigger = viewChild<ElementRef<HTMLButtonElement>>('planTrigger');
+  /** Every row's grip, so the one that was moved can be found again by its task rather than by index. */
+  private readonly gripRefs = viewChildren<ElementRef<HTMLButtonElement>>('planGrip');
   private readonly stuckTrigger = viewChild<ElementRef<HTMLButtonElement>>('stuckTrigger');
   private readonly stuckGroup = viewChild<ElementRef<HTMLElement>>('stuckGroup');
 
@@ -478,6 +529,206 @@ export class FocusPage implements OnDestroy {
   protected togglePlan(): void {
     this.applyPlanEvent('toggle');
   }
+
+  /**
+   * The row being dragged, from the moment the pointer takes hold of its grip.
+   *
+   * The whole drag lives in these three signals rather than in the DOM: `from` is fixed when the
+   * pointer goes down (so the move is a single from/to pair, not a chain of nudges that could
+   * accumulate), `dropIndex` is what the indicator draws, and `dragging` names the row to dim.
+   */
+  private readonly dragFrom = signal<number | null>(null);
+  private readonly dragId = signal<string | null>(null);
+  protected readonly dragging = this.dragId.asReadonly();
+  protected readonly dropIndex = signal<number | null>(null);
+  /** What the last move was, in words, for the live region. Empty until the first one. */
+  protected readonly moved = signal('');
+  /**
+   * The row the keyboard is owed, for `restoreGripFocus` to honour after the next render.
+   *
+   * A sequence number rather than the id alone, so two moves of the same row are two requests: an
+   * effect keyed on the value would not re-run for the second one, and a learner who pressed the key
+   * twice would be left wherever the first render put them.
+   */
+  private readonly focusGripRequest = signal<{ taskId: string; seq: number } | null>(null);
+  private focusGripSeq = 0;
+  private handledFocusGripSeq = 0;
+
+  protected gripLabel(title: string): string {
+    return this.t('focus.plan.reorder', { title });
+  }
+
+  /**
+   * Taking hold of a row.
+   *
+   * The capture is what makes the drag survive the pointer leaving the grip — and it is also why the
+   * grip keeps the whole gesture: `pointerup` is delivered to the element that captured, wherever the
+   * pointer happens to be, so the drop cannot land on a row that never saw the press.
+   *
+   * Focus is moved to the grip deliberately. Without it, a drag ends with focus wherever it was before
+   * the press, and the keyboard half of this feature is unreachable from the row the learner just
+   * moved. It is not `preventDefault`-ing the press, so a plain click still behaves like a click.
+   */
+  protected gripDown(event: PointerEvent, index: number, id: string): void {
+    if (event.button !== 0) return;
+    this.dragFrom.set(index);
+    this.dragId.set(id);
+    this.dropIndex.set(index);
+    const grip = event.currentTarget;
+    if (grip instanceof HTMLElement) {
+      grip.setPointerCapture(event.pointerId);
+      grip.focus();
+    }
+  }
+
+  /**
+   * Where the row would land.
+   *
+   * Measured against the track's own box rather than accumulated from deltas: the blocks tile it, so
+   * the row under the pointer is a lookup, and a lookup cannot drift the way a running total can.
+   */
+  protected gripMove(event: PointerEvent): void {
+    if (this.dragFrom() === null) return;
+    const track = this.planTrack()?.nativeElement;
+    if (track === undefined) return;
+    const bounds = track.getBoundingClientRect();
+    this.dropIndex.set(dropIndexFor(this.plan().blocks, event.clientY - bounds.top));
+  }
+
+  /**
+   * Letting go.
+   *
+   * The drop target is read before the drag state is cleared, because `dropIndex` is the only record
+   * of it. A release on the row it started on is not a move, and `reorder` would return the same list
+   * anyway — this returns early so that no event is written for a drag that changed nothing.
+   */
+  protected gripUp(event: PointerEvent): void {
+    const from = this.dragFrom();
+    const to = this.dropIndex();
+    if (
+      event.currentTarget instanceof HTMLElement &&
+      event.currentTarget.hasPointerCapture(event.pointerId)
+    ) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    this.gripCancel();
+    if (from === null || to === null || to === from) return;
+    void this.moveTask(from, to);
+  }
+
+  /** A cancelled drag — Escape, or the platform taking the pointer away — leaves the order alone. */
+  protected gripCancel(): void {
+    this.dragFrom.set(null);
+    this.dragId.set(null);
+    this.dropIndex.set(null);
+  }
+
+  /**
+   * The keyboard half, on the grip itself.
+   *
+   * Arrow keys rather than buttons: two more controls per row would be four targets in a 34px block
+   * and a tab stop each, and the row is already the thing being moved. `preventDefault` is only taken
+   * when the key is one this handles, so Escape during a drag cancels the drag and Escape at rest
+   * still closes the panel (`onEscape` checks `defaultPrevented`).
+   *
+   * Enter and Space move the row down, and with Shift up. A `<button>` that does nothing when it is
+   * activated is a dead end for anyone whose interface is Tab-and-activate, and arrows alone assume a
+   * keyboard: with a move in one direction any order is still reachable - you move the rows above it
+   * down instead - so plain activation completes the path rather than half of it. Shift adds the other
+   * direction for the people who already have the key under a finger.
+   */
+  protected gripKey(event: KeyboardEvent, index: number): void {
+    if (event.key === 'Escape' && this.dragFrom() !== null) {
+      event.preventDefault();
+      this.gripCancel();
+      return;
+    }
+    const activation = event.key === 'Enter' || event.key === ' ' ? 1 : 0;
+    const step =
+      event.key === 'ArrowUp'
+        ? -1
+        : event.key === 'ArrowDown'
+          ? 1
+          : activation === 0
+            ? 0
+            : event.shiftKey
+              ? -1
+              : 1;
+    if (step === 0) return;
+    event.preventDefault();
+    void this.moveTask(index, index + step);
+  }
+
+  /**
+   * Records the new order and leaves everything else alone.
+   *
+   * Not a `TASK_STARTED` and not a state change: what the learner did is say which task they mean to
+   * do first, and the running task is untouched — including when the row they moved was pointed at the
+   * one they are on.
+   */
+  private async moveTask(from: number, to: number): Promise<void> {
+    const tasks = this.openTasks();
+    const order = tasks.map((task) => task.id);
+    const next = reorder(order, from, to);
+    if (next === order) return;
+
+    /*
+     * A type guard rather than a runtime one: `reorder` returns the list unchanged unless `from` is a
+     * valid index, so by this line `tasks[from]` is always there. It is written out because the
+     * alternative is a `!`, and that would become a lie the moment the contract changed.
+     */
+    const task = tasks[from];
+    if (task === undefined) return;
+
+    await this.state.dispatch('TASKS_REORDERED', { order: next });
+    /*
+     * Asked of the session, not of the call's resolution. `AppStateService.run` catches a failed IPC
+     * call and reports it in the banner, so a rejected write resolves normally - announcing it here
+     * would describe a move that never landed, and moving the keyboard would put it on a row that is
+     * not where the learner is looking. Reading the order back is also the only check that covers the
+     * write landing while its response was lost.
+     */
+    if (!sameOrder(next, this.snapshot()?.session.taskOrder)) return;
+    this.moved.set(
+      this.t('focus.plan.moved', {
+        title: task.title,
+        position: String(to + 1),
+        total: String(next.length),
+      }),
+    );
+    this.focusGripSeq += 1;
+    this.focusGripRequest.set({ taskId: task.id, seq: this.focusGripSeq });
+  }
+
+  /**
+   * Puts the keyboard back on the row that was just moved.
+   *
+   * It does not stay there by itself, and the difference matters: `@for` re-inserts the moved row
+   * rather than recreating it, and Chromium drops focus when a focused node is re-inserted. This was
+   * measured rather than assumed - the e2e assertion that the grip was still focused failed with
+   * "inactive" until this existed. Without it a keyboard user loses their place on every move, and the
+   * second move needs the mouse they were avoiding.
+   *
+   * An `afterRenderEffect`, not an `effect`, and the difference is the whole reason this works: it is
+   * invoked when the application finishes rendering, so the rows are in their new order by the time the
+   * grip is looked up. An `effect` runs during change detection, which is before the render - it worked
+   * on this machine and lost the focus on the macOS runner, where the focused row was re-inserted
+   * *after* the focus had been given. That is the kind of timing argument this does not have to win:
+   * the phase is the framework's contract rather than something inferred from a measurement. The
+   * lookup is by task id rather than by position, because the position is the thing that just changed,
+   * and the sequence number is what makes a second move of the same row a second request.
+   */
+  private readonly restoreGripFocus = afterRenderEffect(() => {
+    const request = this.focusGripRequest();
+    if (request === null || request.seq <= this.handledFocusGripSeq) return;
+    this.handledFocusGripSeq = request.seq;
+    untracked(() => {
+      const grip = this.gripRefs().find(
+        (ref) => ref.nativeElement.dataset['taskId'] === request.taskId,
+      );
+      grip?.nativeElement.focus();
+    });
+  });
 
   /**
    * Escape, which belongs to whatever is open. The chooser first: it is the more recent thing the
@@ -619,6 +870,7 @@ export class FocusPage implements OnDestroy {
     this.followRescueTimer.destroy();
     this.syncTimer.destroy();
     this.manageStuckFocus.destroy();
+    this.restoreGripFocus.destroy();
   }
 
   protected openTasks(): readonly MicroTask[] {
@@ -626,9 +878,16 @@ export class FocusPage implements OnDestroy {
     const snapshot = this.snapshot();
     if (course === null || snapshot === null) return [];
     const done = new Set(snapshot.session.completedTaskIds);
-    return course.microTasks.filter(
+    const remaining = course.microTasks.filter(
       (item) => !done.has(item.id) && item.id !== snapshot.session.currentTaskId,
     );
+    /*
+     * The learner's order is applied last, and only to what survives the filter above. A task they have
+     * finished is not in the list to be placed, and the running one is not there to be moved - which is
+     * how "reordering does not change which task is current" holds without anyone having to check for
+     * it (#23).
+     */
+    return applyTaskOrder(remaining, snapshot.session.taskOrder ?? []);
   }
   private findTask(taskId: string): MicroTask | null {
     return this.state.currentCourse()?.microTasks.find((item) => item.id === taskId) ?? null;

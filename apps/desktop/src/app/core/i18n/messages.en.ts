@@ -174,6 +174,14 @@ const en = {
   'focus.allDone': 'Everything in this course is complete.',
   // The plan states the total so the learner does not have to add up the blocks.
   'focus.plan.remaining': 'about {time} left',
+  /*
+   * Reordering the plan (#23). The name is the action, because a screen reader announces it out of
+   * context in a list: "Reorder Binary search trees" is what the row is for.
+   */
+  'focus.plan.reorder': 'Reorder {title}',
+  'focus.plan.gripHelp':
+    'Enter or Space moves it down, with Shift up, or use the up and down arrow keys, or drag it.',
+  'focus.plan.moved': 'Moved {title} to position {position} of {total}',
   'focus.none.title': 'No session running',
   'focus.none.body': 'Start a session from a course to enter the focus workspace.',
   'focus.none.browse': 'Browse courses',
@@ -278,6 +286,7 @@ const en = {
   'event.type.RESUME_DISMISSED': 'You turned the resume down',
   'event.type.SESSION_ENDED': 'Session ended',
   'event.type.AGENT_PROPOSAL_EXECUTED': 'A suggested change was applied',
+  'event.type.TASKS_REORDERED': 'You changed the order',
 
   'event.source.user': 'you',
   'event.source.extension': 'browser extension',

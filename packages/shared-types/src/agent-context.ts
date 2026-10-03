@@ -95,7 +95,14 @@ export type AgentContextEvent =
   | AgentContextEventBase<'RESUME_REQUESTED', EmptyAgentContextPayload>
   | AgentContextEventBase<'RESUME_DISMISSED', EmptyAgentContextPayload>
   | AgentContextEventBase<'SESSION_ENDED', { readonly reason: SessionEndReason }>
-  | AgentContextEventBase<'AGENT_PROPOSAL_EXECUTED', EmptyAgentContextPayload>;
+  | AgentContextEventBase<'AGENT_PROPOSAL_EXECUTED', EmptyAgentContextPayload>
+  /*
+   * The learner's own order for the remaining tasks (#23). Task ids and their order are already part
+   * of this contract, so there is nothing here to withhold - and an event that said "the order changed"
+   * without the order would tell an agent that something happened while hiding the only part of it
+   * that could inform anything.
+   */
+  | AgentContextEventBase<'TASKS_REORDERED', { readonly order: readonly string[] }>;
 
 /** The bounded cognitive summary exposed to an agent, without persistence identifiers. */
 export interface AgentContextCheckpoint {
@@ -161,6 +168,16 @@ export const AGENT_CONTEXT_LIMITS = {
   events: 12,
   /** Upper bound for any identifier copied from an event payload. */
   eventStringCharacters: 256,
+  /**
+   * Upper bound for a list of identifiers carried in one event payload.
+   *
+   * The budget so far bounded a single field and the number of events, which left one event free to
+   * carry an unbounded list of bounded strings - the same hole in a different place. This is the bound
+   * on that list, and it is generous: the only producer is the learner's own ordering of the tasks
+   * still in front of them, and a course with more than this many outstanding micro tasks is not a
+   * course this product has.
+   */
+  eventListItems: 32,
   checkpointTextCharacters: 320,
   checkpointItems: 6,
   checkpointParams: 4,

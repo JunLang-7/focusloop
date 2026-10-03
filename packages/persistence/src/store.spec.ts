@@ -229,6 +229,52 @@ describe('FocusLoopStore', () => {
       expect(loaded?.session.state).toBe('FOCUSED');
       expect(loaded?.session.completedTaskIds).toEqual(['t1']);
     });
+
+    it('carries the learner order onto the session, not only into the blob', () => {
+      // The renderer only ever sees a `LearningSession`, so an order that reached `engine_state` and
+      // stopped there would survive the reload and still be invisible to the screen that needs it.
+      const engineState = { ...createInitialState(T0), taskOrder: ['t3', 't1'] };
+      store.saveSession({
+        session: {
+          id: 'session-1',
+          courseId: 'course-1',
+          startedAt: T0,
+          state: 'READY',
+          completedTaskIds: [],
+          taskOrder: ['t3', 't1'],
+          updatedAt: T0,
+        },
+        engineState,
+      });
+
+      const loaded = store.getSession('session-1');
+      expect(loaded?.session.taskOrder).toEqual(['t3', 't1']);
+      expect(loaded?.engineState.taskOrder).toEqual(['t3', 't1']);
+    });
+
+    it('reads a session written before anyone could reorder anything as having no order', () => {
+      /*
+       * The JSON in the row is the only record, so an older database has no `taskOrder` key at all.
+       * Handing `undefined` up would make every reader distinguish "no order" from "an empty order" -
+       * two names for one situation - and the row is written by every dispatch, so this is the state
+       * every existing profile is in.
+       */
+      const engineState = { ...createInitialState(T0) } as Record<string, unknown>;
+      delete engineState['taskOrder'];
+      store.saveSession({
+        session: {
+          id: 'session-legacy',
+          courseId: 'course-1',
+          startedAt: T0,
+          state: 'READY',
+          completedTaskIds: [],
+          updatedAt: T0,
+        },
+        engineState: engineState as unknown as ReturnType<typeof createInitialState>,
+      });
+
+      expect(store.getSession('session-legacy')?.session.taskOrder).toEqual([]);
+    });
   });
 
   describe('events', () => {

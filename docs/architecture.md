@@ -145,6 +145,32 @@ Properties that the tests hold us to:
   function that the host calls on a tick. That is how "away for 20 seconds" becomes an interruption
   even though no event ever arrives.
 
+### An event that is not a state transition
+
+`TASKS_REORDERED` records the order the learner put the remaining micro tasks in. It is deliberately
+absent from `STATE_AFFECTING_EVENTS`, and the reducer handles it with `stay` rather than `apply`: they
+are in the same place in the session as before, and reporting a transition would file "they changed
+the order of the list" as a change of learning state and count it as one. It is an event rather than a
+column on the session because the order is a decision the learner made, and decisions live in the
+append-only log like everything else that is derived. `AGENT_PROPOSAL_EXECUTED` is the same shape for
+the same reason.
+
+The payload carries the whole intended order rather than one move. The reducer knows the session, not
+the course: "move `t3` to position 1" would have to be replayed against a task list it does not have.
+So the reducer validates the shape — a list of non-empty strings, duplicates folded to their first
+mention — and the meaning is settled where the list it is about exists, by `applyTaskOrder` in the
+renderer's `core/task-order.ts`. That is why an order naming a task that no longer exists, or naming
+only some of them, cannot lose anyone's work: the tasks the order names come first in the order it
+names them, and everything else follows in course order. An unnamed task therefore sinks below the
+named ones rather than holding its course index, which happens in practice — the running task is not in
+the plan, so the order never names it, and starting another step puts it back at the bottom. Pinning
+the unnamed ones to their indices instead would break the property the drop marker promises, that the
+row a task is dropped on is the row it ends up in.
+
+It is stored on the session and cleared by `SESSION_STARTED`, because the order belongs to the session
+rather than to the course. Starting another session is a clean slate, not a standing preference the
+learner cannot get back out of.
+
 ## The checkpoint and the resume card
 
 A checkpoint is not "which screen was open". It is the learner's cognitive position:

@@ -145,6 +145,13 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   not current, which is what stops the workspace and the home page from treating it as live.
 - Starting a session ends the running one first, so at most one session is ever active — asserted
   through the observable consequence, that ending the running session leaves nothing current.
+- The learner's order for the remaining tasks: it reaches the session the snapshot reports, it is on
+  the session row rather than only in the engine (a second engine over the same store reads it back),
+  it is in the session history, it does not carry over into the next session, and a reorder leaves the
+  task in progress exactly where it was.
+- The bridge projection carries that order rather than an event that says something happened: an order
+  that is not a list of bounded strings is dropped and itemised as an omission like any other invalid
+  event.
 - An unknown course is rejected before anything is ended, so a bad request cannot cost the learner
   the session they are in.
 - The full interruption → checkpoint → resume card → accept → outcome sequence.
@@ -177,6 +184,12 @@ has to prove that the pieces are wired together — it does not re-prove the rul
 - The session plan geometry: block heights are proportional to the estimates, the floor keeps a
   two-minute task readable, the blocks tile the column with no gap or overlap, a negative estimate
   counts as nothing, and every kind has its own glyph.
+- Reordering the plan: a named order wins over the course order, an unnamed task follows the named
+  ones rather than holding its course index, an id that names no task is skipped rather than given a
+  position, a repeated id means one thing, nothing is ever lost or duplicated, a move to the index it
+  is already at changes nothing, an out-of-range source or target is ignored rather than clamped, and
+  the drop target clamps past either end of the track because a drag that has left it still has a
+  target.
 - The focus timer state machine: the three-minute default, a late tick reporting `expired` and
   never negative time, a paused timer ignoring every further tick, resume continuing from the new
   timestamp with the same remaining time, `+1 minute` preserving elapsed progress, an expired timer
@@ -208,8 +221,12 @@ only surface that offers `RESUME`, the sidebar's ambient summary refreshes on a 
 changing the window the dashboard is showing, three identical events from one click collapse into a
 single `×3` row, the remaining work renders as contiguous blocks whose heights differ with the
 estimates, the resume card takes focus and keeps it inside itself until Escape closes it, ending a
-session leaves the app with nothing current, and the interface can be switched to Chinese with the
-choice surviving a real restart of the app.
+session leaves the app with nothing current, the interface can be switched to Chinese with the
+choice surviving a real restart of the app, and the remaining tasks can be reordered by dragging a
+row by its grip, by pressing the arrow keys on it, and by activating it (Enter or Space moves the row
+down, with Shift up) — the order surviving a real restart, the drop marker appearing before the
+release, the keyboard staying on the row it moved, the step in progress untouched by every path, and
+the whole thing put back the way it was found.
 
 There is no `test` target for this project on purpose. When there was one it ran Playwright under
 `pnpm test`, which meant the unit run tried to launch Electron without a build — CI could never go

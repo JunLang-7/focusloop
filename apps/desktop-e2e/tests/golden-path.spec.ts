@@ -262,6 +262,52 @@ async function contentBox(): Promise<{ left: number; width: number }> {
 }
 
 /*
+ * The plan is closed until a press opens it, and the toggle is a toggle: pressing it while the
+ * panel is open closes the very thing the caller is about to look at. Every entry point that needs
+ * the plan goes through this, so "is it already open" is asked in one place.
+ */
+async function openPlan(): Promise<void> {
+  const toggle = window.getByTestId('focus-plan-toggle');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(window.locator('.plan')).toBeVisible();
+}
+
+/** The plan's rows, by title, in the order they are rendered. */
+async function planTitles(): Promise<string[]> {
+  return window.locator('[data-testid=plan-block] .plan__title').allInnerTexts();
+}
+
+/**
+ * Drags a row by its grip onto the slot another row occupies (#23).
+ *
+ * The pointer path as a person performs it: press the grip, move, release. Two details are
+ * load-bearing rather than decoration. The move is issued in steps, because the drop target is read
+ * from the pointer's position and a single jump is one sample; and the drop marker is asserted
+ * *before* the release, because a release that commits an order the learner was never shown is the
+ * defect the marker exists to prevent.
+ */
+async function dragPlanRow(fromRow: number, toRow: number): Promise<void> {
+  const grip = window.getByTestId('plan-grip').nth(fromRow);
+  const target = window.locator('[data-testid=plan-block]').nth(toRow);
+  const gripBox = await grip.boundingBox();
+  const targetBox = await target.boundingBox();
+  if (gripBox === null || targetBox === null) throw new Error('the plan has no rows to drag');
+
+  await window.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+  await window.mouse.down();
+  // Four pixels into the target row: inside it, and clear of the seam with the row above.
+  await window.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 4, { steps: 4 });
+  await expect(target).toHaveAttribute('data-drop', '');
+  await window.mouse.up();
+}
+
+/** The keyboard path: put the keyboard on a row's grip and press a key (or an `A+B` combination). */
+async function pressOnGrip(fromRow: number, key: string, times = 1): Promise<void> {
+  await window.getByTestId('plan-grip').nth(fromRow).focus();
+  for (let press = 0; press < times; press += 1) await window.keyboard.press(key);
+}
+
+/*
  * First on purpose: everything below claims to exercise the offline path, and that claim is only
  * true when no provider credential reached the child process. The run-mode indicator is the
  * product's own answer to "which model is speaking" — without `hermeticEnv()` clearing the key,
@@ -734,6 +780,89 @@ test('the non-modal resume notice is keyboard reachable and folds without dismis
   await expect(resume).toBeVisible();
   await window.getByTestId('resume-continue').click();
   await expect(resume).toBeHidden();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
+/*
+ * #23, and placed here for the same reason the outcomes test is: it needs the remaining tasks the
+ * earlier tests in this shared instance left behind, and everything after the session-ending test
+ * below has none at all.
+ *
+ * It restores the order before it finishes. Nothing after it depends on the order, but a test that
+ * leaves the app in a state it did not find it in is a test whose next failure has two possible
+ * causes, and the one that is not in the failing test is the expensive one.
+ */
+test('the remaining tasks can be reordered by pointer and by keyboard, and the order survives a restart', async () => {
+  // A restart mid-test takes longer than an ordinary assertion sequence.
+  test.setTimeout(90_000);
+
+  await clickSidebarLink('Focus Session');
+  await openPlan();
+
+  const original = await planTitles();
+  expect(
+    original.length,
+    'the drag and the restart below need three rows to move between, so run the whole file rather than this test alone',
+  ).toBeGreaterThan(2);
+
+  const moved = original[0]!;
+
+  /*
+   * What the learner is doing, before anything is moved. Reordering is how they decide what comes
+   * *next*; if it also started or switched a task, asking for an order would be a way to change step
+   * by accident. The pair is recorded rather than asserted once, because the claim is that these two
+   * are what the moves below did not touch.
+   */
+  const taskBefore = await window.getByTestId('task-title').innerText();
+  const stateBefore = await window.getByTestId('state').getAttribute('data-state');
+
+  // 1. The pointer: the first row is dragged onto the third row's slot.
+  await dragPlanRow(0, 2);
+  await expect.poll(planTitles).toEqual([original[1], original[2], moved, ...original.slice(3)]);
+
+  // The step is still the step, and the learner is still in it.
+  await expect(window.getByTestId('task-title')).toHaveText(taskBefore);
+  await expect(window.getByTestId('state')).toHaveAttribute('data-state', stateBefore ?? '');
+  // And the session is still running: moving a row is not a way to leave what they are in the middle of.
+  await expect(window.getByTestId('end-session')).toBeVisible();
+
+  // 2. The keyboard: the same row, one place up, from its own grip.
+  await pressOnGrip(2, 'ArrowUp');
+  await expect.poll(planTitles).toEqual([original[1], moved, original[2], ...original.slice(3)]);
+
+  // Still the same step, still the same session, still running.
+  await expect(window.getByTestId('task-title')).toHaveText(taskBefore);
+  await expect(window.getByTestId('state')).toHaveAttribute('data-state', stateBefore ?? '');
+  await expect(window.getByTestId('end-session')).toBeVisible();
+  // And the move is said out loud, because nothing else on the screen reports it.
+  await expect(window.getByTestId('reorder-status')).toContainText(moved);
+  await expect(window.getByTestId('reorder-status')).toContainText('position 2');
+  // The keyboard is left on the row it just moved, not on whatever the re-render put in that slot.
+  await expect(window.getByTestId('plan-grip').nth(1)).toBeFocused();
+
+  /*
+   * 3. The activation a button advertises, which is the only path for an interface that is Tab and
+   *    press. Both directions are asserted, because one of them alone would leave the other as the
+   *    direction such a learner cannot reach at all - and this leaves the order where step 2 left it.
+   */
+  await pressOnGrip(1, 'Enter');
+  await expect.poll(planTitles).toEqual([original[1], original[2], moved, ...original.slice(3)]);
+  await pressOnGrip(2, 'Shift+Enter');
+  await expect.poll(planTitles).toEqual([original[1], moved, original[2], ...original.slice(3)]);
+  await expect(window.getByTestId('plan-grip').nth(1)).toBeFocused();
+
+  // 4. A restart keeps it. The order belongs to the session, and the session is a row in a database
+  //    rather than anything the renderer is holding.
+  const afterMoves = await planTitles();
+  await restartApp();
+  await clickSidebarLink('Focus Session');
+  await openPlan();
+  await expect.poll(planTitles).toEqual(afterMoves);
+
+  // 5. Back to the order it started in, so the run continues from the state it found.
+  await pressOnGrip(1, 'ArrowUp');
+  await expect.poll(planTitles).toEqual(original);
+
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 

@@ -340,3 +340,80 @@ describe('AGENT_PROPOSAL_EXECUTED', () => {
     expect(result.transition).toBeNull();
   });
 });
+
+describe('TASKS_REORDERED', () => {
+  /** A learner mid-session, with one task running, which is when reordering happens. */
+  function focused(): StateEngineState {
+    return run(createInitialState(T0), [event('TASK_STARTED', { taskId: 't1' }, 1_000)]);
+  }
+
+  it('keeps the order it is given', () => {
+    const result = reduceState(
+      focused(),
+      event('TASKS_REORDERED', { order: ['t4', 't2', 't5'] }, 2_000),
+    );
+    expect(result.state.taskOrder).toEqual(['t4', 't2', 't5']);
+  });
+
+  it('does not move the learner, and does not start the task they moved to the top', () => {
+    // The whole point of the gesture is deciding what comes *next*; if it also switched task, asking
+    // for an order would be a way to start something by accident.
+    const before = focused();
+    const result = reduceState(before, event('TASKS_REORDERED', { order: ['t4', 't1'] }, 2_000));
+
+    expect(result.transition).toBeNull();
+    expect(result.state.state).toBe(before.state);
+    expect(result.state.currentTaskId).toBe('t1');
+    expect(result.state.transitionCount).toBe(before.transitionCount);
+  });
+
+  it('starts the next session with no order, because the order belongs to the session', () => {
+    const ordered = reduceState(
+      focused(),
+      event('TASKS_REORDERED', { order: ['t4', 't2'] }, 2_000),
+    ).state;
+    const next = reduceState(
+      ordered,
+      event('SESSION_STARTED', { courseId: 'c1', sessionId: SESSION }, 3_000),
+    );
+    expect(next.state.taskOrder).toEqual([]);
+  });
+
+  it('reads a repeated id as one mention, so it cannot mean two things', () => {
+    const result = reduceState(
+      focused(),
+      event('TASKS_REORDERED', { order: ['t4', 't2', 't4'] }, 2_000),
+    );
+    expect(result.state.taskOrder).toEqual(['t4', 't2']);
+  });
+
+  it('takes an empty order as the plain statement that there is none', () => {
+    const ordered = reduceState(
+      focused(),
+      event('TASKS_REORDERED', { order: ['t4', 't2'] }, 2_000),
+    ).state;
+    expect(
+      reduceState(ordered, event('TASKS_REORDERED', { order: [] }, 3_000)).state.taskOrder,
+    ).toEqual([]);
+  });
+
+  it.each([
+    ['no order at all', {}],
+    ['a bare string', { order: 't4' }],
+    ['a number in the list', { order: ['t4', 7] }],
+    ['an empty id', { order: [''] }],
+    ['a null entry', { order: ['t4', null] }],
+    ['something that is not a list', { order: { t4: 0 } }],
+  ])('leaves the order alone when the payload is %s', (_name, payload) => {
+    const ordered = reduceState(
+      focused(),
+      event('TASKS_REORDERED', { order: ['t4', 't2'] }, 2_000),
+    ).state;
+    const after = reduceState(ordered, event('TASKS_REORDERED', payload, 3_000));
+
+    expect(after.state.taskOrder).toEqual(['t4', 't2']);
+    // The event was still seen: a rejected payload is not a duplicate, and dropping it from the ring
+    // would let a replay apply it a second time.
+    expect(after.state.lastEventAt).toBe(at(3_000));
+  });
+});

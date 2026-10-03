@@ -106,6 +106,7 @@ export const EVENT_TYPE_KEYS: Record<LearningEventType, MessageKey> = {
   RESUME_DISMISSED: 'event.type.RESUME_DISMISSED',
   SESSION_ENDED: 'event.type.SESSION_ENDED',
   AGENT_PROPOSAL_EXECUTED: 'event.type.AGENT_PROPOSAL_EXECUTED',
+  TASKS_REORDERED: 'event.type.TASKS_REORDERED',
 };
 
 /**

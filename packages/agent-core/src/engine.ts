@@ -1505,6 +1505,9 @@ function toSession(
       ? {}
       : { lastActiveTaskId: engineState.lastActiveTaskId }),
     completedTaskIds: engineState.completedTaskIds,
+    // Carried on the session as well as in the blob, because the renderer only ever sees a session:
+    // `engine_state` is the engine's own value object and is not part of any snapshot.
+    taskOrder: engineState.taskOrder,
     updatedAt,
   };
 }

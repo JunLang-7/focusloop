@@ -400,6 +400,10 @@ function projectEvent(event: unknown): AgentContextEvent | null {
     case 'AGENT_PROPOSAL_EXECUTED':
       // Audit fact for the log; the agent does not need proposal ids or keys.
       return { ...common, type, payload: {} };
+    case 'TASKS_REORDERED': {
+      const order = taskIdList(payload['order']);
+      return order === null ? null : { ...common, type, payload: { order } };
+    }
     default:
       return null;
   }
@@ -424,7 +428,8 @@ function isLearningEventType(value: unknown): value is LearningEvent['type'] {
     value === 'RESUME_REQUESTED' ||
     value === 'RESUME_DISMISSED' ||
     value === 'SESSION_ENDED' ||
-    value === 'AGENT_PROPOSAL_EXECUTED'
+    value === 'AGENT_PROPOSAL_EXECUTED' ||
+    value === 'TASKS_REORDERED'
   );
 }
 
@@ -491,6 +496,22 @@ function isStuckReason(value: unknown): value is StuckReason {
 
 function nonNegativeFiniteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/**
+ * A bounded list of bounded event strings, or `null` when it is not one.
+ *
+ * Bounded by the same string limit as every other projected field, and by the number of tasks the
+ * context will carry, so a payload cannot arrive as an unbounded array of unbounded strings and be
+ * waved through into a prompt. Empty is allowed where a single string is not: an order that names no
+ * task is a well-formed statement about nothing, and refusing it would drop the event rather than the
+ * nonsense.
+ */
+function taskIdList(value: unknown): readonly string[] | null {
+  if (!Array.isArray(value)) return null;
+  const entries = value as readonly unknown[];
+  if (entries.length > AGENT_CONTEXT_LIMITS.eventListItems) return null;
+  return entries.every((entry) => isBoundedEventString(entry)) ? (entries as string[]) : null;
 }
 
 function sessionEndReason(value: unknown): SessionEndReason | null {

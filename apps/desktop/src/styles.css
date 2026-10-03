@@ -149,6 +149,23 @@ ol {
 .muted {
   color: var(--text-muted);
 }
+
+/*
+ * Off screen but still in the accessibility tree. `display: none` and `visibility: hidden` would take
+ * the text out of it as well, and anything described by `aria-describedby` would then be describing
+ * nothing.
+ */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
 .small {
   font-size: 12px;
 }
@@ -874,6 +891,79 @@ body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .cont
 .plan__estimate {
   margin-left: auto;
   white-space: nowrap;
+}
+
+/*
+ * The row's handle (#23). A dotted column drawn in the block's own text colour, so it reads as part of
+ * the row rather than as an icon that arrived on top of it — and drawn in CSS rather than typed,
+ * because the typefaces that carry a grip character are not the ones this app can rely on being
+ * installed.
+ *
+ * Stretched to the block's full height while the dots stay at the top: the handle is the whole row's,
+ * but a 112px task should not have its dots floating in the middle, away from the label they belong
+ * to. `touch-action: none` is what stops the browser claiming the gesture for scrolling, which in the
+ * plan would mean a task dragged on a trackpad that never moves.
+ */
+.plan__grip {
+  flex: 0 0 auto;
+  align-self: stretch;
+  width: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.plan__grip::before {
+  content: '';
+  display: block;
+  width: 10px;
+  height: 14px;
+  margin: 0 auto;
+  background-image: radial-gradient(currentColor 1.1px, transparent 1.2px);
+  background-size: 5px 5px;
+  opacity: 0.7;
+}
+
+.plan__grip:hover,
+.plan__grip:focus-visible {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+.plan[data-dragging] .plan__grip {
+  cursor: grabbing;
+}
+
+/*
+ * The row in hand stays where it was and dims. It is the thing being moved, not a ghost following the
+ * pointer: the pointer's position is already telling the learner where it will land, and a second
+ * copy of the row under the cursor would say the same thing twice.
+ */
+.plan__block[data-dragging] {
+  opacity: 0.45;
+}
+
+/*
+ * Where it will land: a rule along the top edge of the row the pointer is over.
+ *
+ * The row under the pointer is the row the task ends up occupying, which is what makes this honest
+ * rather than a guess about which side of a gap it will fall on — see `reorder` in core/task-order.ts
+ * for the same contract in the arithmetic.
+ */
+.plan__block[data-drop]::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
 }
 
 /* Small inline label for a closed vocabulary — a task kind, a state, a tag. */

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ProviderError, createProviderSelection } from '@focusloop/llm-provider';
 import { TUTOR_LIMITS, type AIProvider, type CompletionRequest } from '@focusloop/shared-types';
-import { EngineError } from './engine';
+import { EngineError, FocusLoopEngine } from './engine';
 import { DEMO_COURSE_ID } from './demo-course';
 import { createTestEngine, type TestEngine } from './test-helpers';
 
@@ -1749,5 +1749,89 @@ describe('FocusLoopEngine', () => {
       expect(second).toMatchObject({ ok: true, status: 'already-executed' });
       if (first.ok && second.ok) expect(second.eventId).toBe(first.eventId);
     });
+  });
+});
+
+describe('TASKS_REORDERED (#23)', () => {
+  let ctx: TestEngine;
+
+  beforeEach(() => {
+    ctx = createTestEngine();
+  });
+
+  afterEach(() => {
+    ctx.close();
+  });
+
+  /** The learner's order, using ids the demo course really has. */
+  const order = ['rbt-t5', 'rbt-t2', 'rbt-t4'];
+
+  function reorderIn(sessionId: string): void {
+    ctx.engine.dispatch({
+      sessionId,
+      type: 'TASKS_REORDERED',
+      source: 'user',
+      payload: { order },
+    });
+  }
+
+  it('reports the order on the running session', () => {
+    const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+    reorderIn(session.id);
+    expect(ctx.engine.getCurrentSession()?.session.taskOrder).toEqual(order);
+  });
+
+  it('leaves the task in progress alone', () => {
+    // The acceptance criterion, at the layer that can actually break it: moving a row must not start a
+    // task, and it must not disturb the one already running.
+    const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+    ctx.engine.dispatch({
+      sessionId: session.id,
+      type: 'TASK_STARTED',
+      source: 'user',
+      payload: { taskId: 'rbt-t1' },
+    });
+
+    reorderIn(session.id);
+
+    expect(ctx.engine.getCurrentSession()?.session.currentTaskId).toBe('rbt-t1');
+    expect(ctx.engine.getCurrentSession()?.session.state).toBe('FOCUSED');
+  });
+
+  it('is on the session row, so a reload finds it', () => {
+    const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+    reorderIn(session.id);
+
+    /*
+     * A second engine over the same store, which is what "the renderer holds no durable state" has to
+     * mean: nothing of the first engine is carried over except what reached a table. If the order lived
+     * only in the engine, this reads an empty order and the test says so.
+     */
+    let counter = 0;
+    const reloaded = new FocusLoopEngine({
+      store: ctx.store,
+      providers: ctx.providers,
+      clock: () => ctx.clock.now(),
+      idFactory: () => `reload-${(counter += 1)}`,
+    });
+    reloaded.initialize();
+
+    expect(reloaded.getCurrentSession()?.session.taskOrder).toEqual(order);
+  });
+
+  it('is in the session history as something the learner did', () => {
+    const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+    reorderIn(session.id);
+    expect(ctx.engine.listEvents(session.id).map((event) => event.type)).toContain(
+      'TASKS_REORDERED',
+    );
+  });
+
+  it('does not carry over into the next session', () => {
+    const first = ctx.engine.startSession(DEMO_COURSE_ID).session;
+    reorderIn(first.id);
+
+    const second = ctx.engine.startSession(DEMO_COURSE_ID).session;
+    expect(second.taskOrder).toEqual([]);
   });
 });
