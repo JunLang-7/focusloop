@@ -220,8 +220,10 @@ Plus: the agent offers a break on overload and the learner can decline it, the r
 only surface that offers `RESUME`, the sidebar's ambient summary refreshes on a new event without
 changing the window the dashboard is showing, three identical events from one click collapse into a
 single `×3` row, the remaining work renders as contiguous blocks whose heights differ with the
-estimates, the resume card takes focus and keeps it inside itself until Escape closes it, ending a
-session leaves the app with nothing current, the interface can be switched to Chinese with the
+estimates, the resume card takes focus and keeps it inside itself until Escape closes it, the app's
+getting-started block is there with nothing running — three steps as an actual list, ending on the
+premise — and gone while a session is, without anything having been dismissed, ending a session
+leaves the app with nothing current, the interface can be switched to Chinese with the
 choice surviving a real restart of the app, and the remaining tasks can be reordered by dragging a
 row by its grip, by pressing the arrow keys on it, and by activating it (Enter or Space moves the row
 down, with Shift up) — the order surviving a real restart, the drop marker appearing before the

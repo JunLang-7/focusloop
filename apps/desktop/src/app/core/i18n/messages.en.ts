@@ -65,6 +65,23 @@ const en = {
   'home.current.meta': '{completed} / {total} micro tasks · {elapsed} · state {state}',
   'home.current.continue': 'Continue session',
   'home.empty': 'No session running. Pick a course below to begin.',
+  /*
+   * How to use the app (#21), shown only while nothing is running.
+   *
+   * Every step names a control the learner can actually see, where they will see it: the course card's
+   * own button, then the "Next small step" card on the focus screen. The first version said "start one
+   * micro task from the plan", which sent them to a panel that starts closed and is not on the path at
+   * all, and it ended by claiming one finished step was a finished session, which the app does not
+   * implement. The e2e checks the second step against the button's own label, so that wording and that
+   * control cannot drift apart; the first and third steps are prose, and nothing ties them to a label.
+   */
+  'home.start.eyebrow': 'Getting started',
+  'home.start.title': 'One session, in three steps',
+  'home.start.step.course': 'Pick a course below.',
+  'home.start.step.session': 'Press Start session on its card.',
+  'home.start.step.task': 'On the focus screen, start the next small step it shows you.',
+  'home.start.back':
+    'Stop whenever you like. Coming back later is the point, not a failure: where you left off is kept.',
   'home.courses.title': 'Courses',
   'home.courses.meta': '{concepts} concepts · {tasks} micro tasks',
   'home.courses.view': 'View course',

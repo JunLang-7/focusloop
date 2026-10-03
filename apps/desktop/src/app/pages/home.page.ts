@@ -35,8 +35,22 @@ import { describeLimit, readImportFile, type ImportFileOutcome } from '../core/i
         </div>
       </section>
     } @else {
-      <section class="card">
+      <!--
+        Getting started (#21). It is here, and only here, because this is the moment the learner is
+        deciding what to do next: with a session running the page has something better to say, and
+        help that has to be dismissed or remembered is a nag rather than help. The order is an ordered
+        list rather than a styled one because the order is the point - and it is announced as one.
+      -->
+      <section class="card getting-started" data-testid="getting-started">
+        <p class="eyebrow">{{ t('home.start.eyebrow') }}</p>
+        <h2>{{ t('home.start.title') }}</h2>
         <p class="muted">{{ t('home.empty') }}</p>
+        <ol class="steps">
+          <li>{{ t('home.start.step.course') }}</li>
+          <li>{{ t('home.start.step.session') }}</li>
+          <li>{{ t('home.start.step.task') }}</li>
+        </ol>
+        <p class="muted small">{{ t('home.start.back') }}</p>
       </section>
     }
 

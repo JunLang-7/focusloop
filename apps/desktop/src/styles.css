@@ -1040,6 +1040,34 @@ textarea:focus {
   outline-offset: -1px;
 }
 
+/* ------------------------------------------------------- getting started */
+
+/*
+ * The getting-started path (#21).
+ *
+ * The list keeps its own `display`, which is why there is so little here: `display: grid` would replace
+ * the `list-item` display the markers are drawn from, and tighter spacing is not worth losing the
+ * numbers the block is about. The spacing is done on the items instead.
+ *
+ * The e2e asserts the container still has a `list` role. What that pins is the markup: the container is
+ * still an ordered list, which is where the markers and the numbering come from. The other half - what a
+ * screen reader makes of it - depends on the browser and on CSS that no test here runs, so it is not
+ * claimed.
+ */
+.steps {
+  margin: 10px 0;
+  padding-left: 20px;
+  font-size: 13px;
+}
+
+.steps li {
+  margin-top: 4px;
+}
+
+.steps li::marker {
+  color: var(--text-muted);
+}
+
 /* ------------------------------------------------------------ file picker */
 
 /*
