@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.main.json",
+  "compilerOptions": { "noEmit": true, "declaration": false, "emitDeclarationOnly": false },
+  "exclude": ["dist"]
+}

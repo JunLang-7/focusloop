@@ -8,7 +8,7 @@
   "scripts": {
     "build": "ng build --configuration production && node scripts/build-main.mjs",
     "build:dev": "ng build --configuration development && node scripts/build-main.mjs",
-    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.app.json --noEmit",
+    "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.app.json --noEmit && tsc -p tsconfig.spec.json",
     "test": "vitest run",
     "lint": "eslint .",
     "start": "pnpm run build:dev && electron dist/main/main.cjs",
