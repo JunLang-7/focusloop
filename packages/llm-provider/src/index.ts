@@ -14,3 +14,4 @@ export * from './mock-provider';
 export * from './deepseek-provider';
 export * from './registry';
 export * from './runtime';
+export type { ExecutableAIProvider, ProviderExecutionOptions } from './execution';
