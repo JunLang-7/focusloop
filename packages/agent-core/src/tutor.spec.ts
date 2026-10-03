@@ -941,6 +941,7 @@ describe('readTutorReply', () => {
       'EXPLAIN',
       '[explanation]\nIt moves.\n[section]\nLeft rotation\nand this second line is lost',
     );
+    if (result.status !== 'answered') throw new Error('Expected an answered fixture');
     expect(result.reply.omissions.some((entry) => entry.detail.includes('after the heading'))).toBe(
       true,
     );

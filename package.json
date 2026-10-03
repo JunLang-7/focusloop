@@ -21,6 +21,7 @@
     "verify:workflows": "node scripts/verify-workflows.mjs",
     "verify:docs": "node scripts/verify-docs.mjs",
     "verify:tokens": "node scripts/verify-theme-tokens.mjs",
+    "verify:spec-types": "node scripts/verify-spec-typecheck.mjs",
     "desktop": "nx run desktop:serve",
     "package:windows": "nx run desktop:package",
     "coverage": "pnpm -r --no-bail --filter \"./packages/*\" run test:coverage"

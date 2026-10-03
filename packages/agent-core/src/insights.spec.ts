@@ -59,11 +59,9 @@ const COURSES: Course[] = [
     id: COURSE_ID,
     title: 'Red-black trees',
     description: '',
-    source: 'built-in',
     concepts: [],
     microTasks: [],
     quizzes: [],
-    createdAt: at(1, 9),
   },
 ];
 
