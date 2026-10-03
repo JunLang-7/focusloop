@@ -43,6 +43,7 @@ import type {
   TutorUnavailableReason,
 } from '@focusloop/shared-types';
 import {
+  TUTOR_LIMITS,
   findMaterialForCourse,
   isRescueAction,
   isStuckReason,
@@ -98,6 +99,9 @@ import {
   providerInfo,
   unsentReport,
 } from './tutor-ask';
+
+/** Leaves room for the widest legal Tutor answer and its labels; see complete(). */
+const TUTOR_COMPLETION_TOKEN_CAP = 2048;
 
 /** The `app_meta` key the interface language is stored under. */
 export const LOCALE_KEY = 'locale';
@@ -664,12 +668,20 @@ export class FocusLoopEngine {
    * the labels. Anything the model returns beyond it is caught by the clip, which reports.
    */
   private complete(system: string, prompt: string): Promise<CompleteWithFallbackResult> {
-    return this.runtime.completeText({
-      system,
-      prompt,
-      maxTokens: 2048,
-      temperature: 0.3,
-    });
+    return this.runtime.completeText(
+      {
+        system,
+        prompt,
+        maxTokens: TUTOR_COMPLETION_TOKEN_CAP,
+        temperature: 0.3,
+      },
+      {
+        budgets: {
+          contextBudget: TUTOR_LIMITS.inputCharacters,
+          tokenBudget: TUTOR_COMPLETION_TOKEN_CAP,
+        },
+      },
+    );
   }
 
   /**
@@ -1345,8 +1357,8 @@ export class FocusLoopEngine {
   // ------------------------------------------------------------ optional LLM
 
   /**
-   * The only path that may reach a network provider. It always resolves: on
-   * failure it degrades to the mock provider and reports why.
+   * Optional enrichment obeys the runtime's finite default budgets. Provider failures degrade
+   * to the mock; malformed or oversized input rejects before provider work instead of being clipped.
    */
   async enrich(prompt: string, system?: string): Promise<CompleteWithFallbackResult> {
     return this.runtime.completeText({

@@ -965,6 +965,25 @@ describe('FocusLoopEngine', () => {
   });
 
   describe('degraded mode (no network, no key)', () => {
+    it('returns numeric-only runtime budget inspection data through optional enrichment', async () => {
+      const result = await ctx.engine.enrich('中', '😀');
+      expect(result.budget).toMatchObject({
+        contextBudget: 16384,
+        tokenBudget: 4096,
+        callerMaxTokens: 256,
+        effectiveMaxTokens: 256,
+        inputCharacters: 3,
+        characterUnit: 'utf16-code-units',
+      });
+      expect(result.budget.usage).toBeUndefined();
+      expect(JSON.stringify(result.budget)).not.toContain('中');
+    });
+    it('rejects oversized optional enrichment rather than silently clipping its question', async () => {
+      await expect(ctx.engine.enrich('q'.repeat(16385))).rejects.toMatchObject({
+        code: 'context-budget-exceeded',
+      });
+      expect(ctx.engine.providerInfo().degraded).toBe(false);
+    });
     it('works end to end with the mock provider', async () => {
       const result = await ctx.engine.enrich('Explain rotations briefly.');
       expect(result.degraded).toBe(false);
