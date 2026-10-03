@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 import type { InterventionAction, LocalizedMessage, RescuePlan } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
@@ -23,25 +23,31 @@ import { ACTION_KEYS } from '../core/i18n/labels';
           <p class="eyebrow">{{ t('agent.suggesting') }}</p>
           <h3>{{ copy(card.decision.action) }}</h3>
           <p class="muted small">{{ reason(card.decision) }}</p>
-          <p class="muted small">{{ minutes(card.decision.estimatedMinutes) }}</p>
-          <div class="agent__actions">
-            <button
-              type="button"
-              class="btn btn--small btn--primary"
-              [disabled]="pending()"
-              (click)="resolve('accept')"
-            >
-              {{ t('agent.accept') }}
-            </button>
-            <button
-              type="button"
-              class="btn btn--small btn--ghost"
-              [disabled]="pending()"
-              (click)="resolve('dismiss')"
-            >
-              {{ t('agent.notNow') }}
-            </button>
-          </div>
+          @if (!inline()) {
+            <p class="muted small">{{ minutes(card.decision.estimatedMinutes) }}</p>
+          }
+          @if (!inline() || card.decision.action === 'HINT' || card.decision.action === 'EXAMPLE') {
+            <div class="agent__actions">
+              <button
+                type="button"
+                class="btn btn--small btn--primary"
+                [disabled]="pending()"
+                (click)="resolve('accept')"
+              >
+                {{ t('agent.accept') }}
+              </button>
+              @if (!inline()) {
+                <button
+                  type="button"
+                  class="btn btn--small btn--ghost"
+                  [disabled]="pending()"
+                  (click)="resolve('dismiss')"
+                >
+                  {{ t('agent.notNow') }}
+                </button>
+              }
+            </div>
+          }
         </aside>
       } @else if (card.plan; as plan) {
         <aside
@@ -94,6 +100,7 @@ export class AgentPanelComponent {
   private readonly state = inject(AppStateService);
   private readonly i18n = inject(I18nService);
 
+  readonly inline = input(false);
   protected readonly t = this.i18n.t;
   protected readonly decision = computed(() => this.state.decision());
   protected readonly rescue = this.state.rescue;
