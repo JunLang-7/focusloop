@@ -345,7 +345,10 @@ describe('expiration on the text paths', () => {
   it('rejects between fragments instead of truncating the story quietly', async () => {
     vi.useFakeTimers();
     const long = { ...valid, text: 'x'.repeat(150) };
-    const runtime = new AgentRuntime({ primary: provider(async () => long) });
+    const runtime = new AgentRuntime({
+      primary: provider(async () => long),
+      fallback: provider(async () => valid),
+    });
     const chunks: string[] = [];
     const iterate = (async () => {
       for await (const chunk of runtime.streamText(request, { deadlineMs: Date.now() + 5 })) {
