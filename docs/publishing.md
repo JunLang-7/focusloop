@@ -92,6 +92,7 @@ pnpm verify:scaffolding
 pnpm verify:workflows
 pnpm verify:docs
 pnpm verify:tokens
+pnpm verify:spec-types
 ```
 
 The `quality` job runs exactly these on Ubuntu, Windows and macOS, plus `pnpm format:check`; the

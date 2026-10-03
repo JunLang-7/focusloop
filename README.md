@@ -261,6 +261,7 @@ pnpm verify:scaffolding                          # no scaffolding or debug lefto
 pnpm verify:workflows                            # pinned actions, stated permissions, timeouts
 pnpm verify:docs                                 # the commands, packages and links the docs cite
 pnpm verify:tokens                               # one palette, and the native window background
+pnpm verify:spec-types                           # every project's specs are compiled, not just run
 ```
 
 The suite is organised so that the domain is proven independently of the UI:

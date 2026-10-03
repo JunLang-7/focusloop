@@ -39,10 +39,15 @@ renderer and Playwright typechecks already include their specs and remain in pla
 build configs are unchanged; test programs never emit declarations or JavaScript into `dist/`.
 
 `pnpm verify:spec-types` checks every project's actual typecheck scripts and their resolved root
-files. It then injects a virtual `number = 'not a number'` fault into a representative spec for each
-covered compiler environment, and requires TypeScript's assignment diagnostic. It never writes
-faults to disk and does not replace normal `pnpm typecheck`. CI runs both gates on every quality
-platform, so dropping spec coverage cannot silently turn a green compiler run into a false promise.
+files. It then injects a virtual `number = 'not a number'` fault into **every** spec each compiler
+environment compiles and requires one assignment diagnostic per file, so a suppression inside any
+single spec cannot hide the rest. It never writes faults to disk and does not replace normal
+`pnpm typecheck`. CI runs both gates on every quality platform, so dropping spec coverage cannot
+silently turn a green compiler run into a false promise.
+
+The invariant reads each project's own `typecheck` script, and it assumes the root `pnpm typecheck`
+still runs every project's target. Narrowing that root script — adding an `--exclude`, or moving a
+project off `nx:run-script` — is outside what it can see.
 
 Intentionally malformed runtime fixtures should be clearly marked at the input boundary, rather
 than weakening shared contracts or suppressing an entire test file's checks. Type-level assertions

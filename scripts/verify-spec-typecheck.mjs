@@ -11,13 +11,20 @@ const key = (file) => {
   const absolute = resolve(file);
   return ts.sys.useCaseSensitiveFileNames ? absolute : absolute.toLowerCase();
 };
+const IGNORED_DIRECTORIES = [
+  'node_modules',
+  'dist',
+  'test-results',
+  'playwright-report',
+  'release',
+  'coverage',
+  'build',
+  'out',
+];
+
 function specsIn(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
-    if (
-      entry.name.startsWith('.') ||
-      ['node_modules', 'dist', 'test-results', 'playwright-report'].includes(entry.name)
-    )
-      return [];
+    if (entry.name.startsWith('.') || IGNORED_DIRECTORIES.includes(entry.name)) return [];
     const path = join(directory, entry.name);
     return entry.isDirectory() ? specsIn(path) : entry.name.endsWith('.spec.ts') ? [path] : [];
   });
@@ -47,6 +54,8 @@ for (const parent of ['packages', 'apps']) {
     const covered = new Set();
     for (const command of scripts.typecheck.split('&&')) {
       // Reject swallowed errors or opaque wrappers; every listed compiler must be a real gate.
+      // Deliberately fail-closed: rewriting a command (`tsc --noEmit -p x`, `--pretty false`, a
+      // shared wrapper) has to update this parser instead of quietly leaving the project behind.
       const match = command.trim().match(/^tsc -p (\S+)( --noEmit)?$/);
       assert.ok(match, `${entry.name}: unsupported typecheck command: ${command}`);
       const configPath = join(directory, match[1]);
@@ -70,28 +79,37 @@ for (const parent of ['packages', 'apps']) {
       for (const file of included) covered.add(key(file));
       if (included.length === 0) continue;
 
-      // One representative per consumed config: desktop main and renderer are separate environments.
-      const target = parsed.fileNames.find((file) => key(file) === key(included[0]));
-      assert.ok(target);
-      const original = readFileSync(target, 'utf8');
+      // Fault EVERY spec this config compiles, not one representative: a file-level suppression
+      // (`// @ts-nocheck`, `@ts-ignore` over the file) in a sibling would otherwise stay invisible.
       const options = { ...parsed.options, noEmit: true };
       const host = ts.createCompilerHost(options);
       const read = host.readFile.bind(host);
-      host.readFile = (file) =>
-        key(file) === key(target)
-          ? `${original}\nconst __focusloopSpecTypecheckProbe: number = 'not a number';\n`
-          : read(file);
+      const faults = new Map();
+      for (const file of included) {
+        const target = parsed.fileNames.find((name) => key(name) === key(file));
+        assert.ok(target, `${basename(configPath)} did not load ${file}`);
+        const original = readFileSync(target, 'utf8');
+        faults.set(key(target), {
+          target,
+          originalLength: original.length,
+          // A unique name per file keeps the probes from colliding in a non-module file.
+          text: `${original}\nconst __focusloopSpecTypecheckProbe${faults.size}: number = 'not a number';\n`,
+        });
+      }
+      host.readFile = (file) => faults.get(key(file))?.text ?? read(file);
       const program = ts.createProgram(parsed.fileNames, options, host);
-      const source = program.getSourceFile(target);
-      assert.ok(source, `${basename(configPath)} did not load ${target}`);
-      const diagnostics = program.getSemanticDiagnostics(source);
-      assert.ok(
-        diagnostics.some(
-          (diagnostic) => diagnostic.code === 2322 && diagnostic.start >= original.length,
-        ),
-        `${entry.name}/${basename(configPath)} swallowed the injected spec type error`,
-      );
-      probeCount += 1;
+      for (const fault of faults.values()) {
+        const source = program.getSourceFile(fault.target);
+        assert.ok(source, `${basename(configPath)} did not load ${fault.target}`);
+        const diagnostics = program.getSemanticDiagnostics(source);
+        assert.ok(
+          diagnostics.some(
+            (diagnostic) => diagnostic.code === 2322 && diagnostic.start >= fault.originalLength,
+          ),
+          `${entry.name}/${basename(configPath)} swallowed the injected spec type error in ${fault.target}`,
+        );
+        probeCount += 1;
+      }
     }
     const missing = specs.filter((file) => !covered.has(key(file)));
     assert.equal(
