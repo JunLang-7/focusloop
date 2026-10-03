@@ -321,14 +321,41 @@ const DONUT_RADIUS = 42;
       <div class="card">
         @if (bridge(); as info) {
           @if (info.running) {
-            <p class="muted small">{{ bridgeListening(info) }}</p>
-            <p class="muted small">{{ t('dashboard.bridge.hint') }}</p>
-            <pre class="token" data-testid="bridge-token">{{ info.token }}</pre>
+            <!--
+              #135: the socket address, the protocol version, the connection count and the token are
+              behind a deliberate request. A learner opens this screen for their continuity numbers,
+              so nothing from the machinery is rendered until they ask for it - and asking has to be
+              possible, because connecting the extension needs both the address and the token.
+              The region sits *after* its trigger, with aria-controls pointing back at it: a screen
+              reader is told the content appeared and where, and the button does not move out from
+              under the pointer that just clicked it.
+            -->
+            <button
+              type="button"
+              class="btn btn--small"
+              data-testid="bridge-reveal"
+              aria-controls="bridge-details"
+              [attr.aria-expanded]="bridgeRevealed()"
+              (click)="toggleBridge()"
+            >
+              {{ t(bridgeRevealed() ? 'dashboard.bridge.hide' : 'dashboard.bridge.reveal') }}
+            </button>
+            @if (bridgeRevealed()) {
+              <div id="bridge-details">
+                <p class="muted small">{{ bridgeListening(info) }}</p>
+                <p class="muted small">{{ t('dashboard.bridge.hint') }}</p>
+                <pre class="token" data-testid="bridge-token">{{ info.token }}</pre>
+              </div>
+            }
           } @else {
-            <p class="muted small">{{ t('dashboard.bridge.stopped') }}</p>
+            <p class="muted small" data-testid="bridge-stopped">
+              {{ t('dashboard.bridge.stopped') }}
+            </p>
           }
         } @else {
-          <p class="muted small">{{ t('dashboard.bridge.unavailable') }}</p>
+          <p class="muted small" data-testid="bridge-unavailable">
+            {{ t('dashboard.bridge.unavailable') }}
+          </p>
         }
       </div>
     </section>
@@ -386,6 +413,15 @@ export class DashboardPage {
     groupEvents([...this.state.recentEvents()].reverse()),
   );
   protected readonly bridge = signal<BridgeInfo | null>(null);
+  /**
+   * Whether the bridge's machinery is on screen. Off until asked for: the learner reads this page for
+   * their continuity numbers, and the address, protocol, connection count and token are for whoever
+   * is connecting the extension (#135). Asking is a choice, and it can be taken back.
+   */
+  protected readonly bridgeRevealed = signal(false);
+  protected toggleBridge(): void {
+    this.bridgeRevealed.update((shown) => !shown);
+  }
 
   protected readonly stateShares = computed(() => sortedShares(this.insights()?.stateShares ?? []));
   protected readonly segments = computed(() => donutSegments(this.stateShares(), DONUT_RADIUS));

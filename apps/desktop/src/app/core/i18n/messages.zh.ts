@@ -235,6 +235,8 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.bridge.listening': '正在监听 {url} · 协议 v{version} · 已连接 {connections} 个',
   'dashboard.bridge.hint':
     '把这个令牌粘贴到 FocusLoop Bridge 扩展里。它每次启动都会更换，且只在本机有效。',
+  'dashboard.bridge.reveal': '显示连接信息',
+  'dashboard.bridge.hide': '收起连接信息',
   'dashboard.bridge.stopped': '桥接服务未在运行。演示事件模拟器覆盖了同一条链路。',
   'dashboard.bridge.unavailable': '暂时拿不到桥接状态。',
   'dashboard.events': '最近事件',

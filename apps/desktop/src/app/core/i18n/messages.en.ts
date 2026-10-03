@@ -244,6 +244,8 @@ const en = {
     'Listening on {url} · protocol v{version} · {connections} connected',
   'dashboard.bridge.hint':
     'Paste this token into the FocusLoop Bridge extension. It changes every launch and is only valid on this machine.',
+  'dashboard.bridge.reveal': 'Show connection details',
+  'dashboard.bridge.hide': 'Hide connection details',
   'dashboard.bridge.stopped':
     'The bridge is not running. The Demo Event Simulator covers the same path.',
   'dashboard.bridge.unavailable': 'Bridge status unavailable.',

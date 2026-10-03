@@ -166,14 +166,40 @@ try {
   });
 
   await when('the dashboard keeps its internals to itself', async () => {
-    // The bridge finds its port asynchronously, so the address can be absent on the first frame.
-    // Probing before it settles would report "nothing leaked" for the wrong reason.
-    await window.waitForTimeout(1_500);
+    /*
+     * The running-bridge branch has to exist for this guard to mean anything, and the *renderer* decides
+     * that, not the main process: `DashboardPage` starts with no bridge information and paints
+     * `bridge-unavailable` until the IPC answer arrives, so missing on an early frame means nothing either
+     * way. Wait for the control the running branch renders, and only if it never turns up name the state.
+     */
+    try {
+      await window.getByTestId('bridge-reveal').waitFor({ timeout: 15_000 });
+    } catch {
+      const state =
+        (await window.getByTestId('bridge-stopped').count()) > 0 ? 'stopped' : 'unavailable';
+      throw new Error(`the bridge is ${state}, so this guard would prove nothing`);
+    }
     const bridgeText = await window.locator('body').innerText();
-    const leaked = [/ws:\/\//.test(bridgeText), /127\.0\.0\.1:\d{4,5}/.test(bridgeText)];
-    record('note', `dashboard shows a socket address: ${leaked[0]}; a host:port: ${leaked[1]}`);
+    const leaks = [
+      ['a socket address', /ws:\/\//],
+      ['a host:port', /127\.0\.0\.1:\d{4,5}/],
+      ['a 32-character token', /\b[0-9a-f]{32}\b/],
+    ].flatMap(([label, pattern]) => {
+      const match = pattern.exec(bridgeText);
+      return match === null ? [] : [`${label} (${match[0]})`];
+    });
+    /*
+     * #135: enforced, not merely recorded. The bridge's address and token belong behind a deliberate
+     * request, on a surface meant for them - not in the body text a learner reads the numbers from.
+     */
+    if (leaks.length > 0) {
+      throw new Error(`the dashboard renders ${leaks.join(', ')}`);
+    }
     const rawEvents = (bridgeText.match(/[A-Z]{2,}(_[A-Z]+)+/g) ?? []).slice(0, 6);
-    record('note', `dashboard raw event names: ${rawEvents.join(', ') || 'none'}`);
+    record(
+      'note',
+      `dashboard raw event names (deliberately left): ${rawEvents.join(', ') || 'none'}`,
+    );
   });
 
   await when('the technical tail renders', async () => {

@@ -56,12 +56,13 @@ and `@ts-expect-error` cases now have an actual compiler checking them.
 ## Hermetic launch
 
 Every Electron process the suite and its helper scripts start (`golden-path.spec.ts`,
-`capture-ui.mjs`, `monitor-ui.mjs`, `probe-material.mjs`) builds its child environment with
-`hermeticEnv()` in `apps/desktop-e2e/hermetic-env.mjs`: `process.env` passes through so PATH and
-DISPLAY survive, and provider credentials are deleted. Without that, a developer machine that
-exports `FOCUSLOOP_DEEPSEEK_API_KEY` would run the golden path against the real provider — spending
-the key on tests and making the offline claim untestable where it matters. CI is inert only because
-the secret is absent there, by accident rather than by design.
+`focus-notice.spec.ts`, `bridge-surface.spec.ts`, `capture-ui.mjs`, `monitor-ui.mjs`,
+`probe-material.mjs`) builds its child environment with `hermeticEnv()` in
+`apps/desktop-e2e/hermetic-env.mjs`: `process.env` passes through so PATH and DISPLAY survive, and
+provider credentials are deleted. Without that, a developer machine that exports
+`FOCUSLOOP_DEEPSEEK_API_KEY` would run the golden path against the real provider — spending the key on
+tests and making the offline claim untestable where it matters. CI is inert only because the secret is
+absent there, by accident rather than by design.
 
 The first e2e test asserts the run-mode indicator reports the mock provider in offline mode, so a
 credential that leaks back into the launch env fails the suite instead of quietly invalidating the
