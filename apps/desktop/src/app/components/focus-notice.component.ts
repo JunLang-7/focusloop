@@ -1,4 +1,13 @@
-import { Component, computed, inject, input, output, signal, viewChild } from '@angular/core';
+import {
+  Component,
+  computed,
+  effect,
+  inject,
+  input,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import type { ElementRef } from '@angular/core';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
@@ -20,6 +29,7 @@ import { ResumeCardComponent } from './resume-card.component';
         [attr.data-folded]="folded()"
         [attr.aria-label]="t('focus.notice.aria')"
         (keydown.escape)="fold($event)"
+        (click)="noteContentChange()"
       >
         <button
           type="button"
@@ -105,6 +115,33 @@ export class FocusNoticeComponent {
   readonly continueTimer = output<void>();
   protected readonly t = this.i18n.t;
   protected readonly pending = signal(false);
+  /** Bumped by any interaction inside the notice, and by a choice that settled. */
+  private readonly contentChanged = signal(0);
+  /**
+   * A choice row disappears once its offer is accepted, and the resume card removes itself on
+   * Continue, so the element holding focus is gone. This surface is deliberately non-modal, so
+   * nothing else holds the keyboard: it falls to `<body>` and the next Tab restarts at the top of
+   * the document - the opposite of the reason this surface exists. Focus is never taken on mount;
+   * only an interaction inside the notice, or a choice settling, re-checks where it went.
+   */
+  private readonly keepKeyboard = effect(() => {
+    // Nothing here runs before the first interaction, so merely appearing never steals focus.
+    if (this.contentChanged() === 0) return;
+    // Re-check whenever the slot's contents change as well: a choice row and the resume card both
+    // remove the element that had focus, in the same pass that runs this effect, so checking here
+    // would still see the doomed element. A microtask runs after the view has settled.
+    this.notice();
+    queueMicrotask(() => this.reclaimKeyboard());
+  });
+  private reclaimKeyboard(): void {
+    const toggle = this.toggle()?.nativeElement;
+    if (toggle === undefined) return;
+    const active = toggle.ownerDocument.activeElement;
+    if (active === null || active === toggle.ownerDocument.body) toggle.focus();
+  }
+  protected noteContentChange(): void {
+    this.contentChanged.update((count) => count + 1);
+  }
   protected readonly taskId = computed(() => this.state.snapshot()?.session.currentTaskId);
   protected readonly notice = computed(() =>
     selectFocusNotice({
@@ -137,6 +174,9 @@ export class FocusNoticeComponent {
   }
 
   protected fold(event: Event): void {
+    // Already folded: leave the key to the page, so an open stuck chooser or plan sheet can still
+    // be closed from here instead of the notice swallowing the only way out.
+    if (this.folded()) return;
     event.preventDefault();
     event.stopPropagation();
     this.setFolded(true);
@@ -187,6 +227,7 @@ export class FocusNoticeComponent {
         this.continueTimer.emit();
     } finally {
       this.pending.set(false);
+      this.noteContentChange();
     }
   }
 }

@@ -110,17 +110,21 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
       .focus-notice__body::-webkit-scrollbar { width: 15px; height: 15px; }
     `,
     });
-    for (const viewport of [
-      { width: 1024, height: 768 },
-      { width: 800, height: 700 },
-    ]) {
-      await page.setViewportSize(viewport);
-      await taskIsUnobstructed(page);
-      await expect(page.getByTestId('task-title')).toBeInViewport({ ratio: 1 });
-      await expect(page.getByTestId('resume-continue')).toBeInViewport({ ratio: 1 });
+    try {
+      for (const viewport of [
+        { width: 1024, height: 768 },
+        { width: 800, height: 700 },
+      ]) {
+        await page.setViewportSize(viewport);
+        await taskIsUnobstructed(page);
+        await expect(page.getByTestId('task-title')).toBeInViewport({ ratio: 1 });
+        await expect(page.getByTestId('resume-continue')).toBeInViewport({ ratio: 1 });
+      }
+    } finally {
+      // Never leave 15px scrollbars behind for the assertions that follow this block.
+      await classicScrollbars.evaluate((node) => node.parentNode?.removeChild(node));
+      await page.setViewportSize({ width: 1280, height: 900 });
     }
-    await classicScrollbars.evaluate((node) => node.parentNode?.removeChild(node));
-    await page.setViewportSize({ width: 1280, height: 900 });
 
     await toggle.focus();
     await page.keyboard.press('Tab');
@@ -139,6 +143,8 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     await toggle.click();
     await page.getByTestId('resume-continue').click();
     await expect(notice).toHaveAttribute('data-notice', 'help');
+    // The card removed the button that had focus; the keyboard stays inside the notice.
+    await expect(toggle).toBeFocused();
 
     // Continue uses MICRO_START, preserving the task and restarting the expired clock.
     await page.getByTestId('notice-continue').click();
@@ -154,6 +160,9 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     await page.getByTestId('stuck-too-big').click();
     await page.getByTestId('notice-simplify').click();
     await expect(page.getByTestId('agent-accepted')).toHaveAttribute('data-action', 'SIMPLIFY');
+    // The button that was pressed removes itself, and this surface is non-modal: the keyboard must
+    // stay inside the notice instead of falling to `<body>`, where the next Tab restarts at the top.
+    await expect(toggle).toBeFocused();
     await page
       .getByTestId('agent-accepted')
       .getByRole('button', { name: 'Continue', exact: true })
@@ -199,6 +208,52 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     await page.locator('fl-simulator-bar').evaluate((node) => node.remove());
     await expect(page.locator('.simulator')).toHaveCount(0);
     await taskIsUnobstructed(page);
+  } finally {
+    await app.close();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+test('other routes keep the modal resume card, trap and all', async () => {
+  /*
+   * Moving the focus-screen test to this surface's non-modal contract removed the modal card's only
+   * end-to-end exercise, and the doc still claimed the card was retained on other routes. It is:
+   * `/dashboard` with a pending checkpoint is exactly the state that renders it, and the trap and
+   * Escape-dismiss it owns there are asserted here rather than assumed.
+   */
+  const profile = mkdtempSync(join(tmpdir(), 'focusloop-notice-modal-'));
+  const app = await electron.launch({
+    args: [MAIN, `--user-data-dir=${profile}`],
+    env: hermeticEnv(),
+  });
+  try {
+    const page = await app.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByTestId('course-card').first().getByTestId('start-session').click();
+    await page.getByTestId('start-task').first().click();
+    await page.getByTestId('sim-distraction').click();
+    await page.getByTestId('sim-return').click();
+
+    await page.evaluate(() => {
+      location.hash = '#/dashboard';
+    });
+    const dialog = page.getByRole('dialog', { name: 'Resume where you left off' });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('aria-modal', 'true');
+    await expect(page.getByTestId('focus-notice')).toHaveCount(0);
+
+    const focusIsInsideDialog = (): Promise<boolean> =>
+      page.evaluate(() => document.activeElement?.closest('[role=dialog]') !== null);
+    await expect.poll(focusIsInsideDialog).toBe(true);
+    for (let index = 0; index < 6; index += 1) await page.keyboard.press('Tab');
+    await expect.poll(focusIsInsideDialog).toBe(true);
+    for (let index = 0; index < 4; index += 1) await page.keyboard.press('Shift+Tab');
+    await expect.poll(focusIsInsideDialog).toBe(true);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page.locator('.banner--error')).toHaveCount(0);
   } finally {
     await app.close();
     rmSync(profile, { recursive: true, force: true });

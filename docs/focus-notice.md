@@ -21,7 +21,13 @@ remounts preserve the fold for the same session. A new session starts unfolded. 
 session state, not a persisted preference.
 
 The focus resume surface is non-modal: it neither steals focus nor traps Tab. Escape returns focus
-to the fold toggle. Other routes retain the existing agent panel and modal resume card.
+to the fold toggle. Because the surface is non-modal it also owns the keyboard deliberately: a choice
+row and the resume card both remove the element a learner just activated, so the notice hands focus
+back to its fold toggle instead of leaving it on the document, where the next Tab restarts at the top
+of the screen. Focus is never taken when the notice merely appears. Other routes retain the existing agent panel and modal resume card, and that
+modal surface keeps its own coverage: `focus-notice.spec.ts` drives `/dashboard` with a pending
+checkpoint and asserts `role=dialog`, `aria-modal`, Tab containment and Escape-dismiss. Moving this
+screen's assertion to the non-modal contract had removed the modal card's only end-to-end exercise.
 
 ## Three-way help choice
 
@@ -42,6 +48,13 @@ The secondary Try this affordance is retained for HINT/EXAMPLE so the surface do
 AG2's reason-specific help. Automatic legacy suggestions retain their existing actions. No policy
 cooldown, daily budget, priority, model call, persistence schema or IPC contract is changed.
 SIMPLIFY still provides the existing local plan; actual adaptive-task mutation remains AG4 work.
+
+Two behaviours are worth stating rather than discovering. A policy suggestion that exists before any
+request exposes both routes: the panel's own accept (HINT/EXAMPLE only) and the three-way choice,
+which are two paths to a rescue for one intent with different event logs. And a choice the policy
+does not answer - the session's intervention budget is spent, so `decideIntervention` returns
+`NO_ACTION` before the reason rule - dismisses the superseded offer, leaves the slot empty and tells
+the learner nothing; that matches how the existing stuck picker already behaves and no test pins it.
 
 ## Layout and motion
 

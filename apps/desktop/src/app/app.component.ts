@@ -25,6 +25,7 @@ import { applyLanguage } from './core/language';
 import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
 import { applyTheme, resolveTheme } from './core/theme';
 import { contextInspectorVisibleOn } from './core/inspector-visibility';
+import { isFocusRoute } from './core/focus-notice';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
 import { AgentContextPanelComponent } from './components/agent-context-panel.component';
@@ -269,7 +270,7 @@ export class AppComponent implements OnInit, OnDestroy {
    * URL the screen is showing rather than the one that was requested.
    */
   private readonly currentUrl = signal(this.router.url);
-  protected readonly onFocusRoute = computed(() => this.currentUrl().split(/[?#]/)[0] === '/focus');
+  protected readonly onFocusRoute = computed(() => isFocusRoute(this.currentUrl()));
   protected readonly contextInspectorVisible = computed(() =>
     contextInspectorVisibleOn(this.currentUrl()),
   );
