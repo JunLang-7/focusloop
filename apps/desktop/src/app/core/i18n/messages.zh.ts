@@ -226,11 +226,13 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.progressRate.sample':
     '已评估 {evaluated} 次，进步 {progressed} 次 · 待观察 {pending} 次',
   'dashboard.outcomes': '干预结果',
-  'dashboard.col.action': '动作',
-  'dashboard.col.shown': '展示',
-  'dashboard.col.accepted': '接受',
-  'dashboard.col.dismissed': '忽略',
-  'dashboard.col.completed': '随后完成任务',
+  // 横条自己的说明，以及旁边的两件事：被接受的比例，和原先表格里的计数。N 写出来，是因为只有一次
+  // 样本的行否则会读成“每次都成功”。
+  'dashboard.outcomes.share': '{percent} 被接受',
+  'dashboard.outcomes.shareAria': '{action} 的接受比例',
+  'dashboard.outcomes.valueText': '{percent} 被接受 · N = {total}',
+  'dashboard.outcomes.counts':
+    '接受 {accepted} · 忽略 {dismissed} · {completed} 随后完成了任务 · N = {total}',
   'dashboard.bridge': '浏览器桥接',
   'dashboard.bridge.listening': '正在监听 {url} · 协议 v{version} · 已连接 {connections} 个',
   'dashboard.bridge.hint':

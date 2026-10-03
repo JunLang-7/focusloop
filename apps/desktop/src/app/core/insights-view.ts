@@ -172,3 +172,23 @@ export function weekdayIndex(date: string): number {
   const parsed = new Date(`${date}T12:00:00`);
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getDay();
 }
+
+/**
+ * How often an intervention was accepted, as a share of the times it was resolved.
+ *
+ * `total` counts resolved cards - accepted plus dismissed - not cards shown, so the denominator is the
+ * number of decisions rather than the number of offers. A card that was shown and never resolved is in
+ * neither, which is why `outcomeRows` can drop `total === 0` and still lose nothing.
+ */
+export function acceptedShare(accepted: number, total: number): number {
+  return total === 0 ? 0 : accepted / total;
+}
+
+/**
+ * The same share as a whole number - the one value the outcome row states three times: the text, the
+ * bar's width, and its `aria-valuenow`. They are derived from this single function on purpose, because a
+ * row that printed `66.7%` while drawing a 67% bar would be telling its reader two different things.
+ */
+export function acceptedPercent(accepted: number, total: number): number {
+  return Math.round(acceptedShare(accepted, total) * 100);
+}

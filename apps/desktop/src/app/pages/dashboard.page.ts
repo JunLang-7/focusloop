@@ -4,6 +4,7 @@ import {
   type BridgeInfo,
   type DailyActivity,
   type InsightRange,
+  type InterventionOutcomeSummary,
   type LearningState,
 } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
@@ -12,6 +13,7 @@ import { ACTION_KEYS, EVENT_SOURCE_KEYS, EVENT_TYPE_KEYS, STATE_KEYS } from '../
 import { groupEvents, type EventGroup } from '../core/events-view';
 import {
   STATE_COLORS,
+  acceptedPercent,
   busiestDay,
   donutSegments,
   focusRatio,
@@ -289,28 +291,45 @@ const DONUT_RADIUS = 42;
           @if (outcomeRows().length === 0) {
             <p class="muted small">{{ t('dashboard.outcomes.none') }}</p>
           } @else {
-            <table class="table">
-              <thead>
-                <tr>
-                  <th>{{ t('dashboard.col.action') }}</th>
-                  <th>{{ t('dashboard.col.shown') }}</th>
-                  <th>{{ t('dashboard.col.accepted') }}</th>
-                  <th>{{ t('dashboard.col.dismissed') }}</th>
-                  <th>{{ t('dashboard.col.completed') }}</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of outcomeRows(); track row.action) {
-                  <tr>
-                    <td>{{ actionLabel(row.action) }}</td>
-                    <td>{{ row.total }}</td>
-                    <td>{{ row.accepted }}</td>
-                    <td>{{ row.dismissed }}</td>
-                    <td>{{ row.tasksCompleted }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
+            <!--
+              #22: this was a five-column table for at most eight rows of small integers, which made the
+              reader do the comparison in their head. One row per action, as a bar: the question is "which
+              of these helped", and a bar answers it at a glance. The counts stay as text beside it, so
+              nothing the table carried is lost.
+            -->
+            <div class="bars" data-testid="outcome-rows">
+              @for (row of outcomeRows(); track row.action) {
+                <div class="bar" data-testid="outcome-row">
+                  <div class="bar__head">
+                    <span class="bar__name">{{ actionLabel(row.action) }}</span>
+                    <span class="muted small" data-testid="outcome-share">
+                      {{ outcomeShare(row) }}
+                    </span>
+                  </div>
+                  <div
+                    class="bar__track"
+                    role="progressbar"
+                    [attr.aria-label]="
+                      t('dashboard.outcomes.shareAria', { action: actionLabel(row.action) })
+                    "
+                    [attr.aria-valuenow]="acceptedPercent(row)"
+                    [attr.aria-valuetext]="outcomeValueText(row)"
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  >
+                    <span class="bar__fill" [style.width.%]="acceptedPercent(row)"></span>
+                  </div>
+                  <!--
+                    The sample size is written out, not implied. A row with one card otherwise reads as a
+                    100% success rate, and the difference between "always" and "once" is the whole point of
+                    these numbers.
+                  -->
+                  <p class="muted small bar__counts" data-testid="outcome-counts">
+                    {{ outcomeCounts(row) }}
+                  </p>
+                </div>
+              }
+            </div>
           }
         </div>
       </section>
@@ -489,6 +508,57 @@ export class DashboardPage {
 
   protected percent(share: number): string {
     return percentLabel(share);
+  }
+
+  /**
+   * How often this action was accepted, as a whole percent from the one function that rounds it.
+   *
+   * The row states this number three times - here, as the bar's width, and as `aria-valuenow` - which is
+   * why they all come from `acceptedPercent` rather than each formatting the share itself.
+   */
+  protected acceptedPercent(row: InterventionOutcomeSummary): number {
+    return acceptedPercent(row.accepted, row.total);
+  }
+
+  /**
+   * The share as the row states it: one number, the same one the bar draws.
+   *
+   * Built here rather than in the template because `t` takes strings and this component's markup is a
+   * template literal: a nested backtick would end it, and the compiler reports the failure on a line that
+   * has nothing to do with the cause.
+   */
+  protected outcomeShare(row: InterventionOutcomeSummary): string {
+    return this.t('dashboard.outcomes.share', { percent: `${this.acceptedPercent(row)}%` });
+  }
+
+  /**
+   * The counts the table used to carry, as one line.
+   *
+   * Built here rather than in the template because `t` takes strings and this component's markup is a
+   * template literal: a nested backtick would end it, and the compiler reports the failure on a line
+   * that has nothing to do with the cause.
+   */
+  protected outcomeCounts(row: InterventionOutcomeSummary): string {
+    return this.t('dashboard.outcomes.counts', {
+      accepted: String(row.accepted),
+      dismissed: String(row.dismissed),
+      completed: String(row.tasksCompleted),
+      total: String(row.total),
+    });
+  }
+
+  /**
+   * What the bar reads out as its value: the share, and the sample size it is a share *of*.
+   *
+   * `aria-valuetext` replaces `aria-valuenow` in the announcement, so stating only the counts there would
+   * drop the very number the bar is about; stating the whole counts line would repeat the paragraph below
+   * and still lose the share.
+   */
+  protected outcomeValueText(row: InterventionOutcomeSummary): string {
+    return this.t('dashboard.outcomes.valueText', {
+      percent: `${this.acceptedPercent(row)}%`,
+      total: String(row.total),
+    });
   }
 
   protected level(durationMs: number): number {

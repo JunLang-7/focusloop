@@ -649,6 +649,68 @@ test('a run of identical events is folded into one row', async () => {
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
+/*
+ * #22: the intervention outcomes are rows with a share bar, not a five-column table.
+ *
+ * Its own test rather than a block inside the folding one, which would report a broken share bar under a
+ * test named for the event log. It is placed here because outcomes are session-scoped and the session is
+ * ended a few tests further on - starting one here would spend intervention budget this file rations, and
+ * after the session ends there is nothing left to show.
+ *
+ * Nothing is hard-coded about *how many* rows there are: that depends on what those earlier tests
+ * resolved. The assertions are the properties the markup promises.
+ */
+test('the intervention outcomes read as rows with a share and a sample size', async () => {
+  await clickSidebarLink('Dashboard');
+
+  const outcomes = window.locator('[data-testid="outcome-row"]');
+  /*
+   * Named rather than counted, because this is the one failure here that is not about the markup: with no
+   * outcomes resolved by the earlier tests there is nothing to walk, and `not.toHaveCount(0)` would say
+   * that in the least useful way possible.
+   */
+  await expect(
+    outcomes,
+    'no outcome rows: this test reads the interventions the earlier tests in this file resolved, so run the file rather than this test alone',
+  ).not.toHaveCount(0);
+
+  /*
+   * Walked rather than sampled: a row whose bar was missing its value would pass every assertion here if
+   * only the first row were checked, and "the first row happens to be fine" is not the claim.
+   */
+  for (const outcome of await outcomes.all()) {
+    await expect(outcome.locator('[data-testid="outcome-share"]')).toContainText('%');
+    await expect(outcome.locator('[data-testid="outcome-counts"]')).toContainText('N = ');
+
+    const bar = outcome.getByRole('progressbar');
+    await expect(bar).toHaveAttribute('aria-valuemin', '0');
+    await expect(bar).toHaveAttribute('aria-valuemax', '100');
+    await expect(bar).toHaveAttribute('aria-valuenow', /^\d+$/);
+
+    /*
+     * The bar, its accessible value and the visible percentage are all one number. Reading the attribute
+     * as a number rather than matching text is what makes the comparison meaningful - and `Number(null)`
+     * being `0` is why the attribute's presence is asserted above rather than assumed.
+     *
+     * The width is read twice on purpose: `toHaveAttribute` proves the binding wrote a style attribute at
+     * all (a missing one and a `0%` both used to satisfy the arithmetic, and neither is a width), and
+     * `style.width` reads that same inline value back to tie it to `aria-valuenow` exactly. The second
+     * read is what the first one gave up when it stopped matching the digits.
+     */
+    const shown = Number(await bar.getAttribute('aria-valuenow'));
+    await expect(bar.locator('.bar__fill')).toHaveAttribute('style', /width: \d+%/);
+    const width = await bar.locator('.bar__fill').evaluate((fill) => fill.style.width);
+    expect(width).toBe(`${shown}%`);
+    await expect(outcome.locator('[data-testid="outcome-share"]')).toHaveText(`${shown}% accepted`);
+    // The sample size reaches the accessible value too, not only the sighted reader - and so does the
+    // share, which `aria-valuetext` would otherwise replace in the announcement.
+    await expect(bar).toHaveAttribute('aria-valuetext', /%/);
+    await expect(bar).toHaveAttribute('aria-valuetext', /N = \d+/);
+  }
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
 test('the non-modal resume notice is keyboard reachable and folds without dismissing', async () => {
   await clickSidebarLink('Focus Session');
   await window.getByTestId('sim-distraction').click();

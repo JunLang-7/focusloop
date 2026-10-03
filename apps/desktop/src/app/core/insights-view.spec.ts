@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { DailyActivity, StateShare } from '@focusloop/shared-types';
 import {
   STATE_COLORS,
+  acceptedPercent,
+  acceptedShare,
   busiestDay,
   donutSegments,
   focusRatio,
@@ -243,5 +245,37 @@ describe('shortDate', () => {
 
   it('passes anything unexpected through unchanged', () => {
     expect(shortDate('not-a-date')).toBe('not-a-date');
+  });
+});
+
+/*
+ * #22's outcome row states one share three times - the text, the bar's width, and `aria-valuenow` - so the
+ * rounding is the thing that keeps them from disagreeing, and it is pinned here rather than only through
+ * Electron, which is the only place it was observable before.
+ */
+describe('acceptedShare', () => {
+  it('divides the accepted count by the resolved count', () => {
+    expect(acceptedShare(2, 3)).toBeCloseTo(2 / 3);
+    expect(acceptedShare(0, 4)).toBe(0);
+    expect(acceptedShare(4, 4)).toBe(1);
+  });
+
+  it('is zero rather than NaN when there is nothing to divide by', () => {
+    // The row is filtered to `total > 0` before this is reached, so this is about the function being
+    // total on its own terms - a NaN would render as an empty proportion, not as a wrong one.
+    expect(acceptedShare(0, 0)).toBe(0);
+  });
+});
+
+describe('acceptedPercent', () => {
+  it('rounds to a whole percent, the value all three statements carry', () => {
+    expect(acceptedPercent(2, 3)).toBe(67);
+    expect(acceptedPercent(1, 3)).toBe(33);
+    expect(acceptedPercent(1, 1)).toBe(100);
+    expect(acceptedPercent(0, 5)).toBe(0);
+  });
+
+  it('is zero rather than NaN for an action with no decisions', () => {
+    expect(acceptedPercent(0, 0)).toBe(0);
   });
 });
