@@ -81,7 +81,9 @@ describe('adaptive task draft contract', () => {
     };
     expect(isAdaptiveTaskDraft(accessor)).toBe(false);
     expect(reads).toBe(0);
-    expect(isAdaptiveTaskDraft(Object.create(draft()))).toBe(false);
+    // Eight own data properties on a non-`Object.prototype` prototype: unlike a prototype-only
+    // object, which is also empty, this can only be rejected by the prototype rule itself.
+    expect(isAdaptiveTaskDraft(Object.assign(Object.create({}), draft()))).toBe(false);
     expect(isAdaptiveTaskDraft({ ...draft(), [Symbol('metadata')]: 'secret' })).toBe(false);
   });
 });

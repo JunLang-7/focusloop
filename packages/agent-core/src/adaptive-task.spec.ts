@@ -86,17 +86,36 @@ describe('offline SHRINK_TASK drafts', () => {
       expect(result.draft.focus.text).toBe(text.slice(0, text.search(/[。！]/) + 1));
     },
   );
-  it.each([1.5, 2, 3, 8])(
+  it.each([1.0001, 1.5, 2, 2.5, 3, 5, 6, 8, 1e21])(
     'keeps the adapted estimate strictly shorter for source %s',
     (estimatedMinutes) => {
       const input = context();
-      const result = buildShrinkDraft({ ...input, task: { ...input.task, estimatedMinutes } });
+      const modified = { ...input, task: { ...input.task, estimatedMinutes } };
+      const result = buildShrinkDraft(modified);
       expect(result.status).toBe('suggested');
       if (result.status !== 'suggested') throw new Error('Expected suggestion');
       expect(result.draft.estimatedMinutes).toBeGreaterThanOrEqual(1);
       expect(result.draft.estimatedMinutes).toBeLessThan(estimatedMinutes);
+      expect(isAdaptiveTaskDraft(result.draft)).toBe(true);
+      expect(matchesShrinkContext(result.draft, modified)).toBe(true);
     },
   );
+  it('checks provenance, not that the draft is exactly what the builder produced', () => {
+    // The doc states both limits; this pins them, so relaxing or tightening either is deliberate.
+    const input = context();
+    const result = buildShrinkDraft(input);
+    if (result.status !== 'suggested') throw new Error('Expected suggestion');
+    expect(matchesShrinkContext({ ...result.draft, estimatedMinutes: 1 }, input)).toBe(true);
+    expect(
+      matchesShrinkContext(
+        {
+          ...result.draft,
+          focus: { source: 'concept-key-point', index: 1, text: 'Check the left subtree.' },
+        },
+        input,
+      ),
+    ).toBe(true);
+  });
   it('refuses unavailable or unsuitable context rather than inventing content', () => {
     const input = context();
     expect(buildShrinkDraft(null)).toEqual({ status: 'unavailable', reason: 'missing-context' });
@@ -112,6 +131,12 @@ describe('offline SHRINK_TASK drafts', () => {
       status: 'unavailable',
       reason: 'invalid-estimate',
     });
+    for (const estimatedMinutes of [0, -1, Infinity, -Infinity]) {
+      expect(buildShrinkDraft({ ...input, task: { ...input.task, estimatedMinutes } })).toEqual({
+        status: 'unavailable',
+        reason: 'invalid-estimate',
+      });
+    }
     expect(buildShrinkDraft({ ...input, task: { ...input.task, estimatedMinutes: 1 } })).toEqual({
       status: 'unavailable',
       reason: 'already-small',

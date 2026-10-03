@@ -53,6 +53,13 @@ context, and it does not check the current session's lifecycle, source-task revi
 permissions or user consent. Model-produced drafts must not become trusted just by passing either
 function.
 
+Two things it deliberately does not pin, so a caller does not read more into `true` than it says: it
+does not compare the draft's proposed `estimatedMinutes` (any value inside the contract's bounds and
+strictly shorter than the source passes, whether or not the builder would have chosen it), and it
+accepts any focus that is genuinely grounded in the supplied context rather than only the one
+`buildShrinkDraft` would pick. Use the builder's own output when that precision matters; both
+properties are pinned by a test so a change to either has to be deliberate.
+
 The existing `executeAgentProposal` records intent/audit; it does not apply task payloads. This slice
 does not register a new proposal kind, change that behavior, create an IPC channel, call the builder
 from the engine/UI, or mutate/persist a plan. A true confirmation marker is a requirement, not proof
@@ -82,5 +89,7 @@ pnpm e2e
 
 New suites cover JSON round-trips, malformed/adversarial drafts, mandatory confirmation, strict
 budget reduction, grounding, Chinese/decimal boundaries, Unicode bounds, no mutation and private
-field projection. While #140 awaits merge, the new specs also receive an explicit compiler check;
-the normal library build configurations on upstream main still exclude specs.
+field projection. What compiles those specs is #140, not this slice: every `tsconfig.lib.json`
+excludes `src/**/*.spec.ts` and ESLint here is not type-aware, so on a base branch without #140 a type
+error in these files is reported by neither `pnpm typecheck` nor `pnpm lint`. With #140 in the base
+branch, `pnpm verify:spec-types` covers them like every other project's.
