@@ -186,8 +186,9 @@ describe('AG2 rescue success evaluator', () => {
         plan: untasked,
         outcome: { accepted: true, dismissed: false, at: T0 },
         events: [
-          { ...event('other-task', 'TASK_COMPLETED', at(1)), payload: { taskId: 'task-1' } },
-          { ...event('untasked', 'QUIZ_CORRECT', at(2)), payload: {} },
+          event('other-task', 'TASK_COMPLETED', at(1)),
+          // Deliberately malformed evidence: missing task/quiz ids, not a valid QuizCorrectEvent.
+          { ...event('untasked', 'QUIZ_CORRECT', at(2)), payload: {} } as unknown as LearningEvent,
         ],
         now: at(3),
       }),

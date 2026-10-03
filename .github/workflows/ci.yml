@@ -71,6 +71,9 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      - name: Spec typecheck invariants
+        run: pnpm verify:spec-types
+
       - name: Test
         run: pnpm test
 

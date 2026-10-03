@@ -451,7 +451,7 @@ describe('FocusLoopStore', () => {
           interventionId: 'rescue-intervention-1',
           sessionId: 'session-1',
           at: T0,
-          state: 'STUCK',
+          state: 'CONFUSED',
           action: 'BREAK',
           accepted: true,
           dismissed: false,
@@ -530,21 +530,19 @@ describe('FocusLoopStore', () => {
         payload: { taskId: 't1' },
       });
       store.saveCheckpoint({
-        ...({
-          id: 'cp1',
-          sessionId: 'session-1',
-          conceptId: 'c1',
-          conceptTitle: 'C',
-          goal: 'G',
-          mastered: [],
-          unresolved: [],
-          currentTaskId: 't1',
-          currentTaskTitle: 'T',
-          currentStep: 1,
-          frictionState: 'FOCUSED',
-          nextBestAction: { key: 'action.read.summarise', params: {} },
-          createdAt: T,
-        } as never),
+        id: 'cp1',
+        sessionId: 'session-1',
+        conceptId: 'c1',
+        conceptTitle: 'C',
+        goal: 'G',
+        mastered: [],
+        unresolved: [],
+        currentTaskId: 't1',
+        currentTaskTitle: 'T',
+        currentStep: 1,
+        frictionState: 'FOCUSED',
+        nextBestAction: { key: 'action.read.summarise', params: {} },
+        createdAt: T,
       });
 
       expect(store.listEvents('session-1').length).toBeGreaterThan(0);
