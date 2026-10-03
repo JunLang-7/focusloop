@@ -1,4 +1,4 @@
-import { Component, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, effect, inject, input, signal, viewChild } from '@angular/core';
 import type { ElementRef, OnDestroy } from '@angular/core';
 import type { ResumeCardView } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
@@ -16,8 +16,8 @@ import { focusableWithin, nextIndex } from '../core/focus-trap';
     @if (card(); as view) {
       <div
         class="overlay"
-        role="dialog"
-        aria-modal="true"
+        [attr.role]="inline() ? 'region' : 'dialog'"
+        [attr.aria-modal]="inline() ? null : 'true'"
         [attr.aria-label]="t('resume.aria')"
         (keydown)="onKeydown($event)"
       >
@@ -106,6 +106,8 @@ export class ResumeCardComponent implements OnDestroy {
   private readonly state = inject(AppStateService);
   protected readonly i18n = inject(I18nService);
 
+  /** In the focus notice slot this is non-modal: no overlay, focus theft or Tab trap. */
+  readonly inline = input(false);
   protected readonly t = this.i18n.t;
   protected readonly card = this.state.resumeCard;
   protected readonly showContext = signal(false);
@@ -121,6 +123,7 @@ export class ResumeCardComponent implements OnDestroy {
    * the card's own buttons or to close it at all.
    */
   private readonly manageFocus = effect(() => {
+    if (this.inline()) return;
     const panel = this.panel()?.nativeElement;
 
     if (this.card() !== null && panel !== undefined) {
@@ -140,6 +143,7 @@ export class ResumeCardComponent implements OnDestroy {
   }
 
   protected onKeydown(event: KeyboardEvent): void {
+    if (this.inline()) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       this.dismiss();

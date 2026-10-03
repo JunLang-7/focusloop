@@ -25,6 +25,7 @@ import { applyLanguage } from './core/language';
 import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
 import { applyTheme, resolveTheme } from './core/theme';
 import { contextInspectorVisibleOn } from './core/inspector-visibility';
+import { isFocusRoute } from './core/focus-notice';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
 import { AgentContextPanelComponent } from './components/agent-context-panel.component';
@@ -240,8 +241,10 @@ const PEEK_CLOSE_DELAY_MS = 150;
       </button>
     </div>
 
-    <fl-agent-panel />
-    <fl-resume-card />
+    @if (!onFocusRoute()) {
+      <fl-agent-panel />
+      <fl-resume-card />
+    }
     <!--
       The inspector is a fixed overlay, and the dashboard is where it does harm: it sits across the
       "today" card in the sidebar and the totals that screen exists to show. Kept on every other route,
@@ -267,6 +270,7 @@ export class AppComponent implements OnInit, OnDestroy {
    * URL the screen is showing rather than the one that was requested.
    */
   private readonly currentUrl = signal(this.router.url);
+  protected readonly onFocusRoute = computed(() => isFocusRoute(this.currentUrl()));
   protected readonly contextInspectorVisible = computed(() =>
     contextInspectorVisibleOn(this.currentUrl()),
   );

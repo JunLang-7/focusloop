@@ -25,6 +25,7 @@ import { FocusTimerService } from '../core/focus-timer.service';
 import { PLAN_INITIAL_OPEN, nextPlanOpen, type PlanEvent } from '../core/plan-visibility';
 import { helpRequestPayload } from '../core/stuck-picker';
 import { TutorPanelComponent } from '../components/tutor-panel.component';
+import { FocusNoticeComponent } from '../components/focus-notice.component';
 
 const CLOCK_RADIUS = 86;
 const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
@@ -33,14 +34,14 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
 @Component({
   selector: 'fl-focus',
   standalone: true,
-  imports: [TutorPanelComponent],
+  imports: [TutorPanelComponent, FocusNoticeComponent],
   /*
    * Both of these belong to the document rather than to this element. The plan panel is not a
    * modal, so by the time the learner changes their mind, focus may be anywhere on the page — and a
    * click that lands outside the panel never reaches it at all.
    */
   host: {
-    '(document:keydown.escape)': 'onEscape()',
+    '(document:keydown.escape)': 'onEscape($event)',
     '(document:click)': 'onDocumentClick($event)',
   },
   template: `
@@ -174,8 +175,6 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                 <span class="focus-clock__value">{{ clockValue() }}</span>
                 @if (phase() === 'paused') {
                   <span class="focus-clock__status">{{ t('focus.paused') }}</span>
-                } @else if (phase() === 'expired') {
-                  <span class="focus-clock__status">{{ t('focus.timeUp') }}</span>
                 }
               </div>
               <div class="focus-controls">
@@ -322,6 +321,7 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
             }
           </section>
         </main>
+        <fl-focus-notice [expired]="phase() === 'expired'" (continueTimer)="resume()" />
       </div>
     } @else {
       <div class="focus-workspace" data-phase="ready">
@@ -484,7 +484,8 @@ export class FocusPage implements OnDestroy {
    * learner raised, and closing the plan underneath it would leave six buttons over a screen the
    * learner has just asked to tidy up.
    */
-  protected onEscape(): void {
+  protected onEscape(event: Event): void {
+    if (event.defaultPrevented) return;
     if (this.stuckOpen()) {
       this.dismissStuck();
       return;
