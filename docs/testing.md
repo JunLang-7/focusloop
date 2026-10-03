@@ -4,6 +4,8 @@
 
 ```bash
 pnpm test                                       # every unit test in the workspace
+pnpm typecheck                                  # production sources AND every project's specs
+pnpm verify:spec-types                          # pin spec coverage and reject virtual type faults
 pnpm --filter @focusloop/learning-state test    # one package
 pnpm --filter @focusloop/desktop-e2e run e2e    # the golden path, in the real app
 pnpm verify:scaffolding                         # no scaffolding, debug leftovers or bare TODOs
@@ -27,6 +29,29 @@ It is a review aid, not a test: nothing asserts on the images.
 **not** run Playwright: `apps/desktop-e2e` has only an `e2e` target, so the E2E suite cannot be
 pulled into the unit run by accident. `pnpm e2e` is the slow loop — it builds the desktop app as a
 dependency, launches Electron and drives the real UI.
+
+## Test files are typechecked, not just executed
+
+Vitest transforms TypeScript but does not reject type errors. `pnpm typecheck` is the separate
+compiler gate: library packages, Electron-main tests and extension tests use a no-emit
+`tsconfig.spec.json` that overrides the production config's spec exclusions. The existing desktop
+renderer and Playwright typechecks already include their specs and remain in place. Production
+build configs are unchanged; test programs never emit declarations or JavaScript into `dist/`.
+
+`pnpm verify:spec-types` checks every project's actual typecheck scripts and their resolved root
+files. It then injects a virtual `number = 'not a number'` fault into **every** spec each compiler
+environment compiles and requires one assignment diagnostic per file, so a suppression inside any
+single spec cannot hide the rest. It never writes faults to disk and does not replace normal
+`pnpm typecheck`. CI runs both gates on every quality platform, so dropping spec coverage cannot
+silently turn a green compiler run into a false promise.
+
+The invariant reads each project's own `typecheck` script, and it assumes the root `pnpm typecheck`
+still runs every project's target. Narrowing that root script — adding an `--exclude`, or moving a
+project off `nx:run-script` — is outside what it can see.
+
+Intentionally malformed runtime fixtures should be clearly marked at the input boundary, rather
+than weakening shared contracts or suppressing an entire test file's checks. Type-level assertions
+and `@ts-expect-error` cases now have an actual compiler checking them.
 
 ## Hermetic launch
 
