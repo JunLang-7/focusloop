@@ -1,0 +1,115 @@
+/** Bounds for suggestions, not permissions to mutate the learner's plan. */
+export const ADAPTIVE_TASK_LIMITS = {
+  idCharacters: 256,
+  focusCharacters: 600,
+  minMinutes: 1,
+  maxMinutes: 5,
+  preferredShrinkMinutes: 2,
+  /** Only inspect a bounded prefix of concept evidence, never an entire course. */
+  keyPoints: 6,
+} as const;
+
+export type AdaptiveTaskFocus =
+  | { readonly source: 'concept-key-point'; readonly index: number; readonly text: string }
+  | { readonly source: 'material-sentence'; readonly text: string };
+
+/** A suggestion only. Execution requires a separately confirmed, live-state-bound proposal. */
+export interface AdaptiveTaskDraft {
+  readonly operation: 'SHRINK_TASK';
+  readonly sessionId: string;
+  readonly sourceTaskId: string;
+  readonly conceptId: string;
+  readonly sourceEstimatedMinutes: number;
+  readonly estimatedMinutes: number;
+  readonly focus: AdaptiveTaskFocus;
+  readonly requiresConfirmation: true;
+}
+
+/** Shape validation does not authorize execution or prove grounding against a live context. */
+export function isAdaptiveTaskDraft(value: unknown): value is AdaptiveTaskDraft {
+  try {
+    const draft = dataRecord(value, [
+      'operation',
+      'sessionId',
+      'sourceTaskId',
+      'conceptId',
+      'sourceEstimatedMinutes',
+      'estimatedMinutes',
+      'focus',
+      'requiresConfirmation',
+    ]);
+    if (
+      draft === null ||
+      draft['operation'] !== 'SHRINK_TASK' ||
+      draft['requiresConfirmation'] !== true
+    )
+      return false;
+    if (
+      !['sessionId', 'sourceTaskId', 'conceptId'].every((field) =>
+        boundedText(draft[field], ADAPTIVE_TASK_LIMITS.idCharacters),
+      )
+    )
+      return false;
+    const before = draft['sourceEstimatedMinutes'];
+    const after = draft['estimatedMinutes'];
+    if (
+      typeof before !== 'number' ||
+      !Number.isFinite(before) ||
+      typeof after !== 'number' ||
+      !Number.isFinite(after) ||
+      after < ADAPTIVE_TASK_LIMITS.minMinutes ||
+      after > ADAPTIVE_TASK_LIMITS.maxMinutes ||
+      after >= before
+    )
+      return false;
+    const point = dataRecord(draft['focus'], ['source', 'index', 'text'], false);
+    if (point === null || !boundedText(point['text'], ADAPTIVE_TASK_LIMITS.focusCharacters))
+      return false;
+    if (point['source'] === 'material-sentence')
+      return Object.keys(point).length === 2 && !Object.hasOwn(point, 'index');
+    return (
+      point['source'] === 'concept-key-point' &&
+      Object.keys(point).length === 3 &&
+      typeof point['index'] === 'number' &&
+      Number.isInteger(point['index']) &&
+      point['index'] >= 0 &&
+      point['index'] < ADAPTIVE_TASK_LIMITS.keyPoints
+    );
+  } catch {
+    // Hostile non-JSON objects (e.g. throwing proxy traps) are not contract data.
+    return false;
+  }
+}
+
+function boundedText(value: unknown, limit: number): value is string {
+  // Reject oversized UTF-16 input before allocating the bounded code-point array.
+  return (
+    typeof value === 'string' &&
+    value.length > 0 &&
+    value.length <= limit * 2 &&
+    value === value.trim() &&
+    [...value].length <= limit
+  );
+}
+
+/** Copy own enumerable DATA properties only; validation must not invoke executable accessors. */
+function dataRecord(
+  value: unknown,
+  allowed: readonly string[],
+  exact = true,
+): Record<string, unknown> | null {
+  if (value === null || typeof value !== 'object') return null;
+  const prototype = Object.getPrototypeOf(value);
+  if (prototype !== Object.prototype && prototype !== null) return null;
+  const keys = Reflect.ownKeys(value);
+  if (keys.length > allowed.length || (exact && keys.length !== allowed.length)) return null;
+  const result: Record<string, unknown> = Object.create(null);
+  for (const key of keys) {
+    if (typeof key !== 'string' || !allowed.includes(key)) return null;
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (descriptor === undefined || !descriptor.enumerable || !Object.hasOwn(descriptor, 'value'))
+      return null;
+    result[key] = descriptor.value;
+  }
+  return result;
+}
