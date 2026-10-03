@@ -43,6 +43,26 @@ describe('MockAIProvider', () => {
     expect(result.latencyMs).toBe(0);
     expect(result.providerId).toBe('mock');
   });
+
+  it('never puts a missing sentence into the text', async () => {
+    /*
+     * The symptom #6 names, in the shape a learner would meet it: the word "undefined" standing where a
+     * sentence belongs. Asserted as a shape rather than against copies of the two sentence lists, so
+     * editing a sentence cannot break this test for the wrong reason.
+     *
+     * It is a **symptom check, not the regression guard** — a first version of this comment claimed
+     * otherwise and a review was right to reject it: widening `pick`'s parameter back leaves every runtime
+     * list non-empty, so these 40 iterations would still pass.
+     *
+     * The guard is the type, and it is the compiler that applies it. With the non-null assertion gone,
+     * `values[0]` is `string | undefined` for a plain array, so widening the parameter — and changing
+     * nothing else — fails the build with TS2322 on this function's return (measured on this branch).
+     */
+    for (let i = 0; i < 40; i += 1) {
+      const { text } = await provider.complete({ prompt: `question ${i}` });
+      expect(text).toMatch(/^[^\s].+ \[mock:[0-9a-f]{8}\]$/);
+    }
+  });
 });
 
 describe('DeepSeekProvider configuration', () => {
