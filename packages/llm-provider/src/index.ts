@@ -14,6 +14,12 @@ export * from './mock-provider';
 export * from './deepseek-provider';
 export * from './registry';
 export * from './runtime';
+export type { ProviderStreamEvent, StreamingProvider } from './streaming';
+export {
+  MAX_STREAM_OUTPUT_CHARACTERS,
+  MAX_SSE_FRAME_BYTES,
+  StreamInterruptedError,
+} from './streaming';
 export { DEFAULT_RUNTIME_BUDGETS, RuntimeBudgetError } from './budgets';
 export type { BudgetExecutionOptions, RuntimeBudgetErrorCode } from './budgets';
 export type { ExecutableAIProvider, ProviderExecutionOptions } from './execution';

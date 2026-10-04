@@ -2,7 +2,8 @@
 
 Scope: [#143](https://github.com/nianpingy-cpu/focusloop/issues/143), second slice of
 [#94](https://github.com/nianpingy-cpu/focusloop/issues/94), following cancellation/deadline #142.
-This is not true provider streaming or a new retry policy.
+This budget boundary is distinct from [#144 incremental streaming](runtime-streaming.md) and the
+future #145 retry policy.
 
 ## One input boundary
 
@@ -68,17 +69,20 @@ not propagated. No prompt logging, telemetry, persistence or inspector-UI change
 
 DeepSeek maps `prompt_tokens`, `completion_tokens` and `total_tokens` into the optional usage
 contract. A valid reported output count above the effective cap is a `bad-response` provider
-failure: primary may fall back while the runtime deadline remains active. An over-cap fallback
+failure: completion APIs may fall back while the runtime deadline remains active. Streams may
+select fallback only before first text; after first text they fail without splicing another answer.
+An over-cap fallback
 cannot commit a structured value. Raw text or JSON is never clipped to make it appear compliant.
 
 Adapters receive the cap but may not supply usage. Without a tokenizer/verified count, Runtime
 cannot prove exact token compliance for an ignoring custom adapter or the offline mock. It reports
 unknown usage honestly rather than labelling a character heuristic as token accounting.
 
-`streamText` remains post-completion fragments. Its final iterator value contains the numeric
-budget report; normal `for await` ignores that return value. Cancellation returns no successful
-final report, and expiration throws. Fragments are not structured commits. Real provider streaming
-is tracked separately by #144.
+`streamText` now consumes optional provider iterables; completion-only adapters remain explicitly
+collected compatibility fragments. Its final iterator value contains the budget report; normal
+`for await` ignores that return value. Cancellation returns no successful final report, and
+expiration throws. Fragments are not structured commits. See [#144 streaming](runtime-streaming.md)
+for provenance-aware events, finite output assembly guards and pre/post-first-text failure rules.
 
 ## Regression gates
 

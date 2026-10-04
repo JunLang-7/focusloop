@@ -7,6 +7,14 @@ import type {
 } from '@focusloop/shared-types';
 import { validateRuntimeSchema } from '@focusloop/shared-types';
 import { completionBudget, prepareBudget, type BudgetExecutionOptions } from './budgets';
+import { controlledStream } from './stream-control';
+import {
+  outputLimit,
+  providerStream,
+  StreamInterruptedError,
+  type ProviderStreamEvent,
+} from './streaming';
+import type { CompletionResult } from '@focusloop/shared-types';
 import type { CompleteWithFallbackResult, ProviderSelection } from './registry';
 import { completeWithFallback, toProviderFailure } from './registry';
 import {
@@ -22,6 +30,20 @@ import {
 
 /** In-process controls only: never shared/IPC/persisted request data. */
 export type RuntimeExecutionOptions = ProviderExecutionOptions;
+
+export interface StreamExecutionOptions extends BudgetExecutionOptions {
+  /** Independent finite assembly guard, not a token estimate. May tighten the 65536-unit ceiling. */
+  readonly maxOutputCharacters?: number;
+}
+export interface StructuredStreamOptions extends StructuredExecuteOptions {
+  readonly maxOutputCharacters?: number;
+}
+export type RuntimeStreamEvent =
+  | (Extract<ProviderStreamEvent, { type: 'text' }> & {
+      readonly degraded: boolean;
+      readonly mode: 'provider' | 'collected';
+    })
+  | { readonly type: 'complete'; readonly result: CompleteWithFallbackResult };
 
 export interface StructuredExecuteOptions extends RuntimeExecutionOptions {
   /** Invoked once only after validation and a final cancellation/deadline check. */
@@ -119,57 +141,192 @@ export class AgentRuntime {
     );
   }
 
-  /**
-   * Compatibility display fragments, NOT provider token streaming. The first chunk
-   * arrives after full completion; real streaming is tracked separately in #144.
-   * Cancellation ends the stream quietly; expiration between fragments rejects with the same
-   * timeout the text API uses, so a caller is never handed a silently truncated story and a
-   * caller that wants a committed value must use `executeStructured`. Nothing here commits.
-   */
-  async *streamText(
+  /** Provenance-aware display events. Only a pre-first-text failure may select fallback. */
+  streamEvents(
     request: CompletionRequest,
-    options?: BudgetExecutionOptions,
-  ): AsyncGenerator<string, RuntimeBudgetReport | undefined> {
-    let result: CompleteWithFallbackResult;
-    try {
-      result = await this.completeText(request, options);
-    } catch (error) {
-      if (isExecutionAbort(error)) return;
-      throw error;
-    }
-    const chunkSize = 48;
-    for (let index = 0; index < result.text.length; index += chunkSize) {
-      try {
-        assertExecutionActive(options, result.providerId);
-      } catch (error) {
-        this.lastDegraded = false;
-        if (isExecutionAbort(error)) return;
-        throw error;
-      }
-      yield result.text.slice(index, index + chunkSize);
-    }
-    // The final iterator value is numeric-only inspection metadata, not a structured commit.
-    try {
-      assertExecutionActive(options, result.providerId);
-    } catch (error) {
-      this.lastDegraded = false;
-      if (isExecutionAbort(error)) return;
-      throw error;
-    }
-    return result.budget;
+    options?: StreamExecutionOptions,
+  ): AsyncGenerator<RuntimeStreamEvent> {
+    this.lastDegraded = false;
+    const prepared = prepareBudget(request, options?.budgets);
+    const limit = outputLimit(options?.maxOutputCharacters);
+    const controls = { signal: options?.signal, deadlineMs: options?.deadlineMs };
+    return controlledStream(
+      async function* (
+        this: AgentRuntime,
+        signal: AbortSignal,
+      ): AsyncGenerator<RuntimeStreamEvent> {
+        let failure: CompleteWithFallbackResult['failure'] = null;
+        for (const provider of [this.selection.primary, this.selection.fallback]) {
+          const degraded = failure !== null;
+          try {
+            for await (const event of providerStream(
+              provider,
+              prepared.request,
+              prepared.report,
+              { ...controls, signal },
+              limit,
+            )) {
+              assertExecutionActive({ ...controls, signal }, provider.id);
+              this.lastDegraded = degraded;
+              if (event.type === 'text')
+                yield {
+                  ...event,
+                  degraded,
+                  mode: provider.stream === undefined ? 'collected' : 'provider',
+                };
+              else {
+                const budget = completionBudget(prepared.report, event.result);
+                yield {
+                  type: 'complete',
+                  result: {
+                    text: event.result.text,
+                    providerId: event.result.providerId,
+                    model: event.result.model,
+                    latencyMs: event.result.latencyMs,
+                    ...(budget.usage === undefined ? {} : { usage: budget.usage }),
+                    budget,
+                    degraded,
+                    failure,
+                  },
+                };
+              }
+            }
+            return;
+          } catch (error) {
+            assertExecutionActive({ ...controls, signal }, provider.id);
+            if (degraded || error instanceof StreamInterruptedError) throw error;
+            failure = toProviderFailure(error, provider.id);
+          }
+        }
+      }.bind(this),
+      controls,
+      this.selection.primary.id,
+      (event) => event.type === 'complete',
+    );
   }
 
-  /**
-   * Compatibility name: this was already one collected completion, not real streaming.
-   * Share the validated path so cancellation, deadline, retry count and provenance
-   * cannot drift between the two final-result entry points.
-   */
+  /** String compatibility view over real streams. Caller abort is quiet; other failures reject. */
+  streamText(
+    request: CompletionRequest,
+    options?: StreamExecutionOptions,
+  ): AsyncGenerator<string, RuntimeBudgetReport | undefined> {
+    const events = this.streamEvents(request, options);
+    let budget: RuntimeBudgetReport | undefined;
+    const next = async (): Promise<IteratorResult<string, RuntimeBudgetReport | undefined>> => {
+      try {
+        for (;;) {
+          const event = await events.next();
+          if (event.done) return { done: true, value: budget };
+          if (event.value.type === 'text') return { done: false, value: event.value.text };
+          budget = event.value.result.budget;
+        }
+      } catch (error) {
+        if (isExecutionAbort(error)) {
+          this.lastDegraded = false;
+          return { done: true, value: undefined };
+        }
+        if (error instanceof RuntimeDeadlineError) this.lastDegraded = false;
+        throw error;
+      }
+    };
+    return {
+      next,
+      return: async (value) => {
+        await events.return(undefined);
+        return { done: true, value: await value };
+      },
+      throw: async (error) => {
+        await events.throw(error);
+        throw error;
+      },
+      [Symbol.asyncIterator]() {
+        return this;
+      },
+    };
+  }
+
+  /** Assemble each real stream completely, then validate/commit. No partial stream is accepted. */
   async executeStructuredViaStream<T>(
     data: RuntimeRequestData,
     request: CompletionRequest,
-    options?: StructuredExecuteOptions,
+    options?: StructuredStreamOptions,
   ): Promise<StructuredRuntimeResult<T>> {
-    return this.executeStructured<T>(data, request, options);
+    const schema = data.schema;
+    if (schema === undefined)
+      throw new Error('executeStructuredViaStream requires RuntimeRequestData.schema');
+    const controls: ExecutionOptions = {
+      signal: options?.signal,
+      deadlineMs: data.deadlineMs ?? options?.deadlineMs,
+    };
+    validateExecutionOptions(controls);
+    const prepared = prepareBudget(request, data);
+    const limit = outputLimit(options?.maxOutputCharacters);
+    this.lastDegraded = false;
+    let failureReason: string | undefined;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const provider = attempt === 2 ? this.selection.fallback : this.selection.primary;
+      let origin = { id: provider.id, model: provider.model };
+      let seen = false;
+      let committing = false;
+      try {
+        let raw: CompletionResult | undefined;
+        for await (const event of providerStream(
+          provider,
+          prepared.request,
+          prepared.report,
+          controls,
+          limit,
+        )) {
+          if (event.type === 'text') {
+            seen = true;
+            origin = { id: event.providerId, model: event.model };
+          } else {
+            raw = event.result;
+            origin = { id: raw.providerId, model: raw.model };
+          }
+        }
+        if (raw === undefined) throw new Error('Missing final stream result');
+        const budget = completionBudget(prepared.report, raw);
+        const parsed = parseSchema(raw.text, schema);
+        assertExecutionActive(controls, provider.id);
+        this.lastDegraded = attempt === 2;
+        if (parsed.ok) {
+          committing = true;
+          options?.commit?.(parsed.value);
+          return {
+            status: attempt === 2 ? 'degraded' : 'ok',
+            value: parsed.value as T,
+            providerId: raw.providerId,
+            model: raw.model,
+            degraded: attempt === 2,
+            budget,
+            ...(failureReason === undefined ? {} : { failureReason }),
+          };
+        }
+        failureReason = parsed.problems.join('; ');
+        if (attempt < 2) continue;
+      } catch (error) {
+        if (committing) throw error;
+        const stopped = this.stoppedResult(controls, prepared.report, origin);
+        if (stopped !== null) return stopped;
+        failureReason = toProviderFailure(error, provider.id).reason;
+        // Retrying hidden complete-but-invalid JSON is safe. An interrupted stream is not complete.
+        if (!seen && !(error instanceof StreamInterruptedError) && attempt < 2) {
+          attempt = 1;
+          continue;
+        }
+      }
+      this.lastDegraded = true;
+      return {
+        status: 'degraded',
+        providerId: origin.id,
+        model: origin.model,
+        degraded: true,
+        budget: prepared.report,
+        ...(failureReason === undefined ? {} : { failureReason }),
+      };
+    }
+    throw new Error('Unreachable stream attempt state');
   }
 
   private async degradeStructured<T>(
@@ -231,6 +388,7 @@ export class AgentRuntime {
   private stoppedResult(
     controls: ExecutionOptions,
     budget: RuntimeBudgetReport,
+    origin: { readonly id: string; readonly model: string } = this.selection.primary,
   ): StructuredRuntimeResult<never> | null {
     let boundary: unknown = null;
     try {
@@ -251,8 +409,8 @@ export class AgentRuntime {
     this.lastDegraded = false;
     return {
       status,
-      providerId: this.selection.primary.id,
-      model: this.selection.primary.model,
+      providerId: origin.id,
+      model: origin.model,
       degraded: false,
       budget,
     };

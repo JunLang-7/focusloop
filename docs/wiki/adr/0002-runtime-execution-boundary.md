@@ -1,6 +1,7 @@
 # ADR 0002: Runtime cancellation and total deadline
 
-Status: #142 merged via #147. The #143 budget follow-up is proposed, not yet claimed as merged.
+Status: #142 merged via #147; #143 merged via #156. The #144 streaming follow-up is proposed,
+not yet claimed as merged.
 Parent: #94 (AG9 Model Runtime).
 
 ## Decision and scope
@@ -13,7 +14,7 @@ Implementation sequence: #142 cancellation/deadline → #143 budgets → #144 re
 #145 retry/fallback policy → #146 deterministic skill fallback and final conformance audit.
 Tests ship with every slice. Landing one slice does not close #94.
 
-The proposed [#143 budget boundary](../../runtime-budgets.md) applies one frozen, bounded request
+The merged [#143 budget boundary](../../runtime-budgets.md) applies one frozen, bounded request
 across text/structured/fragment paths and retries/fallback. It rejects oversized whole-input text
 without clipping the question and separates character counts, per-completion token caps and
 optional reported usage. Budget values/reports remain JSON data; execution controls remain local.
@@ -70,12 +71,14 @@ invoke fallback, or commit twice. Invalid primary output still gets at most one 
 followed by one fallback. A fallback's output must validate before any commit; generic mock prose
 is not magically valid structured JSON.
 
-`executeStructuredViaStream` is a compatibility entry point over the same structured final-result
-path. It was already a collected completion, not a real provider stream. `streamText` still emits
-post-completion display fragments: cancellation ends the stream quietly, while expiration between
-fragments rejects with the same timeout the text API uses, so a truncated display is never handed
-back as a complete one. #144 will introduce the actual streaming contract without claiming this
-slice delivers it.
+The original #142 compatibility stream entry points used collected completions. The proposed
+[#144 incremental streaming boundary](../../runtime-streaming.md) consumes optional process-local
+provider iterables, with an honest collected compatibility adapter when absent. First display text
+may precede response-body completion; after-first-text failure cannot splice in fallback. Structured
+streams must reach a protocol-complete, schema-validated final result before committing. The same
+absolute deadline governs reads, idle consumer pauses and retries; cancellation ends the string view
+quietly, expiration rejects, and abandonment releases cooperative readers without waiting for a
+pending next. Renderer streaming IPC is not part of these slices.
 
 ## Regression evidence
 

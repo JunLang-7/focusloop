@@ -1,13 +1,21 @@
 import type { AIProvider, CompletionRequest, CompletionResult } from '@focusloop/shared-types';
 import { ProviderError } from './errors';
+import type { ProviderStreamEvent } from './streaming';
 
 /** Process-local only: never put these controls in shared request data or IPC. */
 export interface ProviderExecutionOptions {
   readonly signal?: AbortSignal;
+  /** Optional absolute deadline, forwarded to stream parsers as well as raced by Runtime. */
+  readonly deadlineMs?: number;
 }
 
 /** Optional controls preserve compatibility with existing one-argument providers. */
 export interface ExecutableAIProvider extends AIProvider {
+  /** Optional in-process streaming capability. Missing means explicit collected compatibility. */
+  stream?(
+    request: CompletionRequest,
+    options?: ProviderExecutionOptions,
+  ): AsyncIterable<ProviderStreamEvent>;
   complete(
     request: CompletionRequest,
     options?: ProviderExecutionOptions,

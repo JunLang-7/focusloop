@@ -1,5 +1,8 @@
 import { createHash } from 'node:crypto';
-import type { AIProvider, CompletionRequest, CompletionResult } from '@focusloop/shared-types';
+import type { CompletionRequest, CompletionResult } from '@focusloop/shared-types';
+import { controlledStream } from './stream-control';
+import type { ExecutableAIProvider, ProviderExecutionOptions } from './execution';
+import type { ProviderStreamEvent } from './streaming';
 
 const OPENINGS = [
   'Start from the smallest possible step.',
@@ -50,7 +53,7 @@ export interface MockAIProviderOptions {
  * request it always returns the same text — which makes it usable as a
  * fixture generator in tests.
  */
-export class MockAIProvider implements AIProvider {
+export class MockAIProvider implements ExecutableAIProvider {
   readonly id: string;
   readonly model: string;
   readonly offline = true;
@@ -58,6 +61,30 @@ export class MockAIProvider implements AIProvider {
   constructor(options: MockAIProviderOptions = {}) {
     this.id = options.id ?? 'mock';
     this.model = options.model ?? 'focusloop-mock-v1';
+  }
+
+  /** Deterministic offline display fixture, not model tokenization or network streaming. */
+  stream(
+    request: CompletionRequest,
+    options?: ProviderExecutionOptions,
+  ): AsyncGenerator<ProviderStreamEvent> {
+    return controlledStream(
+      async function* (this: MockAIProvider): AsyncGenerator<ProviderStreamEvent> {
+        const raw = await this.complete(request);
+        const points = Array.from(raw.text);
+        for (let index = 0; index < points.length; index += 48)
+          yield {
+            type: 'text',
+            text: points.slice(index, index + 48).join(''),
+            providerId: this.id,
+            model: this.model,
+          };
+        yield { type: 'complete', result: raw };
+      }.bind(this),
+      options,
+      this.id,
+      (event) => event.type === 'complete',
+    );
   }
 
   async complete(request: CompletionRequest): Promise<CompletionResult> {
