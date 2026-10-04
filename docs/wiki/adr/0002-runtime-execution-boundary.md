@@ -1,6 +1,6 @@
 # ADR 0002: Runtime cancellation and total deadline
 
-Status: proposed implementation in the #142 PR; not a claim of merged delivery.
+Status: #142 merged via #147. The #143 budget follow-up is proposed, not yet claimed as merged.
 Parent: #94 (AG9 Model Runtime).
 
 ## Decision and scope
@@ -12,6 +12,11 @@ new providers or skill-specific fallback redesign.
 Implementation sequence: #142 cancellation/deadline → #143 budgets → #144 real streaming →
 #145 retry/fallback policy → #146 deterministic skill fallback and final conformance audit.
 Tests ship with every slice. Landing one slice does not close #94.
+
+The proposed [#143 budget boundary](../../runtime-budgets.md) applies one frozen, bounded request
+across text/structured/fragment paths and retries/fallback. It rejects oversized whole-input text
+without clipping the question and separates character counts, per-completion token caps and
+optional reported usage. Budget values/reports remain JSON data; execution controls remain local.
 
 ## Process boundary
 

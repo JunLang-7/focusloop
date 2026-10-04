@@ -7,11 +7,19 @@ export interface CompletionRequest {
   readonly seed?: number;
 }
 
+/** Optional provider-reported tokens; never inferred from character lengths. */
+export interface CompletionUsage {
+  readonly inputTokens?: number;
+  readonly outputTokens?: number;
+  readonly totalTokens?: number;
+}
+
 export interface CompletionResult {
   readonly text: string;
   readonly providerId: string;
   readonly model: string;
   readonly latencyMs: number;
+  readonly usage?: CompletionUsage;
 }
 
 export interface AIProvider {

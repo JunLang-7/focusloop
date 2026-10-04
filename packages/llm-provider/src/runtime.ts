@@ -1,10 +1,12 @@
 import type {
   CompletionRequest,
+  RuntimeBudgetReport,
   RuntimeRequestData,
   RuntimeSchema,
   StructuredRuntimeResult,
 } from '@focusloop/shared-types';
 import { validateRuntimeSchema } from '@focusloop/shared-types';
+import { completionBudget, prepareBudget, type BudgetExecutionOptions } from './budgets';
 import type { CompleteWithFallbackResult, ProviderSelection } from './registry';
 import { completeWithFallback, toProviderFailure } from './registry';
 import {
@@ -46,7 +48,7 @@ export class AgentRuntime {
   /** Cancelled text calls reject with AbortError; expired calls reject with timeout. */
   async completeText(
     request: CompletionRequest,
-    options?: ExecutionOptions,
+    options?: BudgetExecutionOptions,
   ): Promise<CompleteWithFallbackResult> {
     this.lastDegraded = false;
     const result = await completeWithFallback(this.selection, request, options);
@@ -70,10 +72,8 @@ export class AgentRuntime {
     };
     validateExecutionOptions(controls);
     this.lastDegraded = false;
-    const bounded: CompletionRequest = {
-      ...request,
-      maxTokens: Math.min(request.maxTokens ?? data.tokenBudget, data.tokenBudget),
-    };
+    const prepared = prepareBudget(request, data);
+    const bounded = prepared.request;
     let failureReason: string | undefined;
     let committing = false;
     for (let attempt = 0; attempt < 2; attempt += 1) {
@@ -83,6 +83,7 @@ export class AgentRuntime {
           controls,
           this.selection.primary.id,
         );
+        const budget = completionBudget(prepared.report, raw);
         const parsed = parseSchema(raw.text, schema);
         assertExecutionActive(controls, raw.providerId);
         if (parsed.ok) {
@@ -95,19 +96,27 @@ export class AgentRuntime {
             providerId: raw.providerId,
             model: raw.model,
             degraded: false,
+            budget,
           };
         }
         failureReason = parsed.problems.join('; ');
       } catch (error) {
         // A caller's failed commit is not a provider failure: never retry/fallback and commit twice.
         if (committing) throw error;
-        const stopped = this.stoppedResult(controls);
+        const stopped = this.stoppedResult(controls, prepared.report);
         if (stopped !== null) return stopped;
         failureReason = toProviderFailure(error, this.selection.primary.id).reason;
         break; // transport failures do not gain another retry in this slice
       }
     }
-    return this.degradeStructured<T>(bounded, schema, controls, options, failureReason);
+    return this.degradeStructured<T>(
+      bounded,
+      schema,
+      controls,
+      options,
+      failureReason,
+      prepared.report,
+    );
   }
 
   /**
@@ -119,8 +128,8 @@ export class AgentRuntime {
    */
   async *streamText(
     request: CompletionRequest,
-    options?: ExecutionOptions,
-  ): AsyncGenerator<string> {
+    options?: BudgetExecutionOptions,
+  ): AsyncGenerator<string, RuntimeBudgetReport | undefined> {
     let result: CompleteWithFallbackResult;
     try {
       result = await this.completeText(request, options);
@@ -139,6 +148,15 @@ export class AgentRuntime {
       }
       yield result.text.slice(index, index + chunkSize);
     }
+    // The final iterator value is numeric-only inspection metadata, not a structured commit.
+    try {
+      assertExecutionActive(options, result.providerId);
+    } catch (error) {
+      this.lastDegraded = false;
+      if (isExecutionAbort(error)) return;
+      throw error;
+    }
+    return result.budget;
   }
 
   /**
@@ -160,6 +178,7 @@ export class AgentRuntime {
     controls: ExecutionOptions,
     options: StructuredExecuteOptions | undefined,
     failureReason: string | undefined,
+    report: RuntimeBudgetReport,
   ): Promise<StructuredRuntimeResult<T>> {
     let committing = false;
     try {
@@ -168,6 +187,7 @@ export class AgentRuntime {
         controls,
         this.selection.fallback.id,
       );
+      const budget = completionBudget(report, raw);
       const parsed = parseSchema(raw.text, schema);
       assertExecutionActive(controls, raw.providerId);
       this.lastDegraded = true;
@@ -180,6 +200,7 @@ export class AgentRuntime {
           providerId: raw.providerId,
           model: raw.model,
           degraded: true,
+          budget,
           ...(failureReason === undefined ? {} : { failureReason }),
         };
       }
@@ -188,11 +209,12 @@ export class AgentRuntime {
         providerId: raw.providerId,
         model: raw.model,
         degraded: true,
+        budget,
         failureReason: failureReason ?? parsed.problems.join('; '),
       };
     } catch (error) {
       if (committing) throw error;
-      const stopped = this.stoppedResult(controls);
+      const stopped = this.stoppedResult(controls, report);
       if (stopped !== null) return stopped;
       this.lastDegraded = true;
       return {
@@ -200,12 +222,16 @@ export class AgentRuntime {
         providerId: this.selection.fallback.id,
         model: this.selection.fallback.model,
         degraded: true,
+        budget: report,
         failureReason: failureReason ?? toProviderFailure(error, this.selection.fallback.id).reason,
       };
     }
   }
 
-  private stoppedResult(controls: ExecutionOptions): StructuredRuntimeResult<never> | null {
+  private stoppedResult(
+    controls: ExecutionOptions,
+    budget: RuntimeBudgetReport,
+  ): StructuredRuntimeResult<never> | null {
     let boundary: unknown = null;
     try {
       assertExecutionActive(controls, this.selection.primary.id);
@@ -228,6 +254,7 @@ export class AgentRuntime {
       providerId: this.selection.primary.id,
       model: this.selection.primary.model,
       degraded: false,
+      budget,
     };
   }
 }

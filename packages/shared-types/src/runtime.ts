@@ -7,15 +7,29 @@
  * `RuntimeExecutionOptions` in `@focusloop/llm-provider` and must never be
  * added to this file or to any persisted path.
  */
-export interface RuntimeRequestData {
+import type { CompletionUsage } from './provider';
+
+/** Whole outbound input in UTF-16 code units, plus a per-completion provider token cap. */
+export interface RuntimeBudgets {
+  readonly contextBudget: number;
+  readonly tokenBudget: number;
+}
+
+/** Counts/caps and a fixed unit label. Usage belongs to the selected completion, not all attempts. */
+export interface RuntimeBudgetReport extends RuntimeBudgets {
+  readonly callerMaxTokens?: number;
+  readonly effectiveMaxTokens: number;
+  readonly inputCharacters: number;
+  readonly characterUnit: 'utf16-code-units';
+  /** Absent when unknown; copied only from valid provider-reported counters. */
+  readonly usage?: CompletionUsage;
+}
+
+export interface RuntimeRequestData extends RuntimeBudgets {
   /** Which agent capability is asking — used for logs and audit, not for routing. */
   readonly skill: string;
   /** Shape the final structured result must satisfy. Omitted for plain text. */
   readonly schema?: RuntimeSchema;
-  /** Character budget for context assembled around the prompt. */
-  readonly contextBudget: number;
-  /** Upper bound on completion tokens the caller is willing to spend. */
-  readonly tokenBudget: number;
   /** Absolute deadline (epoch ms) for primary, retry and fallback; equality is expired. */
   readonly deadlineMs?: number;
 }
@@ -42,11 +56,13 @@ export interface StructuredRuntimeResult<T> {
   readonly model: string;
   /** True when the primary provider failed or could not satisfy the schema. */
   readonly degraded: boolean;
+  readonly budget?: RuntimeBudgetReport;
   /** Why the primary was not used, if it was not. */
   readonly failureReason?: string;
 }
 
 export interface StreamRuntimeResult {
+  readonly budget?: RuntimeBudgetReport;
   readonly status: StructuredStatus;
   readonly providerId: string;
   readonly model: string;

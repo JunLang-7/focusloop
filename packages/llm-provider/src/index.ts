@@ -14,6 +14,8 @@ export * from './mock-provider';
 export * from './deepseek-provider';
 export * from './registry';
 export * from './runtime';
+export { DEFAULT_RUNTIME_BUDGETS, RuntimeBudgetError } from './budgets';
+export type { BudgetExecutionOptions, RuntimeBudgetErrorCode } from './budgets';
 export type { ExecutableAIProvider, ProviderExecutionOptions } from './execution';
 /**
  * The cancellation/deadline vocabulary, so a caller can classify an outcome without string-matching

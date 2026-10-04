@@ -1,12 +1,13 @@
-import type { CompletionRequest, CompletionResult, ProviderFailure } from '@focusloop/shared-types';
+import type {
+  CompletionRequest,
+  CompletionResult,
+  ProviderFailure,
+  RuntimeBudgetReport,
+} from '@focusloop/shared-types';
+import { completionBudget, prepareBudget, type BudgetExecutionOptions } from './budgets';
 import { ProviderError } from './errors';
 import { MockAIProvider } from './mock-provider';
-import {
-  assertExecutionActive,
-  withExecution,
-  type ExecutableAIProvider,
-  type ExecutionOptions,
-} from './execution';
+import { assertExecutionActive, withExecution, type ExecutableAIProvider } from './execution';
 
 export interface ProviderSelection {
   readonly primary: ExecutableAIProvider;
@@ -24,6 +25,7 @@ export function createProviderSelection(primary?: ExecutableAIProvider | null): 
 export interface CompleteWithFallbackResult extends CompletionResult {
   readonly degraded: boolean;
   readonly failure: ProviderFailure | null;
+  readonly budget: RuntimeBudgetReport;
 }
 
 /**
@@ -33,17 +35,20 @@ export interface CompleteWithFallbackResult extends CompletionResult {
 export async function completeWithFallback(
   selection: ProviderSelection,
   request: CompletionRequest,
-  options?: ExecutionOptions,
+  options?: BudgetExecutionOptions,
 ): Promise<CompleteWithFallbackResult> {
+  const prepared = prepareBudget(request, options?.budgets);
+  const bounded = prepared.request;
   assertExecutionActive(options, selection.primary.id);
   try {
     const result = await withExecution(
-      (signal) => selection.primary.complete(request, { signal }),
+      (signal) => selection.primary.complete(bounded, { signal }),
       options,
       selection.primary.id,
     );
+    const budget = completionBudget(prepared.report, result);
     assertExecutionActive(options, selection.primary.id);
-    return { ...result, degraded: false, failure: null };
+    return budgetedResult(result, budget, false, null);
   } catch (error) {
     // Both boundaries are enforced here, before anything is classified: a caller's cancellation
     // throws ExecutionAbortError and a passed deadline throws RuntimeDeadlineError, so only a
@@ -53,13 +58,32 @@ export async function completeWithFallback(
     assertExecutionActive(options, selection.primary.id);
     const failure = toProviderFailure(error, selection.primary.id);
     const result = await withExecution(
-      (signal) => selection.fallback.complete(request, { signal }),
+      (signal) => selection.fallback.complete(bounded, { signal }),
       options,
       selection.fallback.id,
     );
+    const budget = completionBudget(prepared.report, result);
     assertExecutionActive(options, selection.fallback.id);
-    return { ...result, degraded: true, failure };
+    return budgetedResult(result, budget, true, failure);
   }
+}
+
+function budgetedResult(
+  result: CompletionResult,
+  budget: RuntimeBudgetReport,
+  degraded: boolean,
+  failure: ProviderFailure | null,
+): CompleteWithFallbackResult {
+  return {
+    text: result.text,
+    providerId: result.providerId,
+    model: result.model,
+    latencyMs: result.latencyMs,
+    ...(budget.usage === undefined ? {} : { usage: budget.usage }),
+    budget,
+    degraded,
+    failure,
+  };
 }
 
 export function toProviderFailure(error: unknown, providerId: string): ProviderFailure {

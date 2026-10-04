@@ -1,5 +1,6 @@
 import type { CompletionRequest, CompletionResult } from '@focusloop/shared-types';
 import { ProviderError } from './errors';
+import { readCompletionUsage } from './budgets';
 import {
   isExecutionAbort,
   RuntimeDeadlineError,
@@ -23,6 +24,11 @@ export interface DeepSeekProviderOptions {
 }
 
 interface DeepSeekChatResponse {
+  readonly usage?: {
+    readonly prompt_tokens?: unknown;
+    readonly completion_tokens?: unknown;
+    readonly total_tokens?: unknown;
+  };
   readonly model?: string;
   readonly choices?: ReadonlyArray<{
     readonly message?: { readonly content?: string | null };
@@ -149,8 +155,14 @@ export class DeepSeekProvider implements ExecutableAIProvider {
       throw new ProviderError('bad-response', this.id, 'DeepSeek returned an empty completion');
     }
 
+    const usage = readCompletionUsage({
+      inputTokens: body.usage?.prompt_tokens,
+      outputTokens: body.usage?.completion_tokens,
+      totalTokens: body.usage?.total_tokens,
+    });
     return {
       text,
+      ...(usage === undefined ? {} : { usage }),
       providerId: this.id,
       model: body.model ?? this.model,
       latencyMs: this.now() - started,
