@@ -1338,7 +1338,13 @@ describe('FocusLoopEngine', () => {
           prompts.push(request.prompt);
           systems.push(request.system ?? '');
           calls += 1;
-          if (calls === 2) throw new ProviderError('timeout', 'scripted', 'the retry timed out');
+          /*
+           * Terminal on purpose: a transient reason would now be retried by the runtime's bounded
+           * policy before the tutor saw any failure, which is a different scenario from the one this
+           * test pins — the tutor's own retry being the call that fails.
+           */
+          if (calls === 2)
+            throw new ProviderError('bad-response', 'scripted', 'the retry failed terminally');
           return {
             text: 'prose, which is refused',
             providerId: 'scripted',

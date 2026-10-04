@@ -181,9 +181,14 @@ describe('one runtime budget boundary', () => {
       { prompt: 'q', maxTokens: 100 },
       { budgets: data() },
     );
-    expect(seen).toHaveLength(2);
-    expect(seen[0]).toBe(seen[1]);
-    expect(seen[1]?.maxTokens).toBe(8);
+    /*
+     * Every attempt must see the identical frozen snapshot — the primary retry included — so the
+     * production policy is left in place and the invariant is asserted over all recorded calls.
+     */
+    expect(seen.length).toBeGreaterThanOrEqual(2);
+    const [first] = seen;
+    for (const request of seen) expect(request).toBe(first);
+    expect(first?.maxTokens).toBe(8);
   });
   it('reports UTF-16 input characters separately from caps and provider-reported token usage', async () => {
     const runtime = new AgentRuntime({

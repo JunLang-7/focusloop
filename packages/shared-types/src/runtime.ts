@@ -7,7 +7,7 @@
  * `RuntimeExecutionOptions` in `@focusloop/llm-provider` and must never be
  * added to this file or to any persisted path.
  */
-import type { CompletionUsage } from './provider';
+import type { CompletionUsage, ProviderFailure } from './provider';
 
 /** Whole outbound input in UTF-16 code units, plus a per-completion provider token cap. */
 export interface RuntimeBudgets {
@@ -57,6 +57,10 @@ export interface StructuredRuntimeResult<T> {
   /** True when the primary provider failed or could not satisfy the schema. */
   readonly degraded: boolean;
   readonly budget?: RuntimeBudgetReport;
+  /** Provider calls spent in total, bounded by the runtime retry policy. */
+  readonly attempts?: number;
+  /** Every failed attempt in order, so retries cannot hide provenance. */
+  readonly failures?: readonly ProviderFailure[];
   /** Why the primary was not used, if it was not. */
   readonly failureReason?: string;
 }

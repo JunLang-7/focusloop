@@ -7,6 +7,7 @@ import type {
 } from '@focusloop/shared-types';
 import { ProviderError } from './errors';
 import type { ExecutionOptions } from './execution';
+import type { RetryPolicy } from './retry-policy';
 
 /** Finite compatibility defaults: above Tutor's existing 4k-character / 2048-token limits. */
 export const DEFAULT_RUNTIME_BUDGETS: RuntimeBudgets = Object.freeze({
@@ -17,6 +18,8 @@ export const DEFAULT_RUNTIME_BUDGETS: RuntimeBudgets = Object.freeze({
 export interface BudgetExecutionOptions extends ExecutionOptions {
   /** Omission uses explicit defaults; a supplied budget must contain both valid fields. */
   readonly budgets?: RuntimeBudgets;
+  /** Per-call overrides for the process-local bounded retry policy. */
+  readonly retry?: Partial<RetryPolicy>;
 }
 
 export type RuntimeBudgetErrorCode =

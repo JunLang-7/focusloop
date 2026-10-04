@@ -164,7 +164,12 @@ describe('final acceptance boundary', () => {
     };
     const primary = new DeepSeekProvider({ apiKey: 'synthetic', fetchImpl, timeoutMs: 5 });
     const fallback = vi.fn(async () => result);
-    const runtime = new AgentRuntime({ primary, fallback: provider(fallback) });
+    // The subject is the provider-local timeout, so the primary is pinned to a single attempt:
+    // with the production retry this failure would retry and then expire instead of degrading.
+    const runtime = new AgentRuntime(
+      { primary, fallback: provider(fallback) },
+      { retry: { maxTransportAttempts: 1 } },
+    );
     const pending = runtime.completeText(request, { deadlineMs: Date.now() + 20 });
     await vi.advanceTimersByTimeAsync(5);
     expect(await pending).toMatchObject({ degraded: true, failure: { reason: 'timeout' } });
