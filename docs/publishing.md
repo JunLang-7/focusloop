@@ -81,6 +81,29 @@ executes every packaging and checksum step and stops before publishing — a rel
 attached to a branch — and uploads the installer, the extension zip and `SHA256SUMS.txt` to the run
 instead. That is the only way to exercise the NSIS installer without pushing a tag.
 
+## The application icon
+
+`apps/desktop/resources/icon.ico` and `icon.png` are committed source, not build output. The window
+hands the right one to `BrowserWindow` (the taskbar entry and the Alt-Tab thumbnail), and
+electron-builder embeds the ICO in the NSIS installer and the uninstaller, which is what the install
+flow, the Start menu's uninstall target and Add/Remove Programs read.
+`apps/desktop/electron-builder.yml` names both paths explicitly, and `electron/app-icon.spec.ts`
+fails if that reference, the files, or this section disappear.
+
+Both files are drawn in code — no image tooling, no network — so a reviewer can read the geometry
+instead of trusting a binary. Regenerate them after changing the mark:
+
+```bash
+node apps/desktop/scripts/make-icons.mjs
+```
+
+`signExecutable: false` keeps the Windows signing toolchain out of the loop without giving up the
+icon: the icon and the version metadata are still written into `FocusLoop.exe`, so the installer, the
+installed shortcuts and Add/Remove Programs all show the mark, and only code signing is skipped —
+which is what the unsigned v0.1 demo wants. `signAndEditExecutable: false` is the blunter switch: it
+skips the executable's icon and metadata too, leaving the icons set under `nsis` as the only ones (the
+installer, the uninstaller and the header), and is the fallback if a release run cannot apply them.
+
 ## Before pushing
 
 ```bash

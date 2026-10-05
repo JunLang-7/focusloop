@@ -1,5 +1,6 @@
 import { BrowserWindow, app, nativeTheme, screen, shell } from 'electron';
 import { join } from 'node:path';
+import { appIconPath } from './app-icon';
 import {
   WINDOW_MINIMUM,
   readWindowState,
@@ -51,6 +52,13 @@ export async function createMainWindow(options: CreateWindowOptions): Promise<Br
     // renderer has painted. An in-app override cannot reach this layer.
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#0f1115' : '#f5f6f8',
     title: 'FocusLoop',
+    // The taskbar entry and the Alt-Tab thumbnail, since Windows uses the window's icon when it has
+    // one rather than the executable's.
+    icon: appIconPath({
+      isPackaged: app.isPackaged,
+      resourcesPath: process.resourcesPath,
+      appPath: app.getAppPath(),
+    }),
     autoHideMenuBar: true,
     webPreferences: {
       preload: options.preloadPath,

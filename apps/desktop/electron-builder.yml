@@ -4,7 +4,9 @@ copyright: FocusLoop contributors
 
 directories:
   output: release
-  buildResources: build
+  # `resources/` holds the committed icon, so it is source rather than build output. `build/` is
+  # gitignored in this repository, which is why the mark does not live there.
+  buildResources: resources
 
 files:
   - dist/**/*
@@ -13,19 +15,39 @@ files:
 extraMetadata:
   main: dist/main/main.cjs
 
+# The window reads its own icon at runtime, so the packaged app must carry it beside the asar.
+extraResources:
+  - from: resources/icon.ico
+    to: icon.ico
+  - from: resources/icon.png
+    to: icon.png
+
 win:
   target:
     - target: nsis
       arch:
         - x64
+  icon: resources/icon.ico
   artifactName: FocusLoop-Setup.${ext}
-  # The v0.1 demo installer is unsigned, so the signing toolchain is not needed.
-  # Without this, electron-builder downloads winCodeSign, which requires
-  # administrator rights (it extracts symlinks) even when nothing is signed.
-  signAndEditExecutable: false
+  # The v0.1 demo installer is unsigned. `signAndEditExecutable: false` skips the whole
+  # edit-the-executable step, which also means FocusLoop.exe would keep Electron's own icon and
+  # version metadata; electron-builder requires the winCodeSign toolchain for that step, which
+  # extracts symlinks and therefore needs administrator rights on Windows.
+  #
+  # `signExecutable: false` is the narrower switch: code signing is skipped, while rcedit still
+  # applies the icon and the metadata. It still needs the same toolchain, so if a release run cannot
+  # fetch or extract it, fall back to `signAndEditExecutable: false` — the installer, the uninstaller
+  # and Add/Remove Programs read the icons set under `nsis` below, and only the executable's own
+  # embedded icon (what a shortcut pointing at the exe shows) is lost.
+  signExecutable: false
 
 nsis:
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
+  # Stated rather than inherited: these are the icons the installer, the installer's header and the
+  # entry in Add/Remove Programs show.
+  installerIcon: resources/icon.ico
+  uninstallerIcon: resources/icon.ico
+  installerHeaderIcon: resources/icon.ico
