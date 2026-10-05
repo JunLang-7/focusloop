@@ -1,0 +1,174 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "ag9-provider-unavailable",
+    "capability": "AG9",
+    "kind": "happy",
+    "description": "A missing network is retried once, then answered by the deterministic local provider with a schema-valid local step.",
+    "input": { "failure": "offline" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value.answer", "value": "local step" },
+      { "type": "equals", "path": "committed", "value": true },
+      { "type": "equals", "path": "providerId", "value": "mock" },
+      { "type": "equals", "path": "failureReason", "value": "offline" },
+      { "type": "equals", "path": "primaryCalls", "value": 2 },
+      { "type": "equals", "path": "fallbackCalls", "value": 1 },
+      { "type": "equals", "path": "pauses", "value": [250] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-provider-timeout",
+    "capability": "AG9",
+    "kind": "happy",
+    "description": "A provider-local timeout is transient: one bounded backoff, one retry, then the local step.",
+    "input": { "failure": "timeout" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value.answer", "value": "local step" },
+      { "type": "equals", "path": "failureReason", "value": "timeout" },
+      { "type": "equals", "path": "primaryCalls", "value": 2 },
+      { "type": "equals", "path": "fallbackCalls", "value": 1 },
+      { "type": "equals", "path": "pauses", "value": [250] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-provider-rate-limited",
+    "capability": "AG9",
+    "kind": "happy",
+    "description": "A 429 is transient, so the pause before the retry is the honest response.",
+    "input": { "failure": "rate-limited" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value.answer", "value": "local step" },
+      { "type": "equals", "path": "failureReason", "value": "rate-limited" },
+      { "type": "equals", "path": "primaryCalls", "value": 2 },
+      { "type": "equals", "path": "pauses", "value": [250] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-malformed-output-schema-retry",
+    "capability": "AG9",
+    "kind": "edge",
+    "description": "Prose for a structured request is refused, retried once after the same bounded pause, then the local step answers.",
+    "input": { "failure": "malformed" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value.answer", "value": "local step" },
+      { "type": "equals", "path": "primaryCalls", "value": 2 },
+      { "type": "equals", "path": "fallbackCalls", "value": 1 },
+      { "type": "equals", "path": "pauses", "value": [250] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-authentication-is-terminal",
+    "capability": "AG9",
+    "kind": "edge",
+    "description": "A missing key is configuration, not a transient failure: one call, no pause.",
+    "input": { "failure": "unauthorized" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value.answer", "value": "local step" },
+      { "type": "equals", "path": "failureReason", "value": "unauthorized" },
+      { "type": "equals", "path": "primaryCalls", "value": 1 },
+      { "type": "equals", "path": "pauses", "value": [] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-bad-response-is-terminal",
+    "capability": "AG9",
+    "kind": "edge",
+    "description": "A malformed transport answer is terminal: another round trip would fail the same way.",
+    "input": { "failure": "bad-response" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value.answer", "value": "local step" },
+      { "type": "equals", "path": "failureReason", "value": "bad-response" },
+      { "type": "equals", "path": "primaryCalls", "value": 1 },
+      { "type": "equals", "path": "pauses", "value": [] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-fallback-exhaustion",
+    "capability": "AG9",
+    "kind": "adversarial",
+    "description": "When the deterministic provider also returns prose the runtime returns no value and commits nothing: generic prose is never accepted as structured output. Both providers are bounded by the same policy, and the reported reason describes the last failed attempt while the primary's own failure stays in the provenance ledger.",
+    "input": { "failure": "offline", "fallback": "prose" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value", "value": null },
+      { "type": "equals", "path": "committed", "value": false },
+      { "type": "equals", "path": "failureReason", "value": "response is not valid JSON" },
+      { "type": "equals", "path": "primaryCalls", "value": 2 },
+      { "type": "equals", "path": "fallbackCalls", "value": 2 },
+      { "type": "equals", "path": "pauses", "value": [250, 250] }
+    ],
+    "forbidden": [
+      { "type": "forbidden-value", "value": "Take a breath, then do only the first step." }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-attempt-limit-one",
+    "capability": "AG9",
+    "kind": "edge",
+    "description": "A tighter attempt limit removes the transport retry without removing the local fallback.",
+    "input": { "failure": "offline", "maxAttemptsPerProvider": 1 },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "degraded" },
+      { "type": "equals", "path": "value.answer", "value": "local step" },
+      { "type": "equals", "path": "failureReason", "value": "offline" },
+      { "type": "equals", "path": "primaryCalls", "value": 1 },
+      { "type": "equals", "path": "fallbackCalls", "value": 1 },
+      { "type": "equals", "path": "pauses", "value": [] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-cancellation",
+    "capability": "AG9",
+    "kind": "adversarial",
+    "description": "A learner who cancels mid-call gets no retry, no local fallback and no committed value, even though the in-flight reason was transient.",
+    "input": { "failure": "offline", "timing": "cancel-during-primary" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "aborted" },
+      { "type": "equals", "path": "value", "value": null },
+      { "type": "equals", "path": "committed", "value": false },
+      { "type": "equals", "path": "degraded", "value": false },
+      { "type": "equals", "path": "primaryCalls", "value": 1 },
+      { "type": "equals", "path": "fallbackCalls", "value": 0 },
+      { "type": "equals", "path": "pauses", "value": [] }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag9-expiration",
+    "capability": "AG9",
+    "kind": "edge",
+    "description": "An expired deadline never starts generation: no provider call, no fallback, no commit.",
+    "input": { "failure": "offline", "timing": "expired" },
+    "expected": [
+      { "type": "equals", "path": "status", "value": "expired" },
+      { "type": "equals", "path": "value", "value": null },
+      { "type": "equals", "path": "committed", "value": false },
+      { "type": "equals", "path": "primaryCalls", "value": 0 },
+      { "type": "equals", "path": "fallbackCalls", "value": 0 },
+      { "type": "equals", "path": "pauses", "value": [] }
+    ],
+    "forbidden": []
+  }
+]

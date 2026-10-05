@@ -60,9 +60,9 @@ failure, and never start another attempt or a fallback.
 ## Provider order and provenance
 
 Order is fixed: primary (bounded retries) → required deterministic local fallback (bounded retries).
-The fallback is tried once and its own failures are terminal for the operation — there is no loop
-back to the primary and no fallback-of-the-fallback. A terminal primary failure goes straight to the
-fallback without a pause.
+The fallback gets its own bounded attempts under the same policy, its failures are terminal for the
+operation, and there is no loop back to the primary and no fallback-of-the-fallback. A terminal
+primary failure goes straight to the fallback without a pause.
 
 Every failed attempt is recorded in order as `ProviderFailure { reason, message, providerId }`, so
 retries cannot hide where a failure came from, and `attempts` reports the number of provider calls
@@ -101,8 +101,9 @@ explicit `maxTransportAttempts: 1` and state why; the tutor test that is about t
 retry now uses a terminal provider failure so the runtime does not retry it first.
 
 Non-goals: no new adapters, no multi-provider chain, no health probing, no persistent prompt logs,
-no unbounded retry, no UI changes, and #146's skill-specific fallback/final conformance remains
-separate.
+no unbounded retry, no UI changes. The skill-specific fallback and final conformance are covered
+separately by the [AG9 scenario pack](ag9-conformance.md), which replays this exact policy through
+the production runtime.
 
 ```sh
 pnpm --filter @focusloop/llm-provider test

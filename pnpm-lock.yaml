@@ -181,6 +181,9 @@ importers:
       '@focusloop/intervention-policy':
         specifier: workspace:*
         version: link:../intervention-policy
+      '@focusloop/llm-provider':
+        specifier: workspace:*
+        version: link:../llm-provider
       '@focusloop/shared-types':
         specifier: workspace:*
         version: link:../shared-types
