@@ -22,170 +22,34 @@ import type {
 } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 import { migrate } from './migrations';
-import type { SqlDatabase } from './sqlite-database';
+import { readFlag, readInt, readNullableInt, readNullableText, readText } from './row';
+import type { SqlDatabase, SqlRow } from './sqlite-database';
 
 export interface SessionRecord {
   readonly session: LearningSession;
   readonly engineState: StateEngineState;
 }
 
-interface CourseRow {
-  id: string;
-  title: string;
-  description: string;
-  source: string;
-  created_at: string;
-}
-
-interface ConceptRow {
-  id: string;
-  course_id: string;
-  title: string;
-  summary: string;
-  key_points: string;
-  position: number;
-}
-
-interface MicroTaskRow {
-  id: string;
-  course_id: string;
-  concept_id: string;
-  title: string;
-  instructions: string;
-  kind: string;
-  estimated_minutes: number;
-  position: number;
-}
-
-interface QuizRow {
-  id: string;
-  task_id: string;
-  concept_id: string;
-  question: string;
-  options: string;
-  answer_index: number;
-  explanation: string;
-}
-
-interface MaterialRow {
-  id: string;
-  title: string;
-  format: string;
-  source: string;
-  content_hash: string;
-  sections: string;
-  warnings: string;
-  imported_at: string;
-}
-
-interface SessionRow {
-  id: string;
-  course_id: string;
-  started_at: string;
-  ended_at: string | null;
-  current_task_id: string | null;
-  last_active_task_id: string | null;
-  engine_state: string;
-}
-
-interface EventRow {
-  id: string;
-  session_id: string;
-  type: string;
-  source: string;
-  at: string;
-  payload: string;
-}
-
-interface CheckpointRow {
-  id: string;
-  session_id: string;
-  concept_id: string;
-  concept_title: string;
-  goal: string;
-  mastered: string;
-  unresolved: string;
-  current_task_id: string;
-  current_task_title: string;
-  current_step: number;
-  friction_state: string;
-  next_action_key: string;
-  next_action_params: string;
-  created_at: string;
-}
-
-interface InterventionRow {
-  id: string;
-  session_id: string;
-  at: string;
-  state: string;
-  action: string;
-  reason_key: string;
-  reason_params: string;
-  shown_at: string;
-  answers_request_id: string | null;
-}
-
-function mapIntervention(row: InterventionRow): Intervention {
+function mapIntervention(row: SqlRow): Intervention {
+  const answersRequestId = readNullableText(row, 'interventions', 'answers_request_id');
   return {
-    id: row.id,
-    sessionId: row.session_id,
-    at: row.at,
-    state: row.state as LearningState,
-    action: row.action as Intervention['action'],
+    id: readText(row, 'interventions', 'id'),
+    sessionId: readText(row, 'interventions', 'session_id'),
+    at: readText(row, 'interventions', 'at'),
+    state: readText(row, 'interventions', 'state') as LearningState,
+    action: readText(row, 'interventions', 'action') as Intervention['action'],
     reason: {
-      key: row.reason_key as DomainMessageKey,
-      params: parseJson<Record<string, string>>(row.reason_params, {}),
+      key: readText(row, 'interventions', 'reason_key') as DomainMessageKey,
+      params: parseJson<Record<string, string>>(
+        readText(row, 'interventions', 'reason_params'),
+        {},
+      ),
     },
-    shownAt: row.shown_at,
+    shownAt: readText(row, 'interventions', 'shown_at'),
     // A null column and a row from before the column existed both mean "answers no request", which is
     // what an absent field means to the policy.
-    ...(row.answers_request_id === null ? {} : { answersRequestId: row.answers_request_id }),
+    ...(answersRequestId === null ? {} : { answersRequestId }),
   };
-}
-
-interface OutcomeRow {
-  id: string;
-  intervention_id: string;
-  session_id: string;
-  at: string;
-  state: string;
-  action: string;
-  accepted: number;
-  dismissed: number;
-  task_completed: number;
-  resume_latency_ms: number | null;
-  quiz_outcome: string | null;
-  accepted_at: string | null;
-  dismissed_at: string | null;
-  continued_at: string | null;
-}
-
-interface ResumeCardRow {
-  checkpoint_id: string;
-  session_id: string;
-  shown_at: string;
-  accepted_at: string | null;
-  dismissed_at: string | null;
-  resume_latency_ms: number | null;
-}
-
-interface AgentProposalRow {
-  id: string;
-  session_id: string;
-  kind: string;
-  payload: string;
-  proposed_at: string;
-  expires_at: string;
-  proposal_hash: string;
-  state_fingerprint: string;
-  idempotency_key: string;
-  created_by: string;
-  status: string;
-  confirmed_at: string | null;
-  executed_at: string | null;
-  event_id: string | null;
-  refusal_reason: string | null;
 }
 
 /** Proposal plus its audit outcome — what AG8's audit log needs. */
@@ -317,68 +181,66 @@ export class FocusLoopStore {
       .prepare(
         'SELECT id, title, description, source, created_at FROM courses ORDER BY created_at ASC, id ASC;',
       )
-      .all() as CourseRow[];
+      .all();
     return rows.map((row) => this.hydrateCourse(row));
   }
 
   getCourse(courseId: string): Course | null {
     const row = this.db
       .prepare('SELECT id, title, description, source, created_at FROM courses WHERE id = ?;')
-      .get(courseId) as CourseRow | undefined;
+      .get(courseId);
     return row === undefined ? null : this.hydrateCourse(row);
   }
 
   countCourses(): number {
-    const row = this.db.prepare('SELECT COUNT(*) AS total FROM courses;').get() as {
-      total: number;
-    };
-    return row.total;
+    const row = this.db.prepare('SELECT COUNT(*) AS total FROM courses;').get();
+    if (row === undefined) throw new Error('courses COUNT returned no row');
+    return readInt(row, 'courses', 'total');
   }
 
-  private hydrateCourse(row: CourseRow): Course {
+  private hydrateCourse(row: SqlRow): Course {
+    const courseId = readText(row, 'courses', 'id');
     const conceptRows = this.db
       .prepare('SELECT * FROM concepts WHERE course_id = ? ORDER BY position ASC;')
-      .all(row.id) as ConceptRow[];
+      .all(courseId);
     const taskRows = this.db
       .prepare('SELECT * FROM micro_tasks WHERE course_id = ? ORDER BY position ASC;')
-      .all(row.id) as MicroTaskRow[];
-    const quizRows = this.db
-      .prepare('SELECT * FROM quizzes WHERE course_id = ?;')
-      .all(row.id) as QuizRow[];
+      .all(courseId);
+    const quizRows = this.db.prepare('SELECT * FROM quizzes WHERE course_id = ?;').all(courseId);
 
     const concepts: Concept[] = conceptRows.map((concept) => ({
-      id: concept.id,
-      title: concept.title,
-      summary: concept.summary,
-      order: concept.position,
-      keyPoints: parseJsonArray(concept.key_points),
+      id: readText(concept, 'concepts', 'id'),
+      title: readText(concept, 'concepts', 'title'),
+      summary: readText(concept, 'concepts', 'summary'),
+      order: readInt(concept, 'concepts', 'position'),
+      keyPoints: parseJsonArray(readText(concept, 'concepts', 'key_points')),
     }));
 
     const microTasks: MicroTask[] = taskRows.map((task) => ({
-      id: task.id,
-      courseId: task.course_id,
-      conceptId: task.concept_id,
-      title: task.title,
-      instructions: task.instructions,
-      kind: task.kind as MicroTaskKind,
-      estimatedMinutes: task.estimated_minutes,
-      order: task.position,
+      id: readText(task, 'micro_tasks', 'id'),
+      courseId: readText(task, 'micro_tasks', 'course_id'),
+      conceptId: readText(task, 'micro_tasks', 'concept_id'),
+      title: readText(task, 'micro_tasks', 'title'),
+      instructions: readText(task, 'micro_tasks', 'instructions'),
+      kind: readText(task, 'micro_tasks', 'kind') as MicroTaskKind,
+      estimatedMinutes: readInt(task, 'micro_tasks', 'estimated_minutes'),
+      order: readInt(task, 'micro_tasks', 'position'),
     }));
 
     const quizzes: Quiz[] = quizRows.map((quiz) => ({
-      id: quiz.id,
-      taskId: quiz.task_id,
-      conceptId: quiz.concept_id,
-      question: quiz.question,
-      options: parseJsonArray(quiz.options),
-      answerIndex: quiz.answer_index,
-      explanation: quiz.explanation,
+      id: readText(quiz, 'quizzes', 'id'),
+      taskId: readText(quiz, 'quizzes', 'task_id'),
+      conceptId: readText(quiz, 'quizzes', 'concept_id'),
+      question: readText(quiz, 'quizzes', 'question'),
+      options: parseJsonArray(readText(quiz, 'quizzes', 'options')),
+      answerIndex: readInt(quiz, 'quizzes', 'answer_index'),
+      explanation: readText(quiz, 'quizzes', 'explanation'),
     }));
 
     return {
-      id: row.id,
-      title: row.title,
-      description: row.description,
+      id: courseId,
+      title: readText(row, 'courses', 'title'),
+      description: readText(row, 'courses', 'description'),
       concepts,
       microTasks,
       quizzes,
@@ -408,16 +270,12 @@ export class FocusLoopStore {
   }
 
   getMaterialByHash(contentHash: string): MaterialDocument | null {
-    const row = this.db
-      .prepare('SELECT * FROM materials WHERE content_hash = ?;')
-      .get(contentHash) as MaterialRow | undefined;
+    const row = this.db.prepare('SELECT * FROM materials WHERE content_hash = ?;').get(contentHash);
     return row === undefined ? null : mapMaterial(row);
   }
 
   listMaterials(): MaterialDocument[] {
-    const rows = this.db
-      .prepare('SELECT * FROM materials ORDER BY imported_at DESC;')
-      .all() as MaterialRow[];
+    const rows = this.db.prepare('SELECT * FROM materials ORDER BY imported_at DESC;').all();
     return rows.map(mapMaterial);
   }
 
@@ -451,15 +309,14 @@ export class FocusLoopStore {
   }
 
   getSession(sessionId: string): SessionRecord | null {
-    const row = this.db.prepare('SELECT * FROM learning_sessions WHERE id = ?;').get(sessionId) as
-      SessionRow | undefined;
+    const row = this.db.prepare('SELECT * FROM learning_sessions WHERE id = ?;').get(sessionId);
     return row === undefined ? null : mapSession(row);
   }
 
   getLatestSession(): SessionRecord | null {
     const row = this.db
       .prepare('SELECT * FROM learning_sessions ORDER BY started_at DESC, id DESC LIMIT 1;')
-      .get() as SessionRow | undefined;
+      .get();
     return row === undefined ? null : mapSession(row);
   }
 
@@ -468,14 +325,12 @@ export class FocusLoopStore {
       .prepare(
         'SELECT * FROM learning_sessions WHERE ended_at IS NULL ORDER BY started_at DESC, id DESC LIMIT 1;',
       )
-      .get() as SessionRow | undefined;
+      .get();
     return row === undefined ? null : mapSession(row);
   }
 
   listSessions(): SessionRecord[] {
-    const rows = this.db
-      .prepare('SELECT * FROM learning_sessions ORDER BY started_at DESC;')
-      .all() as SessionRow[];
+    const rows = this.db.prepare('SELECT * FROM learning_sessions ORDER BY started_at DESC;').all();
     return rows.map(mapSession);
   }
 
@@ -505,32 +360,23 @@ export class FocusLoopStore {
       .prepare(
         'SELECT * FROM learning_events WHERE session_id = ? ORDER BY at ASC, rowid ASC LIMIT ?;',
       )
-      .all(sessionId, limit) as EventRow[];
-    return rows.map(
-      (row) =>
-        ({
-          id: row.id,
-          sessionId: row.session_id,
-          type: row.type as LearningEventType,
-          source: row.source as LearningEventSource,
-          at: row.at,
-          payload: parseJson<Record<string, unknown>>(row.payload, {}),
-        }) as LearningEvent,
-    );
+      .all(sessionId, limit);
+    return rows.map(mapEvent);
   }
 
   countEvents(sessionId: string, type?: LearningEventType): number {
     const row =
       type === undefined
-        ? (this.db
+        ? this.db
             .prepare('SELECT COUNT(*) AS total FROM learning_events WHERE session_id = ?;')
-            .get(sessionId) as { total: number })
-        : (this.db
+            .get(sessionId)
+        : this.db
             .prepare(
               'SELECT COUNT(*) AS total FROM learning_events WHERE session_id = ? AND type = ?;',
             )
-            .get(sessionId, type) as { total: number });
-    return row.total;
+            .get(sessionId, type);
+    if (row === undefined) throw new Error('learning_events COUNT returned no row');
+    return readInt(row, 'learning_events', 'total');
   }
 
   // ------------------------------------------------------------ checkpoints
@@ -568,20 +414,19 @@ export class FocusLoopStore {
       .prepare(
         'SELECT * FROM checkpoints WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1;',
       )
-      .get(sessionId) as CheckpointRow | undefined;
+      .get(sessionId);
     return row === undefined ? null : mapCheckpoint(row);
   }
 
   getCheckpoint(checkpointId: string): LearningCheckpoint | null {
-    const row = this.db.prepare('SELECT * FROM checkpoints WHERE id = ?;').get(checkpointId) as
-      CheckpointRow | undefined;
+    const row = this.db.prepare('SELECT * FROM checkpoints WHERE id = ?;').get(checkpointId);
     return row === undefined ? null : mapCheckpoint(row);
   }
 
   listCheckpoints(sessionId: string): LearningCheckpoint[] {
     const rows = this.db
       .prepare('SELECT * FROM checkpoints WHERE session_id = ? ORDER BY created_at ASC;')
-      .all(sessionId) as CheckpointRow[];
+      .all(sessionId);
     return rows.map(mapCheckpoint);
   }
 
@@ -610,15 +455,14 @@ export class FocusLoopStore {
   }
 
   getIntervention(interventionId: string): Intervention | null {
-    const row = this.db.prepare('SELECT * FROM interventions WHERE id = ?;').get(interventionId) as
-      InterventionRow | undefined;
+    const row = this.db.prepare('SELECT * FROM interventions WHERE id = ?;').get(interventionId);
     return row === undefined ? null : mapIntervention(row);
   }
 
   listInterventions(sessionId: string): Intervention[] {
     const rows = this.db
       .prepare('SELECT * FROM interventions WHERE session_id = ? ORDER BY at ASC;')
-      .all(sessionId) as InterventionRow[];
+      .all(sessionId);
     return rows.map(mapIntervention);
   }
 
@@ -677,14 +521,14 @@ export class FocusLoopStore {
   getOutcomeByIntervention(interventionId: string): InterventionOutcome | null {
     const row = this.db
       .prepare('SELECT * FROM outcomes WHERE intervention_id = ? ORDER BY at, rowid LIMIT 1;')
-      .get(interventionId) as OutcomeRow | undefined;
+      .get(interventionId);
     return row === undefined ? null : mapOutcome(row);
   }
 
   listOutcomes(sessionId: string): InterventionOutcome[] {
     const rows = this.db
       .prepare('SELECT * FROM outcomes WHERE session_id = ? ORDER BY at ASC;')
-      .all(sessionId) as OutcomeRow[];
+      .all(sessionId);
     return rows.map(mapOutcome);
   }
 
@@ -703,15 +547,9 @@ export class FocusLoopStore {
   getResumeTiming(checkpointId: string): ResumeCardTiming | null {
     const row = this.db
       .prepare('SELECT * FROM resume_cards WHERE checkpoint_id = ?;')
-      .get(checkpointId) as ResumeCardRow | undefined;
+      .get(checkpointId);
     if (row === undefined) return null;
-    return {
-      checkpointId: row.checkpoint_id,
-      shownAt: row.shown_at,
-      acceptedAt: row.accepted_at ?? undefined,
-      dismissedAt: row.dismissed_at ?? undefined,
-      resumeLatencyMs: row.resume_latency_ms ?? undefined,
-    };
+    return mapResumeTiming(row);
   }
 
   listResumeTimings(sessionId: string): ResumeCardTiming[] {
@@ -721,14 +559,8 @@ export class FocusLoopStore {
          WHERE session_id = ?
          ORDER BY shown_at ASC, checkpoint_id ASC;`,
       )
-      .all(sessionId) as ResumeCardRow[];
-    return rows.map((row) => ({
-      checkpointId: row.checkpoint_id,
-      shownAt: row.shown_at,
-      acceptedAt: row.accepted_at ?? undefined,
-      dismissedAt: row.dismissed_at ?? undefined,
-      resumeLatencyMs: row.resume_latency_ms ?? undefined,
-    }));
+      .all(sessionId);
+    return rows.map(mapResumeTiming);
   }
 
   markResumeDecided(
@@ -852,15 +684,14 @@ export class FocusLoopStore {
   }
 
   getAgentProposal(proposalId: string): StoredAgentProposal | null {
-    const row = this.db.prepare('SELECT * FROM agent_proposals WHERE id = ?;').get(proposalId) as
-      AgentProposalRow | undefined;
+    const row = this.db.prepare('SELECT * FROM agent_proposals WHERE id = ?;').get(proposalId);
     return row === undefined ? null : mapAgentProposal(row);
   }
 
   getAgentProposalByIdempotencyKey(key: string): StoredAgentProposal | null {
     const row = this.db
       .prepare('SELECT * FROM agent_proposals WHERE idempotency_key = ?;')
-      .get(key) as AgentProposalRow | undefined;
+      .get(key);
     return row === undefined ? null : mapAgentProposal(row);
   }
 
@@ -929,50 +760,85 @@ export class FocusLoopStore {
   }
 }
 
-function mapOutcome(row: OutcomeRow): InterventionOutcome {
+/*
+ * A `learning_events` row as a `LearningEvent`.
+ *
+ * Every column is read by name and type. The one thing TypeScript cannot check is that `payload`
+ * matches the member `type` selects, so the union is named here once — with the reason — rather than
+ * asserted at the call site.
+ */
+function mapEvent(row: SqlRow): LearningEvent {
   return {
-    id: row.id,
-    interventionId: row.intervention_id,
-    sessionId: row.session_id,
-    at: row.at,
-    state: row.state as LearningState,
-    action: row.action as InterventionOutcome['action'],
-    accepted: row.accepted === 1,
-    dismissed: row.dismissed === 1,
-    taskCompleted: row.task_completed === 1,
-    resumeLatencyMs: row.resume_latency_ms,
-    quizOutcome:
-      row.quiz_outcome === 'correct' || row.quiz_outcome === 'incorrect' ? row.quiz_outcome : null,
-    ...(row.accepted_at === null ? {} : { acceptedAt: row.accepted_at }),
-    ...(row.dismissed_at === null ? {} : { dismissedAt: row.dismissed_at }),
-    ...(row.continued_at === null ? {} : { continuedAt: row.continued_at }),
+    id: readText(row, 'learning_events', 'id'),
+    sessionId: readText(row, 'learning_events', 'session_id'),
+    type: readText(row, 'learning_events', 'type') as LearningEventType,
+    source: readText(row, 'learning_events', 'source') as LearningEventSource,
+    at: readText(row, 'learning_events', 'at'),
+    payload: parseJson<Record<string, unknown>>(readText(row, 'learning_events', 'payload'), {}),
+  } as LearningEvent;
+}
+
+function mapResumeTiming(row: SqlRow): ResumeCardTiming {
+  return {
+    checkpointId: readText(row, 'resume_cards', 'checkpoint_id'),
+    shownAt: readText(row, 'resume_cards', 'shown_at'),
+    acceptedAt: readNullableText(row, 'resume_cards', 'accepted_at') ?? undefined,
+    dismissedAt: readNullableText(row, 'resume_cards', 'dismissed_at') ?? undefined,
+    resumeLatencyMs: readNullableInt(row, 'resume_cards', 'resume_latency_ms') ?? undefined,
   };
 }
 
-function mapMaterial(row: MaterialRow): MaterialDocument {
+function mapOutcome(row: SqlRow): InterventionOutcome {
+  const acceptedAt = readNullableText(row, 'outcomes', 'accepted_at');
+  const dismissedAt = readNullableText(row, 'outcomes', 'dismissed_at');
+  const continuedAt = readNullableText(row, 'outcomes', 'continued_at');
+  const quizOutcome = readNullableText(row, 'outcomes', 'quiz_outcome');
   return {
-    id: row.id,
-    title: row.title,
-    format: row.format as MaterialFormat,
-    source: row.source as MaterialSource,
-    contentHash: row.content_hash,
-    sections: parseJson<MaterialSection[]>(row.sections, []),
-    warnings: parseJson<string[]>(row.warnings, []),
-    importedAt: row.imported_at,
+    id: readText(row, 'outcomes', 'id'),
+    interventionId: readText(row, 'outcomes', 'intervention_id'),
+    sessionId: readText(row, 'outcomes', 'session_id'),
+    at: readText(row, 'outcomes', 'at'),
+    state: readText(row, 'outcomes', 'state') as LearningState,
+    action: readText(row, 'outcomes', 'action') as InterventionOutcome['action'],
+    accepted: readFlag(row, 'outcomes', 'accepted'),
+    dismissed: readFlag(row, 'outcomes', 'dismissed'),
+    taskCompleted: readFlag(row, 'outcomes', 'task_completed'),
+    resumeLatencyMs: readNullableInt(row, 'outcomes', 'resume_latency_ms'),
+    quizOutcome: quizOutcome === 'correct' || quizOutcome === 'incorrect' ? quizOutcome : null,
+    ...(acceptedAt === null ? {} : { acceptedAt }),
+    ...(dismissedAt === null ? {} : { dismissedAt }),
+    ...(continuedAt === null ? {} : { continuedAt }),
   };
 }
 
-function mapSession(row: SessionRow): SessionRecord {
-  const engineState = parseJson<StateEngineState | null>(row.engine_state, null);
+function mapMaterial(row: SqlRow): MaterialDocument {
+  return {
+    id: readText(row, 'materials', 'id'),
+    title: readText(row, 'materials', 'title'),
+    format: readText(row, 'materials', 'format') as MaterialFormat,
+    source: readText(row, 'materials', 'source') as MaterialSource,
+    contentHash: readText(row, 'materials', 'content_hash'),
+    sections: parseJson<MaterialSection[]>(readText(row, 'materials', 'sections'), []),
+    warnings: parseJson<string[]>(readText(row, 'materials', 'warnings'), []),
+    importedAt: readText(row, 'materials', 'imported_at'),
+  };
+}
+
+function mapSession(row: SqlRow): SessionRecord {
+  const engineState = parseJson<StateEngineState | null>(
+    readText(row, 'learning_sessions', 'engine_state'),
+    null,
+  );
   return {
     session: {
-      id: row.id,
-      courseId: row.course_id,
-      startedAt: row.started_at,
-      endedAt: row.ended_at ?? undefined,
+      id: readText(row, 'learning_sessions', 'id'),
+      courseId: readText(row, 'learning_sessions', 'course_id'),
+      startedAt: readText(row, 'learning_sessions', 'started_at'),
+      endedAt: readNullableText(row, 'learning_sessions', 'ended_at') ?? undefined,
       state: (engineState?.state ?? 'READY') as LearningState,
-      currentTaskId: row.current_task_id ?? undefined,
-      lastActiveTaskId: row.last_active_task_id ?? undefined,
+      currentTaskId: readNullableText(row, 'learning_sessions', 'current_task_id') ?? undefined,
+      lastActiveTaskId:
+        readNullableText(row, 'learning_sessions', 'last_active_task_id') ?? undefined,
       completedTaskIds: engineState?.completedTaskIds ?? [],
       /*
        * Read out of the blob, like `completedTaskIds` above, and defaulted the same way. A session
@@ -982,51 +848,54 @@ function mapSession(row: SessionRow): SessionRecord {
        * every reader having to work it out.
        */
       taskOrder: engineState?.taskOrder ?? [],
-      updatedAt: row.started_at,
+      updatedAt: readText(row, 'learning_sessions', 'started_at'),
     },
     engineState: engineState as StateEngineState,
   };
 }
 
-function mapCheckpoint(row: CheckpointRow): LearningCheckpoint {
+function mapCheckpoint(row: SqlRow): LearningCheckpoint {
   return {
-    id: row.id,
-    sessionId: row.session_id,
-    conceptId: row.concept_id,
-    conceptTitle: row.concept_title,
-    goal: row.goal,
-    mastered: parseJsonArray(row.mastered),
-    unresolved: parseJsonArray(row.unresolved),
-    currentTaskId: row.current_task_id,
-    currentTaskTitle: row.current_task_title,
-    currentStep: row.current_step,
-    frictionState: row.friction_state as LearningState,
+    id: readText(row, 'checkpoints', 'id'),
+    sessionId: readText(row, 'checkpoints', 'session_id'),
+    conceptId: readText(row, 'checkpoints', 'concept_id'),
+    conceptTitle: readText(row, 'checkpoints', 'concept_title'),
+    goal: readText(row, 'checkpoints', 'goal'),
+    mastered: parseJsonArray(readText(row, 'checkpoints', 'mastered')),
+    unresolved: parseJsonArray(readText(row, 'checkpoints', 'unresolved')),
+    currentTaskId: readText(row, 'checkpoints', 'current_task_id'),
+    currentTaskTitle: readText(row, 'checkpoints', 'current_task_title'),
+    currentStep: readInt(row, 'checkpoints', 'current_step'),
+    frictionState: readText(row, 'checkpoints', 'friction_state') as LearningState,
     nextBestAction: {
-      key: row.next_action_key as DomainMessageKey,
-      params: parseJson<Record<string, string>>(row.next_action_params, {}),
+      key: readText(row, 'checkpoints', 'next_action_key') as DomainMessageKey,
+      params: parseJson<Record<string, string>>(
+        readText(row, 'checkpoints', 'next_action_params'),
+        {},
+      ),
     },
-    createdAt: row.created_at,
+    createdAt: readText(row, 'checkpoints', 'created_at'),
   };
 }
 
-function mapAgentProposal(row: AgentProposalRow): StoredAgentProposal {
+function mapAgentProposal(row: SqlRow): StoredAgentProposal {
   return {
     proposal: {
-      id: row.id,
-      sessionId: row.session_id,
-      kind: row.kind as AgentProposal['kind'],
-      payload: parseJson<Record<string, unknown>>(row.payload, {}),
-      proposedAt: row.proposed_at,
-      expiresAt: row.expires_at,
-      proposalHash: row.proposal_hash,
-      stateFingerprint: row.state_fingerprint,
-      idempotencyKey: row.idempotency_key,
-      createdBy: row.created_by,
+      id: readText(row, 'agent_proposals', 'id'),
+      sessionId: readText(row, 'agent_proposals', 'session_id'),
+      kind: readText(row, 'agent_proposals', 'kind') as AgentProposal['kind'],
+      payload: parseJson<Record<string, unknown>>(readText(row, 'agent_proposals', 'payload'), {}),
+      proposedAt: readText(row, 'agent_proposals', 'proposed_at'),
+      expiresAt: readText(row, 'agent_proposals', 'expires_at'),
+      proposalHash: readText(row, 'agent_proposals', 'proposal_hash'),
+      stateFingerprint: readText(row, 'agent_proposals', 'state_fingerprint'),
+      idempotencyKey: readText(row, 'agent_proposals', 'idempotency_key'),
+      createdBy: readText(row, 'agent_proposals', 'created_by'),
     },
-    status: row.status,
-    confirmedAt: row.confirmed_at,
-    executedAt: row.executed_at,
-    eventId: row.event_id,
-    refusalReason: row.refusal_reason,
+    status: readText(row, 'agent_proposals', 'status'),
+    confirmedAt: readNullableText(row, 'agent_proposals', 'confirmed_at'),
+    executedAt: readNullableText(row, 'agent_proposals', 'executed_at'),
+    eventId: readNullableText(row, 'agent_proposals', 'event_id'),
+    refusalReason: readNullableText(row, 'agent_proposals', 'refusal_reason'),
   };
 }

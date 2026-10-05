@@ -8,4 +8,5 @@
 
 export * from './sqlite-database';
 export * from './migrations';
+export * from './row';
 export * from './store';

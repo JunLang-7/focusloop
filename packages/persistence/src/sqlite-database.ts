@@ -35,17 +35,20 @@ export interface SqlRunResult {
 }
 
 /**
- * A prepared statement.
+ * A row as the driver returns it: a bag of columns, named as the table named them.
  *
- * A row is whatever the table has: the driver cannot know which table it read, so turning one into a
- * domain type happens in the store, where that shape is known. `unknown` is that statement in the type
- * system, and the visible cost is that each read asserts its own shape — sixteen of them in `store.ts`,
- * which is #38's business rather than this file's.
+ * The driver cannot know which table it read, so it cannot name a domain type. What it can say,
+ * honestly, is that a row is a record of columns — and the store is where one becomes a domain type.
+ * Saying `SqlRow` instead of `unknown` is that much, and it moves the check into `row.ts`, where each
+ * column is read by name and type instead of being asserted into a shape nothing verified.
  */
+export type SqlRow = Readonly<Record<string, unknown>>;
+
+/** A prepared statement. */
 export interface SqlStatement {
   run(...params: unknown[]): SqlRunResult;
-  get(...params: unknown[]): unknown;
-  all(...params: unknown[]): unknown[];
+  get(...params: unknown[]): SqlRow | undefined;
+  all(...params: unknown[]): SqlRow[];
 }
 
 /**
@@ -94,12 +97,14 @@ class NodeSqliteStatementAdapter implements SqlStatement {
     };
   }
 
-  get(...params: unknown[]): unknown {
-    return this.statement.get(...toParams(params));
+  get(...params: unknown[]): SqlRow | undefined {
+    // SAFETY: `node:sqlite` returns one row object or `undefined`; `SqliteDriverModule` is that
+    // assertion written down, and the driver suite exercises it against a real database.
+    return this.statement.get(...toParams(params)) as SqlRow | undefined;
   }
 
-  all(...params: unknown[]): unknown[] {
-    return this.statement.all(...toParams(params)) as unknown[];
+  all(...params: unknown[]): SqlRow[] {
+    return this.statement.all(...toParams(params)) as SqlRow[];
   }
 }
 

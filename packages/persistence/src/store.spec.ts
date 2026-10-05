@@ -12,6 +12,7 @@ import type {
   MaterialDocument,
 } from '@focusloop/shared-types';
 import { createInitialState } from '@focusloop/learning-state';
+import { RowParseError } from './row';
 import { openDatabase, type SqlDatabase } from './sqlite-database';
 import { FocusLoopStore } from './store';
 
@@ -153,6 +154,37 @@ describe('FocusLoopStore', () => {
         { createdAt: '2026-02-01T00:00:00.000Z' },
       );
       expect(store.listCourses().map((course) => course.id)).toEqual(['course-1', 'course-2']);
+    });
+  });
+
+  describe('row boundary', () => {
+    /*
+     * The driver returns a bag of columns; the store is where one becomes a domain type. These rows
+     * are written through raw SQL because the store cannot produce them, which is the point: a read
+     * must report a malformed row instead of handing back a domain object with an `undefined` field.
+     *
+     * The malformed values target INTEGER columns. A value put into a TEXT column is coerced by
+     * SQLite's column affinity (`7` becomes `'7'`), so a wrong type can only be observed where the
+     * affinity conversion fails — an INTEGER column holding text, or an INTEGER holding a number that
+     * is not the `0`/`1` a flag means.
+     */
+    it('reports an INTEGER column the driver returned as text', () => {
+      store.saveCourse(courseFixture(), { createdAt: T0 });
+      db.prepare('UPDATE concepts SET position = ? WHERE id = ?;').run('oops', 'c1');
+
+      expect(() => store.getCourse('course-1')).toThrowError(RowParseError);
+      expect(() => store.getCourse('course-1')).toThrowError(/concepts\.position/);
+    });
+
+    it('reports a flag column holding a value that is not 0 or 1', () => {
+      db.prepare(
+        `INSERT INTO outcomes
+           (id, intervention_id, session_id, at, state, action, accepted, dismissed, task_completed)
+         VALUES ('o1', 'i1', 's1', ?, 'READY', 'BREATHE', 2, 0, 0);`,
+      ).run(T0);
+
+      expect(() => store.listOutcomes('s1')).toThrowError(RowParseError);
+      expect(() => store.listOutcomes('s1')).toThrowError(/outcomes\.accepted/);
     });
   });
 
