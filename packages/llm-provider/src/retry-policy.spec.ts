@@ -8,16 +8,23 @@ import {
   RETRYABLE_FAILURE_REASONS,
   resolveRetryPolicy,
   TERMINAL_FAILURE_REASONS,
+  type FailureClassification,
 } from './retry-policy';
 
-const ALL_REASONS: readonly ProviderFailureReason[] = [
-  'offline',
-  'timeout',
-  'unauthorized',
-  'rate-limited',
-  'bad-response',
-  'not-configured',
-];
+/**
+ * Exhaustive by construction: the record must name every `ProviderFailureReason`, so a new reason
+ * fails the type check here instead of silently escaping the partition below.
+ */
+const EXPECTED_CLASSIFICATION: Record<ProviderFailureReason, FailureClassification> = {
+  offline: 'retryable',
+  timeout: 'retryable',
+  'rate-limited': 'retryable',
+  unauthorized: 'terminal',
+  'not-configured': 'terminal',
+  'bad-response': 'terminal',
+};
+
+const ALL_REASONS = Object.keys(EXPECTED_CLASSIFICATION) as ProviderFailureReason[];
 
 describe('the retry classification is a closed policy', () => {
   it('partitions every known failure reason exactly once', () => {
@@ -32,6 +39,7 @@ describe('the retry classification is a closed policy', () => {
         ? 'retryable'
         : 'terminal';
       expect(classifyFailure(reason)).toBe(expected);
+      expect(expected).toBe(EXPECTED_CLASSIFICATION[reason]);
     }
     expect(Object.isFrozen(RETRYABLE_FAILURE_REASONS)).toBe(true);
     expect(Object.isFrozen(TERMINAL_FAILURE_REASONS)).toBe(true);

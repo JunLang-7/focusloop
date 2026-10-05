@@ -7,8 +7,10 @@ import {
 } from './execution';
 
 /**
- * Closed retry vocabulary. A reason is either retryable or terminal; adding a provider failure
- * reason without classifying it here is a compile error, so the policy cannot silently drift.
+ * Closed retry vocabulary. A reason is either retryable or terminal: the two lists below are
+ * checked to partition every `ProviderFailureReason` by `retry-policy.spec.ts`, whose expectation
+ * table must name every reason, and `classifyFailure` treats anything unlisted as terminal, so a
+ * reason added to the shared type cannot silently inherit a retry.
  */
 export type FailureClassification = 'retryable' | 'terminal';
 
