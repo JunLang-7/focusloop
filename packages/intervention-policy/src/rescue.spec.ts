@@ -34,7 +34,7 @@ describe('AG2 rescue plans', () => {
     ['SIMPLIFY', 3, 3],
     ['HINT', 2, 2],
     ['EXAMPLE', 2, 4],
-    ['BREAK', 2, 5],
+    ['BREAK', 2, 3],
   ] as const)('builds a bounded %s plan', (action, steps, minutes) => {
     const result = buildRescuePlan(decision(action), {
       interventionId: 'i1',

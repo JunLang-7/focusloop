@@ -452,6 +452,41 @@ describe('FocusLoopEngine', () => {
       expect(ctx.engine.listOutcomes(session.id)).toHaveLength(1);
     });
 
+    it('keeps the learner on the same task and step through a three minute break', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      const before = ctx.engine.getCurrentSession();
+      const response = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'tired', taskId: 'rbt-t1' },
+      });
+      expect(response.decision?.action).toBe('BREAK');
+      expect(response.decision?.estimatedMinutes).toBe(3);
+      const accepted = ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: response.interventionId!,
+        resolution: 'accept',
+      });
+      expect(accepted.rescue?.plan?.estimatedMinutes).toBe(3);
+      ctx.clock.advance(3 * 60_000);
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: response.interventionId!,
+        resolution: 'continue',
+      });
+      const after = ctx.engine.getCurrentSession();
+      expect(after?.session.currentTaskId).toBe('rbt-t1');
+      // Only the wall clock moves: nothing was completed, skipped or reordered by taking a break.
+      expect(after?.progress).toEqual({ ...before?.progress, elapsedMs: 3 * 60_000 });
+    });
+
     it('does not restore or accept a rescue after the task has changed', () => {
       const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
       ctx.engine.dispatch({
