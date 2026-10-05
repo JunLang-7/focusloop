@@ -50,6 +50,7 @@ import {
   isRescueAction,
   isStuckReason,
   isTaskRewrite,
+  isTaskRewriteAction,
   message,
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
@@ -94,7 +95,7 @@ import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
 import { confirmAgentProposal, createAgentProposal, executeAgentProposal } from './proposal';
-import { applyTaskRewrite, buildMicroStartRewrite, rewriteIdempotencyKey } from './task-rewrite';
+import { applyTaskRewrite, buildTaskRewrite, rewriteIdempotencyKey } from './task-rewrite';
 import {
   TutorTranscript,
   composeRetryPrompt,
@@ -1254,7 +1255,7 @@ export class FocusLoopEngine {
     this.store.saveOutcome(outcome);
     // A first accept, not a replay: one proposal, one change, per task and action.
     if (request.resolution === 'accept' && prior?.accepted !== true) {
-      this.applyMicroStartRewrite(intervention);
+      this.applyRescueRewrite(intervention);
     }
     return {
       outcome: this.store.getOutcomeByIntervention(intervention.id),
@@ -1263,24 +1264,25 @@ export class FocusLoopEngine {
   }
 
   /**
-   * MICRO_START promises a narrower task, so accepting it goes through the confirmation envelope
-   * (#114) even though the learner has already tapped Accept: the tap *is* the confirmation, the
-   * proposal is bound to the state it was built from, and one idempotency key keeps a second accept
-   * from writing a second change.
+   * MICRO_START and SIMPLIFY promise a smaller task, so accepting either goes through the confirmation
+   * envelope (#114) even though the learner has already tapped Accept: the tap *is* the confirmation,
+   * the proposal is bound to the state it was built from, and one idempotency key per action keeps a
+   * second accept from writing a second change.
    *
    * Nothing here is fatal. A task that is already small, a concept without a grounded focus or a
    * session that moved on simply leaves the deterministic plan the card is showing, which is how the
    * rescue still works offline.
    */
-  private applyMicroStartRewrite(intervention: Intervention): void {
-    if (intervention.action !== 'MICRO_START') return;
+  private applyRescueRewrite(intervention: Intervention): void {
+    const action = intervention.action;
+    if (!isTaskRewriteAction(action)) return;
     const record = this.store.getSession(intervention.sessionId);
     const taskId = this.taskIdForIntervention(intervention);
     if (record === null || taskId === null) return;
-    const key = rewriteIdempotencyKey(record.session.id, taskId, 'MICRO_START');
+    const key = rewriteIdempotencyKey(record.session.id, taskId, action);
     // Already proposed once: replaying the decision must not change anything, including a refusal.
     if (this.store.getAgentProposalByIdempotencyKey(key) !== null) return;
-    const built = buildMicroStartRewrite(this.contextFor(record).context);
+    const built = buildTaskRewrite(action, this.contextFor(record).context);
     if (built.status !== 'suggested') return;
     const proposal = this.proposeStructuralChange({
       sessionId: record.session.id,
@@ -1288,7 +1290,7 @@ export class FocusLoopEngine {
       // The intervention id is carried so the rewrite can be ended by the learner continuing the task,
       // which is an outcome rather than a change to the course.
       payload: { rewrite: built.rewrite, interventionId: intervention.id },
-      createdBy: 'engine.rescue.MICRO_START',
+      createdBy: `engine.rescue.${action}`,
       idempotencyKey: key,
     });
     if (proposal === null) return;

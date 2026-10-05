@@ -78,12 +78,12 @@ Home
 
 ### AG2 Stuck Rescue — 已合并（六类原因与记录、Rescue 计划与成功评估器均已合并）
 
-- 当前证据：六类 `StuckReason`；UI picker；reason→action 确定性映射；`MICRO_START/SIMPLIFY/HINT/EXAMPLE/BREAK` 等 intervention；cooldown、预算、升级规则与 outcome 记录均有测试。
-- 差距：多数“skill”仍是 intervention descriptor/文案，未生成可执行临时步骤或真正缩小任务；救援成功的定义未形成统一窗口指标；“换一种解释/例子”与 AG3 Tutor 的复用边界需固定。
+- 当前证据：六类 `StuckReason`；UI picker；reason→action 确定性映射；`MICRO_START/SIMPLIFY/HINT/EXAMPLE/BREAK` 等 intervention；cooldown、预算、升级规则与 outcome 记录均有测试；`MICRO_START` 与 `SIMPLIFY` 已真正改写任务（#171、#172，确认 + 幂等提案，课程只在读时派生）。
+- 差距：`HINT/EXAMPLE/BREAK/RESUME` 仍是 intervention descriptor/文案，未生成可执行临时步骤；救援成功的定义未形成统一窗口指标；“换一种解释/例子”与 AG3 Tutor 的复用边界需固定。
 - 验收标准：六类原因逐一触发预期 action；主动打断只能由 deterministic policy 决定；所有展示均可接受/拒绝并记录；接受后能进入具体下一步；在规定窗口内以“开始/完成下一微步、无重复求助”计算 outcome；离线仍可完成每类基础救援。
 - 依赖：AG1；AG8 的动作合同（对可执行救援）；AG10 scenario harness。
-- 风险：同一求助重复消费；干预过频；把“疲劳”固化为长期画像；SIMPLIFY 名义完成但任务不变。
-- 实施步骤：定义 RescueResult 与成功窗口 → 固定 AG2/AG3 路由 → **完成 outcome evaluator（已合并，PR #124）** → 将 MICRO_START/SIMPLIFY 接到任务改写（AG2.3/2.4）→ 做六类 E2E（AG2.8）。
+- 风险：同一求助重复消费；干预过频；把“疲劳”固化为长期画像；任务改写被当作对课程的写操作而不是读时派生。
+- 实施步骤：定义 RescueResult 与成功窗口 → 固定 AG2/AG3 路由 → **完成 outcome evaluator（已合并，PR #124）** → **将 MICRO_START/SIMPLIFY 接到任务改写（AG2.3 #171、AG2.4 #172，均已合并）** → 做六类 E2E（AG2.8）。
 
 ### AG3 Contextual Tutor — 已合并（`107a30f`，PR #101）
 
@@ -94,10 +94,10 @@ Home
 - 风险：结构正确但教学质量差；引用标题匹配不等于事实支持；多轮对话造成 prompt injection/成本增长。
 - 实施步骤：冻结 Tutor contract → 建中英场景集 → 增加精确 section anchor → 接 runtime abort/stream → 明确 transcript 生命周期与清除策略 → E2E 覆盖六模式中的关键三模式。
 
-### AG4 Task Adaptation — 设计完成（未实现；`main` 上只有静态任务生成与 `SIMPLIFY` 建议）
+### AG4 Task Adaptation — 设计完成（未实现持久化改写；`main` 上只有静态任务生成，以及 AG2 的 `MICRO_START`/`SIMPLIFY` 读时派生改写）
 
-- 当前证据：课程导入时有 micro-task generator；policy 能选择 `SIMPLIFY`；既有 session plan UI/任务生命周期可作为接入点。
-- 差距：没有 `AdaptiveTask` schema、SHRINK/SPLIT/CHANGE_MODALITY 服务、plan reorder proposal、adaptive practice persistence、确认式结构写入；现有 SIMPLIFY 不等于真实任务变更。
+- 当前证据：课程导入时有 micro-task generator；policy 能选择 `SIMPLIFY`；#171/#172 已把 `MICRO_START`/`SIMPLIFY` 接到读时派生的任务改写（确认 + 幂等提案，课程不被写入）；既有 session plan UI/任务生命周期可作为接入点。
+- 差距：没有 `AdaptiveTask` schema、持久化的 SHRINK/SPLIT/CHANGE_MODALITY 服务、plan reorder proposal、adaptive practice persistence；`MICRO_START`/`SIMPLIFY` 不等于计划的持久化修订。
 - 验收标准：生成的 adaptive task 绑定来源 task/concept/reason，单步 1–5 分钟且可恢复；结构性变更必须先展示 diff 并由用户确认；拒绝不改变 plan；接受后持久化并发出事件；重复提交幂等；离线至少能模板化 shrink/split。
 - 依赖：先完成 AG8 工具/权限（**硬依赖**）；AG10 safety tests。
 - **依赖倒置修正**：本文原先写“AG4 依赖 AG7 episodic schema”，而 Phase 3 (AG4) 排在 Phase 4 (AG7) 之前，

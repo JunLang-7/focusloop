@@ -30,7 +30,7 @@ const plan = buildRescuePlan(decision('HINT'), {
 
 describe('AG2 rescue plans', () => {
   it.each([
-    ['MICRO_START', 1, 5],
+    ['MICRO_START', 1, 2],
     ['SIMPLIFY', 3, 3],
     ['HINT', 2, 2],
     ['EXAMPLE', 2, 4],

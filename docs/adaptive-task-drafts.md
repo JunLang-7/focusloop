@@ -72,8 +72,12 @@ of confirmation.
 2. Learner preview/confirmation, decline handling, persisted task display and restart/resume restore.
 3. Split, modality change, plan reorder and targeted practice with their own validation and tests.
 
-Each slice closes only its sub-issue. Do not close #89 or describe SIMPLIFY as a real plan mutation
-until those paths are implemented and verified.
+Each slice closes only its sub-issue. The AG2 rescue slices now apply a confirmed draft for
+`MICRO_START` and `SIMPLIFY` (#171, #172): the engine proposes the rewrite through the confirmation
+envelope and serves it out of that proposal on every read, so the course is never written. That is
+narrower than the "session-scoped adaptive task" above — there is no persisted rewritten plan, no
+fingerprint binding and no restore step, because there is nothing to restore. Do not close #89 until
+modality change, plan reorder and adaptive-practice persistence are implemented and verified.
 
 ## Verification
 

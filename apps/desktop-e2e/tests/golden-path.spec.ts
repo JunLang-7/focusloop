@@ -1462,6 +1462,53 @@ test('accepting MICRO_START narrows the task to its first step, for two minutes'
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
 
+/*
+ * SIMPLIFY is the other half of AG2's task rewrite (#172): MICRO_START narrows the task to one step,
+ * and SIMPLIFY takes it apart into the steps it is made of. The steps are the ones its own concept is
+ * grounded in, in the order the course lists them, and the estimate the learner reads is their total.
+ */
+test('accepting SIMPLIFY splits the task into the steps it is made of', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  // The split needs a task long enough to hold more than one step, so the two shorter ones go first.
+  await window.getByTestId('complete-task').click();
+  await window.getByTestId('start-task').first().click();
+  await window.getByTestId('complete-task').click();
+  await window.getByTestId('start-task').first().click();
+
+  const title = await window.getByTestId('task-title').innerText();
+  const instructions = window.locator('.focus-task__instructions');
+  const wholeTask = await instructions.innerText();
+  await expect(window.locator('.focus-task__meta')).toContainText('about 6 min');
+
+  await window.getByTestId('focus-stuck').click();
+  await window.getByTestId('stuck-too-big').click();
+  await expect(window.locator('.agent')).toHaveAttribute('data-action', 'SIMPLIFY');
+  await window.getByTestId('notice-simplify').click();
+  await expect(window.getByTestId('agent-accepted')).toBeVisible();
+
+  // The same task, presented as its concept's own key points — and at the steps' total, not the
+  // six-minute estimate the whole task carries. The pattern tolerates the blank line between steps
+  // because it is text in one paragraph, and matching it exactly would pin the markup rather than the
+  // plan.
+  await expect(window.getByTestId('task-title')).toHaveText(title);
+  await expect(instructions).toHaveText(
+    /^left rotation moves the pivot down-right\s+rotations are O\(1\)$/,
+  );
+  await expect(instructions).not.toHaveText(wholeTask);
+  await expect(window.locator('.focus-task__meta')).toContainText('about 4 min');
+
+  // Continuing hands the whole task back, exactly as it does for a narrow.
+  await window.getByTestId('agent-accepted').getByRole('button', { name: 'Continue' }).click();
+  await expect(instructions).toHaveText(wholeTask);
+  await expect(window.locator('.focus-task__meta')).toContainText('about 6 min');
+
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
 test('the tutor asks the main process, and says so when no model is connected', async () => {
   // The previous test leaves the app on the focus screen with no session — "No session running" and no
   // course list — so the session has to be started from the home screen, as the other tests do.

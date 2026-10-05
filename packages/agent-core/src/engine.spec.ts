@@ -564,6 +564,85 @@ describe('FocusLoopEngine', () => {
       expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]).toEqual(stored);
     });
 
+    it('splits the task into its grounded steps when SIMPLIFY is accepted', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      // The six-minute practice task is the first one long enough to hold more than one step.
+      const stored = ctx.store
+        .getCourse(DEMO_COURSE_ID)!
+        .microTasks.find((item) => item.id === 'rbt-t3')!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'too-big', taskId: stored.id },
+      });
+      expect(asked.rescue?.decision.action).toBe('SIMPLIFY');
+
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+
+      const served = ctx.engine
+        .getCourse(DEMO_COURSE_ID)!
+        .microTasks.find((item) => item.id === stored.id)!;
+      // One step per grounded key point, at the steps' own total rather than the task's.
+      expect(served.instructions).toBe(
+        'left rotation moves the pivot down-right\n\nrotations are O(1)',
+      );
+      expect(served.estimatedMinutes).toBe(4);
+      expect(ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[2]).toEqual(stored);
+      // The learner's own order is what it was: a split splits one task, it does not resequence them.
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks.map((item) => item.id)).toEqual(
+        ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks.map((item) => item.id),
+      );
+      expect(
+        ctx.store.getAgentProposalByIdempotencyKey(
+          `task-rewrite:SIMPLIFY:${session.id}:${stored.id}`,
+        )?.status,
+      ).toBe('executed');
+    });
+
+    it('leaves a task that cannot hold two steps whole instead of calling one step a split', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      // Three minutes is one two-minute step and nothing more, so there is no split to offer: the task
+      // stays as it is rather than being narrowed under the name of a plan.
+      const stored = ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'too-big', taskId: stored.id },
+      });
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]).toEqual(stored);
+      expect(
+        ctx.store.getAgentProposalByIdempotencyKey(
+          `task-rewrite:SIMPLIFY:${session.id}:${stored.id}`,
+        ),
+      ).toBeNull();
+      // The offer still stands, which is what keeps the deterministic plan working offline.
+      expect(ctx.engine.getPendingRescue(session.id)?.phase).toBe('active');
+    });
+
     it('answers a reasoned help request through the engine, not only in the policy package', () => {
       /*
        * `docs/testing.md` asks agent-core to prove every policy rule *through the engine*, and the

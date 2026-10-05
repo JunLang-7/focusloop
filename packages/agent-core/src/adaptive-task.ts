@@ -129,3 +129,20 @@ function groundedFocus(context: AgentContext): AdaptiveTaskFocus | null {
   const text = materialSentence(context);
   return text === null ? null : { source: 'material-sentence', text };
 }
+
+/**
+ * The grounded texts a split can be made of, in the order the course lists them.
+ *
+ * One focus point is a shrink; several are a split, and each one has to pass the same grounding check
+ * a single focus does — a step that merely reprints the task's own goal is not a smaller step. A
+ * concept with nothing grounded returns nothing, so a caller cannot split what it cannot ground.
+ */
+export function groundedSplitTexts(context: AgentContext | null): readonly string[] {
+  if (context === null) return [];
+  const texts: string[] = [];
+  for (const point of context.concept.keyPoints.slice(0, ADAPTIVE_TASK_LIMITS.keyPoints)) {
+    const text = focusText(point, context);
+    if (text !== null) texts.push(text);
+  }
+  return texts;
+}

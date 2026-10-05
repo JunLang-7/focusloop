@@ -171,18 +171,27 @@ It is stored on the session and cleared by `SESSION_STARTED`, because the order 
 rather than to the course. Starting another session is a clean slate, not a standing preference the
 learner cannot get back out of.
 
-### A task that is narrowed, not rewritten
+### A task that is narrowed or split, not rewritten
 
-`MICRO_START` promises the learner a smaller task, and the way it keeps that promise is deliberately
-not a write to the course. Accepting it goes through the confirmation envelope (#114): one
-`agent_proposals` row per session, task and action, confirmed and executed once, with the
-`AGENT_PROPOSAL_EXECUTED` audit event above. The narrowing itself is derived on every read — the engine
-looks that proposal up by its deterministic idempotency key and applies it to the one task it names
-(`applyTaskRewrite` in `agent-core`) as the course is served to the renderer.
+`MICRO_START` promises the learner a smaller task and `SIMPLIFY` promises the steps it is made of, and
+the way they keep those promises is deliberately not a write to the course. Accepting either goes
+through the confirmation envelope (#114): one `agent_proposals` row per session, task and action,
+confirmed and executed once, with the `AGENT_PROPOSAL_EXECUTED` audit event above. The rewrite itself is
+derived on every read — the engine looks that proposal up by its deterministic idempotency key and
+applies it to the one task it names (`applyTaskRewrite` in `agent-core`) as the course is served to the
+renderer.
+
+A rewrite is a list of steps, each one grounded in the task's own concept and bounded to its own 1–5
+minutes. `MICRO_START` is the single two-minute step the task starts with, and `SIMPLIFY` is several of
+them, stopping while their total still fits inside the task's own estimate — a split that adds up to
+more than the learner was given is not simpler than the task, so the builder refuses it rather than
+trimming it into a plan nobody was offered. The task is then served with the steps as its instructions
+and their total as its estimate, in the order the course lists its own key points, which is what leaves
+the learner's task order (#23) exactly as they set it.
 
 Two properties fall out of that shape rather than out of code that has to be correct. The learner's
 course is never overwritten, so there is nothing to restore and no half-applied rewrite to find later;
-and the narrowing stops applying the moment the task is no longer the current one, or the moment the
+and the rewrite stops applying the moment the task is no longer the current one, or the moment the
 learner continues the task, which is what "finishing or continuing returns the full task" means. A
 proposal that was refused or expired leaves the task exactly as it was, because "accepted and applied"
 is defined as `executed` and nothing else.

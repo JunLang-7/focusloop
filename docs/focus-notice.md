@@ -47,7 +47,10 @@ accepted: a bridge failure or a session/task change cannot accidentally accept a
 The secondary Try this affordance is retained for HINT/EXAMPLE so the surface does not regress
 AG2's reason-specific help. Automatic legacy suggestions retain their existing actions. No policy
 cooldown, daily budget, priority, model call, persistence schema or IPC contract is changed.
-SIMPLIFY still provides the existing local plan; actual adaptive-task mutation remains AG4 work.
+SIMPLIFY still provides the existing local plan, and accepting it now also splits the current task
+into the steps its own concept is grounded in (#172), the same way accepting Continue narrows it
+(#171). The task is served rewritten rather than written. Modality change, plan reorder and
+adaptive practice remain AG4 work.
 
 Two behaviours are worth stating rather than discovering. A policy suggestion that exists before any
 request exposes both routes: the panel's own accept (HINT/EXAMPLE only) and the three-way choice,

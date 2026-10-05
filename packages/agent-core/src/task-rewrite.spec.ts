@@ -7,9 +7,11 @@ import type {
   TaskRewrite,
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
-import { applyTaskRewrite, buildMicroStartRewrite, rewriteIdempotencyKey } from './task-rewrite';
+import { applyTaskRewrite, buildTaskRewrite, rewriteIdempotencyKey } from './task-rewrite';
 
-const FOCUS = 'the in-order sequence is preserved';
+const FIRST = 'in-order traversal is sorted';
+const SECOND = 'a rotation preserves the in-order sequence';
+const THIRD = 'a recoloured node never moves';
 
 function task(overrides: Partial<MicroTask> = {}): MicroTask {
   return {
@@ -36,7 +38,7 @@ function course(overrides: Partial<Course> = {}): Course {
         title: 'Rotations',
         summary: 'A rotation restructures three nodes.',
         order: 0,
-        keyPoints: [FOCUS],
+        keyPoints: [FIRST, SECOND, THIRD],
       },
     ],
     microTasks: [
@@ -86,21 +88,24 @@ function context(
   }).context;
 }
 
-const rewrite: TaskRewrite = {
+const rewrite = (): TaskRewrite => ({
   action: 'MICRO_START',
   taskId: 't1',
-  steps: [FOCUS],
+  steps: [{ text: FIRST, estimatedMinutes: 2 }],
   estimatedMinutes: 2,
   sourceEstimatedMinutes: 7,
-};
+});
 
 describe('MICRO_START narrows a task to its first grounded step', () => {
   it('turns a seven-minute task into one step of two minutes', () => {
-    expect(buildMicroStartRewrite(context())).toEqual({ status: 'suggested', rewrite });
+    expect(buildTaskRewrite('MICRO_START', context())).toEqual({
+      status: 'suggested',
+      rewrite: rewrite(),
+    });
   });
 
   it('refuses without a context rather than inventing a step', () => {
-    expect(buildMicroStartRewrite(null)).toEqual({
+    expect(buildTaskRewrite('MICRO_START', null)).toEqual({
       status: 'unavailable',
       reason: 'missing-context',
     });
@@ -130,16 +135,78 @@ describe('MICRO_START narrows a task to its first grounded step', () => {
       'no-grounded-focus',
     ],
   ])('refuses %s', (_name, courseValue, reason) => {
-    expect(buildMicroStartRewrite(context(courseValue))).toEqual({ status: 'unavailable', reason });
+    expect(buildTaskRewrite('MICRO_START', context(courseValue))).toEqual({
+      status: 'unavailable',
+      reason,
+    });
   });
 
   it('refuses when the learner is on no task at all', () => {
     expect(
-      buildMicroStartRewrite(context(course(), session({ currentTaskId: undefined }))),
-    ).toEqual({
-      status: 'unavailable',
-      reason: 'missing-task',
+      buildTaskRewrite('MICRO_START', context(course(), session({ currentTaskId: undefined }))),
+    ).toEqual({ status: 'unavailable', reason: 'missing-task' });
+  });
+});
+
+describe('SIMPLIFY splits a task into grounded steps of bounded minutes', () => {
+  it('splits a seven-minute task into three steps of two minutes', () => {
+    expect(buildTaskRewrite('SIMPLIFY', context())).toEqual({
+      status: 'suggested',
+      rewrite: {
+        action: 'SIMPLIFY',
+        taskId: 't1',
+        steps: [
+          { text: FIRST, estimatedMinutes: 2 },
+          { text: SECOND, estimatedMinutes: 2 },
+          { text: THIRD, estimatedMinutes: 2 },
+        ],
+        estimatedMinutes: 6,
+        sourceEstimatedMinutes: 7,
+      },
     });
+  });
+
+  it('stops splitting while the steps still fit inside the task', () => {
+    // Two steps of two minutes fit a five-minute task; a third would add up to more than the learner
+    // was given, which is not a simpler task.
+    const result = buildTaskRewrite(
+      'SIMPLIFY',
+      context(course({ microTasks: [task({ estimatedMinutes: 5 })] })),
+    );
+    expect(result).toMatchObject({
+      status: 'suggested',
+      rewrite: { estimatedMinutes: 4, steps: [{ text: FIRST }, { text: SECOND }] },
+    });
+  });
+
+  it('refuses rather than calling one step a split', () => {
+    // A four-minute task holds one two-minute step and nothing more.
+    expect(
+      buildTaskRewrite(
+        'SIMPLIFY',
+        context(course({ microTasks: [task({ estimatedMinutes: 4 })] })),
+      ),
+    ).toEqual({ status: 'unavailable', reason: 'no-split-steps' });
+    expect(
+      buildTaskRewrite(
+        'SIMPLIFY',
+        context(
+          course({
+            concepts: [{ id: 'k1', title: 'Rotations', summary: '', order: 0, keyPoints: [FIRST] }],
+          }),
+        ),
+      ),
+    ).toEqual({ status: 'unavailable', reason: 'no-split-steps' });
+  });
+
+  it('refuses the same contexts MICRO_START refuses', () => {
+    expect(buildTaskRewrite('SIMPLIFY', null)).toEqual({
+      status: 'unavailable',
+      reason: 'missing-context',
+    });
+    expect(
+      buildTaskRewrite('SIMPLIFY', context(course({ microTasks: [task({ kind: 'quiz' })] }))),
+    ).toEqual({ status: 'unavailable', reason: 'unsupported-task-kind' });
   });
 });
 
@@ -158,10 +225,10 @@ describe('the rewrite key', () => {
 describe('applying a rewrite to the course the learner sees', () => {
   it('narrows the named task and leaves the course handed in untouched', () => {
     const original = course();
-    const narrowed = applyTaskRewrite(original, rewrite);
+    const narrowed = applyTaskRewrite(original, rewrite());
     expect(narrowed.microTasks[0]).toMatchObject({
       id: 't1',
-      instructions: FOCUS,
+      instructions: FIRST,
       estimatedMinutes: 2,
     });
     expect(narrowed.microTasks[1]).toEqual(original.microTasks[1]);
@@ -170,17 +237,22 @@ describe('applying a rewrite to the course the learner sees', () => {
     expect(original.microTasks[0]?.estimatedMinutes).toBe(7);
   });
 
-  it('returns the same course when the rewrite names a task that is not there', () => {
-    const original = course();
-    expect(applyTaskRewrite(original, { ...rewrite, taskId: 'gone' })).toBe(original);
-  });
-
-  it('joins several steps into one set of instructions', () => {
+  it('writes a split plan as one step per line, at the steps own total', () => {
     const narrowed = applyTaskRewrite(course(), {
-      ...rewrite,
+      ...rewrite(),
       action: 'SIMPLIFY',
-      steps: ['first', 'second'],
+      steps: [
+        { text: 'first', estimatedMinutes: 2 },
+        { text: 'second', estimatedMinutes: 3 },
+      ],
+      estimatedMinutes: 5,
     });
     expect(narrowed.microTasks[0]?.instructions).toBe('first\n\nsecond');
+    expect(narrowed.microTasks[0]?.estimatedMinutes).toBe(5);
+  });
+
+  it('returns the same course when the rewrite names a task that is not there', () => {
+    const original = course();
+    expect(applyTaskRewrite(original, { ...rewrite(), taskId: 'gone' })).toBe(original);
   });
 });

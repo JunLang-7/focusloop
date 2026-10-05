@@ -286,6 +286,8 @@ describe('intervention policy — state driven actions', () => {
   it('offers MICRO_START when the learner cannot begin', () => {
     const decision = decide({ engineState: engineWith({ state: 'INITIATION_FRICTION' }) });
     expect(decision.action).toBe('MICRO_START');
+    // The card quotes the size of the task the action rewrites the learner's into, not a second number.
+    expect(decision.estimatedMinutes).toBe(2);
   });
 
   it('asks a self-explanation question after one wrong answer', () => {

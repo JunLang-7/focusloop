@@ -11,7 +11,7 @@ import type {
   RescueReasonMap,
   StuckReason,
 } from '@focusloop/shared-types';
-import { isStuckReason, message } from '@focusloop/shared-types';
+import { ADAPTIVE_TASK_LIMITS, isStuckReason, message } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 import type { InterventionPolicyConfig } from './config';
 import { resolvePolicyConfig } from './config';
@@ -27,7 +27,9 @@ export interface DecideInterventionInput {
 
 const ACTION_MINUTES: Record<InterventionAction, number> = {
   NO_ACTION: 0,
-  MICRO_START: 5,
+  // "Only the first step, two minutes" is the promise the action makes, so the card quotes the size of
+  // the narrowed task rather than a separate number that could drift from the one it is rewritten to.
+  MICRO_START: ADAPTIVE_TASK_LIMITS.preferredShrinkMinutes,
   SIMPLIFY: 3,
   HINT: 2,
   EXAMPLE: 4,

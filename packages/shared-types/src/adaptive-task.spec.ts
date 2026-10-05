@@ -98,7 +98,12 @@ describe('adaptive task draft contract', () => {
 const rewrite = (): TaskRewrite => ({
   action: 'MICRO_START',
   taskId: 't1',
-  steps: ['Remove the root and write down what happens to the left subtree.'],
+  steps: [
+    {
+      text: 'Remove the root and write down what happens to the left subtree.',
+      estimatedMinutes: 2,
+    },
+  ],
   estimatedMinutes: 2,
   sourceEstimatedMinutes: 8,
 });
@@ -106,7 +111,17 @@ const rewrite = (): TaskRewrite => ({
 describe('task rewrite contract', () => {
   it('accepts a narrower rewrite after JSON round-trip', () => {
     expect(isTaskRewrite(JSON.parse(JSON.stringify(rewrite())))).toBe(true);
-    expect(isTaskRewrite({ ...rewrite(), action: 'SIMPLIFY', steps: ['a', 'b'] })).toBe(true);
+    expect(
+      isTaskRewrite({
+        ...rewrite(),
+        action: 'SIMPLIFY',
+        steps: [
+          { text: 'first', estimatedMinutes: 2 },
+          { text: 'second', estimatedMinutes: 3 },
+        ],
+        estimatedMinutes: 5,
+      }),
+    ).toBe(true);
   });
 
   it.each([
@@ -121,16 +136,31 @@ describe('task rewrite contract', () => {
     { ...rewrite(), taskId: 'x'.repeat(ADAPTIVE_TASK_LIMITS.idCharacters + 1) },
     { ...rewrite(), steps: [] },
     { ...rewrite(), steps: 'not a list' },
-    { ...rewrite(), steps: [''] },
-    { ...rewrite(), steps: [' '] },
-    { ...rewrite(), steps: ['x'.repeat(TASK_REWRITE_LIMITS.stepCharacters + 1)] },
-    { ...rewrite(), steps: Array.from({ length: TASK_REWRITE_LIMITS.steps + 1 }, () => 'step') },
-    { ...rewrite(), estimatedMinutes: 0 },
-    { ...rewrite(), estimatedMinutes: 6 },
+    { ...rewrite(), steps: ['not a step object'] },
+    { ...rewrite(), steps: [{ text: 'step' }] },
+    { ...rewrite(), steps: [{ text: '', estimatedMinutes: 2 }] },
+    { ...rewrite(), steps: [{ text: ' ', estimatedMinutes: 2 }] },
+    {
+      ...rewrite(),
+      steps: [{ text: 'x'.repeat(TASK_REWRITE_LIMITS.stepCharacters + 1), estimatedMinutes: 2 }],
+    },
+    { ...rewrite(), steps: [{ text: 'step', estimatedMinutes: 0 }] },
+    { ...rewrite(), steps: [{ text: 'step', estimatedMinutes: 6 }] },
+    {
+      ...rewrite(),
+      steps: Array.from({ length: TASK_REWRITE_LIMITS.steps + 1 }, () => ({
+        text: 'step',
+        estimatedMinutes: 1,
+      })),
+      estimatedMinutes: TASK_REWRITE_LIMITS.steps + 1,
+    },
+    // The total has to be the steps', not a number that happens to sit beside them.
+    { ...rewrite(), estimatedMinutes: 1 },
+    { ...rewrite(), estimatedMinutes: 3 },
     { ...rewrite(), estimatedMinutes: 1.5 },
     // Not narrower than the task it replaces, so there is nothing for it to rewrite.
-    { ...rewrite(), estimatedMinutes: 8 },
     { ...rewrite(), sourceEstimatedMinutes: 2 },
+    { ...rewrite(), sourceEstimatedMinutes: 8, estimatedMinutes: 8 },
     { ...rewrite(), sourceEstimatedMinutes: NaN },
     { ...rewrite(), extra: undefined },
     { ...rewrite(), execute: () => {} },

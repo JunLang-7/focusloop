@@ -134,11 +134,21 @@ export function isTaskRewriteAction(value: unknown): value is TaskRewriteAction 
   return typeof value === 'string' && (TASK_REWRITE_ACTIONS as readonly string[]).includes(value);
 }
 
+/** One step of a narrowed task, with the estimate that step alone carries. */
+export interface TaskRewriteStep {
+  readonly text: string;
+  readonly estimatedMinutes: number;
+}
+
 export interface TaskRewrite {
   readonly action: TaskRewriteAction;
   readonly taskId: string;
   /** What the learner reads instead of the whole task, front to back. */
-  readonly steps: readonly string[];
+  readonly steps: readonly TaskRewriteStep[];
+  /**
+   * The steps' own total, and checked against them rather than trusted beside them: a rewrite whose
+   * summary disagrees with the steps it is made of is a rewrite nobody can reason about.
+   */
   readonly estimatedMinutes: number;
   /** The task's own estimate, kept so the narrowing can be shown as a comparison. */
   readonly sourceEstimatedMinutes: number;
@@ -162,17 +172,30 @@ export function isTaskRewrite(value: unknown): value is TaskRewrite {
     const steps = rewrite['steps'];
     if (!Array.isArray(steps)) return false;
     if (steps.length === 0 || steps.length > TASK_REWRITE_LIMITS.steps) return false;
-    if (!steps.every((step) => boundedText(step, TASK_REWRITE_LIMITS.stepCharacters))) return false;
-    const minutes = boundedMinutes(rewrite['estimatedMinutes']);
+    let total = 0;
+    for (const step of steps) {
+      const minutes = stepMinutes(step);
+      if (minutes === null) return false;
+      total += minutes;
+    }
+    const minutes = rewrite['estimatedMinutes'];
+    if (typeof minutes !== 'number' || !Number.isInteger(minutes) || minutes !== total)
+      return false;
     const before = rewrite['sourceEstimatedMinutes'];
     if (typeof before !== 'number' || !Number.isFinite(before) || before <= 0) return false;
-    // The task's own estimate is not bounded the way a suggestion is — it is whatever the course
-    // says — but it still has to be larger, because a rewrite that is not narrower is not a rewrite.
-    return minutes !== null && before > minutes;
+    // The task's own estimate is not bounded the way a step's is — it is whatever the course says —
+    // but it still has to be larger, because a rewrite that is not narrower is not a rewrite.
+    return before > total;
   } catch {
     // Hostile non-JSON objects (e.g. throwing proxy traps) are not contract data.
     return false;
   }
+}
+
+function stepMinutes(value: unknown): number | null {
+  const step = dataRecord(value, ['text', 'estimatedMinutes']);
+  if (step === null || !boundedText(step['text'], TASK_REWRITE_LIMITS.stepCharacters)) return null;
+  return boundedMinutes(step['estimatedMinutes']);
 }
 
 function boundedMinutes(value: unknown): number | null {
