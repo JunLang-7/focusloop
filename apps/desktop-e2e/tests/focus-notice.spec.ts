@@ -15,24 +15,54 @@ const MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs
 
 /** The actual task and its action, not merely the notice, must remain usable. */
 async function taskIsUnobstructed(page: Page): Promise<void> {
-  await page.locator('.focus-task--active').scrollIntoViewIfNeeded();
-  await page.getByTestId('complete-task').scrollIntoViewIfNeeded();
+  const title = page.getByTestId('task-title');
+  const action = page.getByTestId('complete-task');
+  await title.scrollIntoViewIfNeeded();
+  await action.scrollIntoViewIfNeeded();
   const task = await page.locator('.focus-task--active').boundingBox();
-  const action = await page.getByTestId('complete-task').boundingBox();
+  const titleBox = await title.boundingBox();
+  const actionBox = await action.boundingBox();
   const notice = await page.getByTestId('focus-notice').boundingBox();
+  const stage = await page.locator('.focus-stage').evaluate((element) => {
+    const rect = element.getBoundingClientRect();
+    return {
+      left: rect.left + element.clientLeft,
+      top: rect.top + element.clientTop,
+      right: rect.left + element.clientLeft + element.clientWidth,
+      bottom: rect.top + element.clientTop + element.clientHeight,
+    };
+  });
+  const viewport = page.viewportSize()!;
   const simulator =
     (await page.locator('.simulator').count()) > 0
       ? await page.locator('.simulator').boundingBox()
       : null;
   expect(task).not.toBeNull();
-  expect(action).not.toBeNull();
+  expect(titleBox).not.toBeNull();
+  expect(actionBox).not.toBeNull();
   expect(notice).not.toBeNull();
-  expect(task!.y + task!.height).toBeLessThanOrEqual(notice!.y);
-  expect(action!.y + action!.height).toBeLessThanOrEqual(notice!.y);
+  // The task stage is a scroll container on short windows. Its off-screen
+  // portion may extend below the notice in layout coordinates, but cannot
+  // overlap it visually; assert the part that can actually be rendered.
+  const visibleTask = {
+    left: Math.max(task!.x, stage.left, 0),
+    top: Math.max(task!.y, stage.top, 0),
+    right: Math.min(task!.x + task!.width, stage.right, viewport.width),
+    bottom: Math.min(task!.y + task!.height, stage.bottom, viewport.height),
+  };
+  const overlapsNotice =
+    visibleTask.left < notice!.x + notice!.width &&
+    visibleTask.right > notice!.x &&
+    visibleTask.top < notice!.y + notice!.height &&
+    visibleTask.bottom > notice!.y;
+  expect(overlapsNotice).toBe(false);
+  expect(titleBox!.y + titleBox!.height).toBeLessThanOrEqual(notice!.y);
+  expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(notice!.y);
   expect(notice!.y + notice!.height).toBeLessThanOrEqual(
-    simulator?.y ?? page.viewportSize()!.height,
+    simulator?.y ?? viewport.height,
   );
-  await expect(page.getByTestId('complete-task')).toBeInViewport();
+  await expect(title).toBeInViewport({ ratio: 1 });
+  await expect(action).toBeInViewport({ ratio: 1 });
 }
 
 test('one bottom slot preserves pending choices, priority, keyboard access and the task', async ({
@@ -50,11 +80,17 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     await page.clock.install();
     await page.getByTestId('course-card').first().getByTestId('start-session').click();
     await page.getByTestId('start-task').first().click();
+    // The phase can reflect the session before the renderer-local timer starts.
+    // Wait for the displayed estimate to change before testing expiry, so a
+    // clock jump cannot pass while the local countdown has not started yet.
+    await expect(page.locator('.focus-workspace')).toHaveAttribute('data-phase', 'active');
+    const clock = page.locator('.focus-clock__value');
+    await expect(clock).not.toHaveText('3:00');
     const notice = page.getByTestId('focus-notice');
     const toggle = page.getByTestId('focus-notice-toggle');
 
     // The three-minute commitment expires without changing main-process time or policy.
-    await page.clock.fastForward(180_250);
+    await page.clock.fastForward(179_250);
     await expect(notice).toHaveAttribute('data-notice', 'time-up');
     await taskIsUnobstructed(page);
     await page.screenshot({ path: info.outputPath('time-up.png') });
