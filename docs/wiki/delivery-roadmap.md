@@ -76,14 +76,14 @@ Home
 - 风险：事件 payload 将来扩展后绕过过滤；字符预算与真实 token 预算偏差；Inspector 让开发者误以为它等于完整 Tutor prompt。
 - 实施步骤：写 Context Data Contract → 建字段 allowlist/denylist → 加敏感 payload fixtures → 统一 context/prompt inspection 导航 → 加预算与跨课程隔离回归测试。
 
-### AG2 Stuck Rescue — 已合并（六类原因与记录已合并；Rescue 计划与评估器仍在分支）
+### AG2 Stuck Rescue — 已合并（六类原因与记录、Rescue 计划与成功评估器均已合并）
 
 - 当前证据：六类 `StuckReason`；UI picker；reason→action 确定性映射；`MICRO_START/SIMPLIFY/HINT/EXAMPLE/BREAK` 等 intervention；cooldown、预算、升级规则与 outcome 记录均有测试。
 - 差距：多数“skill”仍是 intervention descriptor/文案，未生成可执行临时步骤或真正缩小任务；救援成功的定义未形成统一窗口指标；“换一种解释/例子”与 AG3 Tutor 的复用边界需固定。
 - 验收标准：六类原因逐一触发预期 action；主动打断只能由 deterministic policy 决定；所有展示均可接受/拒绝并记录；接受后能进入具体下一步；在规定窗口内以“开始/完成下一微步、无重复求助”计算 outcome；离线仍可完成每类基础救援。
 - 依赖：AG1；AG8 的动作合同（对可执行救援）；AG10 scenario harness。
 - 风险：同一求助重复消费；干预过频；把“疲劳”固化为长期画像；SIMPLIFY 名义完成但任务不变。
-- 实施步骤：定义 RescueResult 与成功窗口 → 固定 AG2/AG3 路由 → 将 MICRO_START/SIMPLIFY 接到临时任务工具 → 完成 outcome evaluator → 做六类 E2E。
+- 实施步骤：定义 RescueResult 与成功窗口 → 固定 AG2/AG3 路由 → **完成 outcome evaluator（已合并，PR #124）** → 将 MICRO_START/SIMPLIFY 接到任务改写（AG2.3/2.4）→ 做六类 E2E（AG2.8）。
 
 ### AG3 Contextual Tutor — 已合并（`107a30f`，PR #101）
 

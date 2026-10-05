@@ -80,7 +80,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 | B 干预  | 「我卡住了」六类原因           | E2E 验证 | `534bc1c` (#100)                                                  | 原因先被记录，再决定行动                                         |
 | B 干预  | 干预策略（确定性 8 类 action） | CI 绿    | `packages/intervention-policy`                                    | 模型不决定是否打断                                               |
 | B 干预  | 干预结果记录与 Dashboard 汇总  | CI 绿    | outcome 事件 + Dashboard                                          | 记录展示/接受/拒绝/完成                                          |
-| B 干预  | Rescue 计划与成功评估器        | 分支完成 | `0f19c9f`（无 PR）                                                | 未合并；SHRINK/SPLIT 仍未实现                                    |
+| B 干预  | Rescue 计划与成功评估器        | 已合并   | `ae1d690` (PR #124)                                               | SHRINK/SPLIT 仍未实现（AG2.3/2.4）                               |
 | C 恢复  | Learning Checkpoint            | CI 绿    | `buildCheckpoint` + store                                         | 内容主要从任务进度推导                                           |
 | C 恢复  | Resume Card（统一版）          | E2E 验证 | `packages/continuity` + Dashboard                                 | 只有一档，不区分离开时长                                         |
 | C 恢复  | Resume 三档 + 重新参与指标     | 分支完成 | `0f19c9f`（无 PR）                                                | 未合并；指标口径需按 §4.C3 改名                                  |
@@ -239,15 +239,15 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 8. **依赖**：B3。
 9. **怎么验证**：engine 单测 + Dashboard 断言。
 
-#### B5 Rescue 计划与成功评估器 — 分支完成
+#### B5 Rescue 计划与成功评估器 — 已合并（PR #124）
 
 1. **定位**：把「换个说法」变成「下一步做什么」，并回答救援有没有起作用。
-2. **用户怎么用**（分支 `0f19c9f`）：接受建议后看到具体微步骤；Dashboard 看救援结果。
-3. **何时发生**（分支）：确定性：`decideIntervention`（已合并）→ `buildRescuePlan` → `evaluateRescueSuccess`（后两者在 `0f19c9f`）。
+2. **用户怎么用**：接受建议后看到具体微步骤；Dashboard 看救援结果。
+3. **何时发生**：确定性：`decideIntervention` → `buildRescuePlan` → `evaluateRescueSuccess`（三者均已合并；后两者在 `ae1d690`／PR #124）。
 4. **永不做什么**：不复制一套 reason/action 参考表（eval 直接驱动生产纯函数）。
 5. **数据与边界**：`shared-types/src/rescue.ts` + `intervention-policy/src/rescue.ts`；事件落本机。
-6. **状态与证据**：**分支完成** — `feat/agent-phase1-evals-rescue` @ `0f19c9f`，**当前没有 PR**。
-7. **已知限制**：未合并；桌面链路与 BREAK 计时器的 E2E **在本机未通过**（`main` 上 `golden path` 为绿），归因见 #107。
+6. **状态与证据**：已合并 — `ae1d690`（PR #124）；engine 派发、Dashboard 汇总与 18 个 AG2 JSON 场景均在 `main`。
+7. **已知限制**：`SIMPLIFY` / `MICRO_START` 仍是文案，未真正缩小或拆分任务（AG2.3/2.4）；六类 E2E 仍缺（AG2.8）。
 8. **依赖**：B2、B3、B4；完整六类 e2e 依赖 AG4/AG8 的动作契约。
 9. **怎么验证**：18 个 AG2 JSON 场景（happy/edge/adversarial）重复运行结果一致。
 
@@ -450,10 +450,10 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 3. **何时发生**：原因 + 状态 + 确定性策略。
 4. **永不做什么**：不猜原因；不自动改计划；不静默升级打扰频率。
 5. **数据与边界**：原因、建议、结果都作为事件落本机。
-6. **状态与证据**：已合并 — `534bc1c` (#100)；Rescue 计划与评估器在 `0f19c9f`（分支完成）。
+6. **状态与证据**：已合并 — `534bc1c` (#100)；Rescue 计划与成功评估器同样已合并（`ae1d690`，PR #124）。
 7. **已知限制**：`SIMPLIFY` / `MICRO_START` 仍是文案，未真正缩小或拆分任务；这是 AG4 的活。
 8. **依赖**：F1；可执行动作依赖 AG8。
-9. **怎么验证**：`intervention-policy` 单测 + 18 个 AG2 场景（分支上）+ `golden path`。
+9. **怎么验证**：`intervention-policy` 单测 + 18 个 AG2 JSON 场景（已合并，`packages/agent-evals`）+ `golden path`。
 
 #### F3 AG3 Contextual Tutor — 已合并（#101）
 

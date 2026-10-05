@@ -15,7 +15,7 @@
 | AG3 (#101)         | 2026-09-20 | Tutor 契约、引擎、transcript、面板 | **PR 已开**  | PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101) | 未合并；领域层英文字符串违反 i18n               |
 | Phase 0 / Slice 1  | 2026-09-21 | AG10 harness + AG1 字段投影        | **分支完成** | `0f19c9f`（无 PR）                                             | 未合并；`main` 上没有 `agent-evals`             |
 | Phase 1 / Slice 2  | 2026-09-21 | AG5 三档 + 重新参与指标            | **分支完成** | `0f19c9f`（无 PR）                                             | 未合并；指标口径待改名；本机 E2E 未通过（#107） |
-| Phase 1 / AG2 切片 | 2026-09-22 | rescue plan + outcome evaluator    | **分支完成** | `0f19c9f`（无 PR）                                             | 未合并；本机 E2E 未通过（#107）                 |
+| Phase 1 / AG2 切片 | 2026-09-22 | rescue plan + outcome evaluator    | 已合并       | `ae1d690`（PR #124）                                           | 动作层仍待 AG4/AG8                              |
 
 ## Phase 0 / Slice 1
 
@@ -131,7 +131,7 @@
 | 分支                             | commit    | 内容                                          | 状态             | 备注                                                                                                 |
 | -------------------------------- | --------- | --------------------------------------------- | ---------------- | ---------------------------------------------------------------------------------------------------- |
 | `feat/ag3-contextual-tutor`      | `d1e6b03` | AG3 三步全部完成并逐轮评审通过                | **PR 已开** #101 | 检查结果与合并状态见 [PR #101 的 checks](https://github.com/nianpingy-cpu/focusloop/pull/101/checks) |
-| `feat/agent-phase1-evals-rescue` | `0f19c9f` | Phase 0 切片 + Phase 1 切片（保留为单个提交） | **无 PR**        | 建议拆成可评审切片后开 PR                                                                            |
+| `feat/agent-phase1-evals-rescue` | `0f19c9f` | Phase 0 切片 + Phase 1 切片（保留为单个提交） | **部分已合并**   | AG2 rescue 切片已由 PR #124（`ae1d690`）合并；其余两片仍无 PR                                        |
 
 ## 开放问题（不得随状态一起丢失）
 
@@ -148,6 +148,6 @@
 
 ### 下一切片
 
-1. 把 `0f19c9f` 拆成可评审切片并开 PR（先 AG10 harness + AG1 投影，再 AG5 三档，再 AG2 rescue）。
+1. 把 `0f19c9f` 拆成可评审切片并开 PR（先 AG10 harness + AG1 投影，再 AG5 三档；AG2 rescue 已由 PR #124 合并）。
 2. 解决本机 E2E 与 CI 不一致的问题（#107），否则状态阶梯的上两级不可用。
 3. 然后按 [交付路线图](./delivery-roadmap.md) 进入 AG9 Model Runtime。

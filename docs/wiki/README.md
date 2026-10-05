@@ -28,7 +28,7 @@
 | 能力                         | 在 `main` 上的状态 | 证据                            | 下一交付重点                                                                                      |
 | ---------------------------- | ------------------ | ------------------------------- | ------------------------------------------------------------------------------------------------- |
 | AG1 Learning Context         | 已合并             | `63acc28` (#99)                 | **未合并**：13 类事件投影 allowlist（`AgentContextEvent`）与敏感 payload 回归（`0f19c9f`，无 PR） |
-| AG2 Stuck Rescue             | 已合并             | `534bc1c` (#100)                | **未合并**：Rescue 计划与评估器（`0f19c9f`）；动作层仍待 AG4/AG8                                  |
+| AG2 Stuck Rescue             | 已合并             | `534bc1c` (#100)                | Rescue 计划与成功评估器已合并（`ae1d690`，PR #124）；动作层仍待 AG4/AG8                           |
 | AG3 Contextual Tutor         | 已合并             | `107a30f` (#101)                | 领域层已只返回闭合码；`AgentContextOmission.detail` 仍是英文句子，按同一规则修                    |
 | AG4 Task Adaptation          | 设计完成           | 方案页 AG4                      | AdaptiveTask、提案/确认、持久化与恢复；依赖已改为 AG8                                             |
 | AG5 Cognitive Resume         | 已合并             | `packages/continuity`（统一卡） | **未合并**：三档与指标（`0f19c9f`，无 PR）；指标口径需改名                                        |
