@@ -143,12 +143,17 @@ describe('runtime cancellation and total deadline', () => {
         return pending.promise;
       });
       const commit = vi.fn();
-      const runtime = new AgentRuntime({
-        primary: provider(async () => {
-          throw new ProviderError('timeout', 'test', 'local timeout');
-        }),
-        fallback: provider(fallback),
-      });
+      const runtime = new AgentRuntime(
+        {
+          primary: provider(async () => {
+            throw new ProviderError('timeout', 'test', 'local timeout');
+          }),
+          fallback: provider(fallback),
+        },
+        // This case measures the deadline crossing *inside* the fallback, so it pins one transport
+        // attempt to keep the fallback reachable; retry/deadline interplay lives in retry-behavior.
+        { retry: { maxTransportAttempts: 1 } },
+      );
       const result = runtime[method]({ ...data, deadlineMs: Date.now() + 10 }, request, { commit });
       await vi.advanceTimersByTimeAsync(0);
       expect(fallback).toHaveBeenCalledTimes(1);
@@ -320,15 +325,19 @@ describe('expiration on the text paths', () => {
     vi.useFakeTimers();
     const pending = deferred();
     let seen: AbortSignal | undefined;
-    const runtime = new AgentRuntime({
-      primary: provider(async () => {
-        throw new ProviderError('offline', 'test', 'offline');
-      }),
-      fallback: provider((_request, options) => {
-        seen = options?.signal;
-        return pending.promise;
-      }),
-    });
+    const runtime = new AgentRuntime(
+      {
+        primary: provider(async () => {
+          throw new ProviderError('offline', 'test', 'offline');
+        }),
+        fallback: provider((_request, options) => {
+          seen = options?.signal;
+          return pending.promise;
+        }),
+      },
+      // As above: the fallback must start, so the primary is not given a transport retry here.
+      { retry: { maxTransportAttempts: 1 } },
+    );
     const result = runtime
       .completeText(request, { deadlineMs: Date.now() + 10 })
       .catch((error: unknown) => error);

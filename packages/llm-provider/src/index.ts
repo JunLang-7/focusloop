@@ -22,6 +22,23 @@ export {
 } from './streaming';
 export { DEFAULT_RUNTIME_BUDGETS, RuntimeBudgetError } from './budgets';
 export type { BudgetExecutionOptions, RuntimeBudgetErrorCode } from './budgets';
+export {
+  backoffDelay,
+  classifyFailure,
+  createAttemptLedger,
+  DEFAULT_RETRY_POLICY,
+  primaryCallLimit,
+  resolveRetryPolicy,
+  RETRYABLE_FAILURE_REASONS,
+  TERMINAL_FAILURE_REASONS,
+} from './retry-policy';
+export type {
+  AttemptLedger,
+  FailureClassification,
+  RetryPolicy,
+  RetrySleep,
+  RetrySleepControls,
+} from './retry-policy';
 export type { ExecutableAIProvider, ProviderExecutionOptions } from './execution';
 /**
  * The cancellation/deadline vocabulary, so a caller can classify an outcome without string-matching

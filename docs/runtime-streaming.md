@@ -70,15 +70,18 @@ for an abandoned iterator; merely dropping a reference has no deterministic disp
 ## Failure, retries and structured acceptance
 
 **Display:** primary failure before any accepted non-empty text can start fallback with the same
-bounded request and remaining absolute deadline. After first text, any interruption/overshoot fails
+bounded request and remaining absolute deadline. Before moving on, a retryable failure may repeat the
+same provider inside the [bounded retry policy](runtime-retry-policy.md) attempt limit. After first
+text, any interruption/overshoot fails
 that stream, without appending another provider's answer. Fallback failure does not recurse. Caller
 abort/total expiration never start another attempt. Provider-owned abort is a provider failure, not
 learner cancellation.
 
 **Structured:** `executeStructuredViaStream` collects a full, protocol-complete stream, then checks
 schema and cancellation/deadline immediately before its synchronous commit. Complete-but-invalid
-JSON may get the existing one schema retry, then a separately validated fallback; these hidden
-attempts do not splice display answers. A pre-text transport failure goes directly to fallback.
+JSON may get the bounded schema retry, then a separately validated fallback; these hidden
+attempts do not splice display answers and share one combined call bound
+([retry policy](runtime-retry-policy.md)). A pre-text transport failure goes directly to fallback.
 An interrupted partial stream (including a syntactically valid prefix) returns no value and never
 commits, retries or starts fallback. Such failures return `degraded` with the failing source's actual
 provenance; when no value exists, this does not imply a fallback answer was selected. Cancellation
