@@ -251,7 +251,7 @@ describe('intervention policy — state driven actions', () => {
   it('offers BREAK when overloaded', () => {
     const decision = decide({ engineState: engineWith({ state: 'OVERLOADED' }) });
     expect(decision.action).toBe('BREAK');
-    expect(decision.estimatedMinutes).toBe(5);
+    expect(decision.estimatedMinutes).toBe(3);
   });
 
   it('suppresses repeated unasked breaks for the full break cooldown', () => {
