@@ -32,7 +32,7 @@ const ACTION_MINUTES: Record<InterventionAction, number> = {
   HINT: 2,
   EXAMPLE: 4,
   QUESTION: 2,
-  BREAK: 5,
+  BREAK: 3,
   RESUME: 5,
 };
 

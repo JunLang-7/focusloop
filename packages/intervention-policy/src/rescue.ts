@@ -10,6 +10,7 @@ import type {
 } from '@focusloop/shared-types';
 import { isRescueAction, message } from '@focusloop/shared-types';
 import { DEFAULT_POLICY_CONFIG } from './config';
+import { estimatedMinutesFor } from './policy';
 
 export interface BuildRescuePlanInput {
   readonly interventionId?: string;
@@ -25,14 +26,6 @@ export interface RescuePlanSeed {
   readonly sessionId: string;
   readonly taskId?: string | null;
 }
-
-const MINUTES: Record<RescueAction, number> = {
-  MICRO_START: 5,
-  SIMPLIFY: 3,
-  HINT: 2,
-  EXAMPLE: 4,
-  BREAK: 5,
-};
 
 export function buildRescuePlan(input: BuildRescuePlanInput): RescuePlan | null;
 export function buildRescuePlan(
@@ -70,7 +63,7 @@ export function buildRescuePlan(
     taskId: input.taskId ?? null,
     action,
     steps: stepsFor(action),
-    estimatedMinutes: MINUTES[action],
+    estimatedMinutes: estimatedMinutesFor(action),
     source: 'deterministic-local',
   };
 }
