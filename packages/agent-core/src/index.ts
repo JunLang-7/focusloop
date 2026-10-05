@@ -15,6 +15,7 @@ export * from './dashboard';
 export * from './insights';
 export * from './proposal';
 export * from './adaptive-task';
+export * from './task-rewrite';
 export * from './engine';
 /**
  * A supported in-memory harness (deterministic clock + sqlite `:memory:`), used

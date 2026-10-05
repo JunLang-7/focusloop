@@ -41,12 +41,15 @@ import type {
   TutorProviderInfo,
   TutorReply,
   TutorUnavailableReason,
+  TaskRewrite,
 } from '@focusloop/shared-types';
 import {
+  TASK_REWRITE_ACTIONS,
   TUTOR_LIMITS,
   findMaterialForCourse,
   isRescueAction,
   isStuckReason,
+  isTaskRewrite,
   message,
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
@@ -91,6 +94,7 @@ import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
 import { confirmAgentProposal, createAgentProposal, executeAgentProposal } from './proposal';
+import { applyTaskRewrite, buildMicroStartRewrite, rewriteIdempotencyKey } from './task-rewrite';
 import {
   TutorTranscript,
   composeRetryPrompt,
@@ -207,11 +211,44 @@ export class FocusLoopEngine {
   // --------------------------------------------------------------- catalogue
 
   listCourses(): Course[] {
-    return this.store.listCourses();
+    const rewrite = this.activeTaskRewrite();
+    const courses = this.store.listCourses();
+    // A rewrite narrows one task for as long as the learner is on it; the stored row is untouched.
+    return rewrite === null ? courses : courses.map((course) => applyTaskRewrite(course, rewrite));
   }
 
   getCourse(courseId: string): Course | null {
-    return this.store.getCourse(courseId);
+    const course = this.store.getCourse(courseId);
+    if (course === null) return null;
+    const rewrite = this.activeTaskRewrite();
+    return rewrite === null ? course : applyTaskRewrite(course, rewrite);
+  }
+
+  /**
+   * The rewrite the learner accepted for the task they are on.
+   *
+   * Read back from the proposal that recorded it rather than from a second copy: the envelope's
+   * `executed` status is what "accepted and applied" means, and keeping one source of truth means a
+   * refused or expired proposal cannot leave a narrowing behind. Nothing is returned once the learner
+   * has moved on to another task, which is the whole of "finishing or dismissing returns the full
+   * task" — the course was never rewritten in the first place.
+   */
+  private activeTaskRewrite(): TaskRewrite | null {
+    const active = this.store.getActiveSession();
+    if (active === null || active.session.endedAt !== undefined) return null;
+    const taskId = active.session.currentTaskId;
+    if (taskId === undefined) return null;
+    for (const action of TASK_REWRITE_ACTIONS) {
+      const stored = this.store.getAgentProposalByIdempotencyKey(
+        rewriteIdempotencyKey(active.session.id, taskId, action),
+      );
+      if (stored === null || stored.status !== 'executed') continue;
+      const payload = stored.proposal.payload['rewrite'];
+      // The task id is checked again here: a rewrite belongs to the task it was built for, whoever
+      // else may have looked it up.
+      if (isTaskRewrite(payload) && payload.taskId === taskId) return payload;
+    }
+    return null;
   }
 
   importMaterial(fileName: string, content: string): ImportMaterialResponse {
@@ -1203,10 +1240,55 @@ export class FocusLoopEngine {
       ...(continuedAt === undefined ? {} : { continuedAt }),
     });
     this.store.saveOutcome(outcome);
+    // A first accept, not a replay: one proposal, one change, per task and action.
+    if (request.resolution === 'accept' && prior?.accepted !== true) {
+      this.applyMicroStartRewrite(intervention);
+    }
     return {
       outcome: this.store.getOutcomeByIntervention(intervention.id),
       rescue: this.getPendingRescue(request.sessionId),
     };
+  }
+
+  /**
+   * MICRO_START promises a narrower task, so accepting it goes through the confirmation envelope
+   * (#114) even though the learner has already tapped Accept: the tap *is* the confirmation, the
+   * proposal is bound to the state it was built from, and one idempotency key keeps a second accept
+   * from writing a second change.
+   *
+   * Nothing here is fatal. A task that is already small, a concept without a grounded focus or a
+   * session that moved on simply leaves the deterministic plan the card is showing, which is how the
+   * rescue still works offline.
+   */
+  private applyMicroStartRewrite(intervention: Intervention): void {
+    if (intervention.action !== 'MICRO_START') return;
+    const record = this.store.getSession(intervention.sessionId);
+    const taskId = this.taskIdForIntervention(intervention);
+    if (record === null || taskId === null) return;
+    const key = rewriteIdempotencyKey(record.session.id, taskId, 'MICRO_START');
+    // Already proposed once: replaying the decision must not change anything, including a refusal.
+    if (this.store.getAgentProposalByIdempotencyKey(key) !== null) return;
+    const built = buildMicroStartRewrite(this.contextFor(record).context);
+    if (built.status !== 'suggested') return;
+    const proposal = this.proposeStructuralChange({
+      sessionId: record.session.id,
+      kind: 'structural-write',
+      payload: { rewrite: built.rewrite },
+      createdBy: 'engine.rescue.MICRO_START',
+      idempotencyKey: key,
+    });
+    if (proposal === null) return;
+    const confirmed = this.confirmProposal({
+      proposalId: proposal.id,
+      sessionId: record.session.id,
+      expectedHash: proposal.proposalHash,
+    });
+    if (!confirmed.ok) return;
+    this.executeProposal({
+      proposalId: proposal.id,
+      sessionId: record.session.id,
+      idempotencyKey: key,
+    });
   }
 
   private taskIdForIntervention(intervention: Intervention): string | null {

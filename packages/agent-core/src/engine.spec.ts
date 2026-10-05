@@ -391,6 +391,148 @@ describe('FocusLoopEngine', () => {
       expect(ctx.engine.listOutcomes(session.id)).toHaveLength(1);
     });
 
+    it('narrows the task to a two-minute first step when MICRO_START is accepted', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      // The stored course, which the narrowing must leave exactly as it found it.
+      const stored = ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'cannot-start', taskId: stored.id },
+      });
+      expect(asked.rescue?.decision.action).toBe('MICRO_START');
+
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+
+      const served = ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      expect(served).toMatchObject({
+        id: stored.id,
+        instructions: 'in-order traversal is sorted',
+        estimatedMinutes: 2,
+      });
+      expect(
+        ctx.engine.listCourses().find((item) => item.id === DEMO_COURSE_ID)?.microTasks[0],
+      ).toEqual(served);
+      expect(ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[0]).toEqual(stored);
+
+      // Accepted through the confirmation envelope: one proposal, executed once, with an audit event.
+      const proposal = ctx.store.getAgentProposalByIdempotencyKey(
+        `task-rewrite:MICRO_START:${session.id}:${stored.id}`,
+      );
+      expect(proposal?.status).toBe('executed');
+      expect(
+        ctx.engine
+          .listEvents(session.id)
+          .filter((event) => event.type === 'AGENT_PROPOSAL_EXECUTED'),
+      ).toHaveLength(1);
+    });
+
+    it('changes the task once when the learner accepts the same rescue twice', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const stored = ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'cannot-start', taskId: stored.id },
+      });
+      const request = {
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept' as const,
+      };
+      ctx.engine.resolveRescue(request);
+      const once = ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      expect(once.estimatedMinutes).toBe(2);
+      ctx.engine.resolveRescue(request);
+
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]).toEqual(once);
+      expect(
+        ctx.engine
+          .listEvents(session.id)
+          .filter((event) => event.type === 'AGENT_PROPOSAL_EXECUTED'),
+      ).toHaveLength(1);
+    });
+
+    it('leaves the task alone when the rescue is dismissed instead', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const stored = ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'cannot-start', taskId: stored.id },
+      });
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'dismiss',
+      });
+
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)).toEqual(ctx.store.getCourse(DEMO_COURSE_ID));
+      expect(
+        ctx.engine
+          .listEvents(session.id)
+          .filter((event) => event.type === 'AGENT_PROPOSAL_EXECUTED'),
+      ).toHaveLength(0);
+    });
+
+    it('gives the whole task back once the learner is no longer on it', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const stored = ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'cannot-start', taskId: stored.id },
+      });
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]?.estimatedMinutes).toBe(2);
+
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_COMPLETED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+
+      // Nothing was undone, because nothing was overwritten: the task is simply not narrow any more.
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]).toEqual(stored);
+    });
+
     it('answers a reasoned help request through the engine, not only in the policy package', () => {
       /*
        * `docs/testing.md` asks agent-core to prove every policy rule *through the engine*, and the

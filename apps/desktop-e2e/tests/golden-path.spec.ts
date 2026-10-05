@@ -1420,6 +1420,42 @@ test('the reason the learner gives is answered according to which kind of stuck 
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
 
+/*
+ * MICRO_START is the one action that changes the task rather than adding words to it (#171), and the
+ * change is worth nothing unless it reaches the card the learner is reading: the assertion is on the
+ * rendered task, not on the engine that computed it.
+ */
+test('accepting MICRO_START narrows the task to its first step, for two minutes', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  const title = await window.getByTestId('task-title').innerText();
+  const instructions = window.locator('.focus-task__instructions');
+  const wholeTask = await instructions.innerText();
+  expect(wholeTask.length).toBeGreaterThan(0);
+
+  await window.getByTestId('focus-stuck').click();
+  await window.getByTestId('stuck-cannot-start').click();
+  await expect(window.locator('.agent')).toHaveAttribute('data-action', 'MICRO_START');
+  await window.getByTestId('notice-continue').click();
+  await expect(window.getByTestId('agent-accepted')).toBeVisible();
+
+  // The same task, presented as the one step its own concept starts with — and its own two minutes.
+  await expect(window.getByTestId('task-title')).toHaveText(title);
+  await expect(instructions).toHaveText('in-order traversal is sorted');
+  await expect(instructions).not.toHaveText(wholeTask);
+  await expect(window.locator('.focus-task__meta')).toContainText('about 2 min');
+
+  // The step is what the learner finishes, so the task after it must be its own self again.
+  await window.getByTestId('complete-task').click();
+  await window.getByTestId('start-task').first().click();
+  await expect(instructions).not.toHaveText('in-order traversal is sorted');
+
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
 test('the tutor asks the main process, and says so when no model is connected', async () => {
   // The previous test leaves the app on the focus screen with no session — "No session running" and no
   // course list — so the session has to be started from the home screen, as the other tests do.

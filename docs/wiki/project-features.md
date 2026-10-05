@@ -80,7 +80,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 | B 干预  | 「我卡住了」六类原因           | E2E 验证 | `534bc1c` (#100)                                                  | 原因先被记录，再决定行动                                         |
 | B 干预  | 干预策略（确定性 8 类 action） | CI 绿    | `packages/intervention-policy`                                    | 模型不决定是否打断                                               |
 | B 干预  | 干预结果记录与 Dashboard 汇总  | CI 绿    | outcome 事件 + Dashboard                                          | 记录展示/接受/拒绝/完成                                          |
-| B 干预  | Rescue 计划与成功评估器        | 已合并   | `ae1d690` (PR #124)                                               | SHRINK/SPLIT 仍未实现（AG2.3/2.4）                               |
+| B 干预  | Rescue 计划与成功评估器        | 已合并   | `ae1d690` (PR #124)                                               | 接受 MICRO_START 会真正缩小任务（#171）；SPLIT 仍未实现（AG2.4） |
 | C 恢复  | Learning Checkpoint            | CI 绿    | `buildCheckpoint` + store                                         | 内容主要从任务进度推导                                           |
 | C 恢复  | Resume Card（统一版）          | E2E 验证 | `packages/continuity` + Dashboard                                 | 只有一档，不区分离开时长                                         |
 | C 恢复  | Resume 三档 + 重新参与指标     | 分支完成 | `0f19c9f`（无 PR）                                                | 未合并；指标口径需按 §4.C3 改名                                  |
@@ -247,7 +247,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 4. **永不做什么**：不复制一套 reason/action 参考表（eval 直接驱动生产纯函数）。
 5. **数据与边界**：`shared-types/src/rescue.ts` + `intervention-policy/src/rescue.ts`；事件落本机。
 6. **状态与证据**：已合并 — `ae1d690`（PR #124）；engine 派发、Dashboard 汇总与 18 个 AG2 JSON 场景均在 `main`。
-7. **已知限制**：`SIMPLIFY` / `MICRO_START` 仍是文案，未真正缩小或拆分任务（AG2.3/2.4）；六类 E2E 仍缺（AG2.8）。
+7. **已知限制**：`SIMPLIFY` 仍是文案，未真正拆分任务（AG2.4）；`MICRO_START` 已把当前任务缩成首步 + 2 分钟（#171）；六类 E2E 仍缺（AG2.8）。
 8. **依赖**：B2、B3、B4；完整六类 e2e 依赖 AG4/AG8 的动作契约。
 9. **怎么验证**：18 个 AG2 JSON 场景（happy/edge/adversarial）重复运行结果一致。
 
@@ -450,8 +450,8 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 3. **何时发生**：原因 + 状态 + 确定性策略。
 4. **永不做什么**：不猜原因；不自动改计划；不静默升级打扰频率。
 5. **数据与边界**：原因、建议、结果都作为事件落本机。
-6. **状态与证据**：已合并 — `534bc1c` (#100)；Rescue 计划与成功评估器同样已合并（`ae1d690`，PR #124）。
-7. **已知限制**：`SIMPLIFY` / `MICRO_START` 仍是文案，未真正缩小或拆分任务；这是 AG4 的活。
+6. **状态与证据**：已合并 — `534bc1c` (#100)；Rescue 计划与成功评估器同样已合并（`ae1d690`，PR #124）；`MICRO_START` 接受后真正缩小任务（#171）：确认 + 幂等提案，课程只在读时派生。
+7. **已知限制**：`SIMPLIFY` 仍是文案；`MICRO_START` 已把当前任务缩成首步 + 2 分钟（#171），其余动作要真正改写任务前需要 AG4/AG8 的动作契约。
 8. **依赖**：F1；可执行动作依赖 AG8。
 9. **怎么验证**：`intervention-policy` 单测 + 18 个 AG2 JSON 场景（已合并，`packages/agent-evals`）+ `golden path`。
 

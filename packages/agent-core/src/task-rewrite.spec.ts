@@ -1,0 +1,186 @@
+import { describe, expect, it } from 'vitest';
+import type {
+  AgentContext,
+  Course,
+  LearningSession,
+  MicroTask,
+  TaskRewrite,
+} from '@focusloop/shared-types';
+import { buildAgentContext } from './agent-context';
+import { applyTaskRewrite, buildMicroStartRewrite, rewriteIdempotencyKey } from './task-rewrite';
+
+const FOCUS = 'the in-order sequence is preserved';
+
+function task(overrides: Partial<MicroTask> = {}): MicroTask {
+  return {
+    id: 't1',
+    courseId: 'c1',
+    conceptId: 'k1',
+    title: 'Read rotations',
+    instructions: 'Read the whole section and take notes',
+    kind: 'read',
+    estimatedMinutes: 7,
+    order: 0,
+    ...overrides,
+  };
+}
+
+function course(overrides: Partial<Course> = {}): Course {
+  return {
+    id: 'c1',
+    title: 'Data structures',
+    description: '',
+    concepts: [
+      {
+        id: 'k1',
+        title: 'Rotations',
+        summary: 'A rotation restructures three nodes.',
+        order: 0,
+        keyPoints: [FOCUS],
+      },
+    ],
+    microTasks: [
+      task(),
+      {
+        id: 't2',
+        courseId: 'c1',
+        conceptId: 'k1',
+        title: 'Try an insert',
+        instructions: 'Do one by hand',
+        kind: 'practice',
+        estimatedMinutes: 5,
+        order: 1,
+      },
+    ],
+    quizzes: [],
+    ...overrides,
+  };
+}
+
+function session(overrides: Partial<LearningSession> = {}): LearningSession {
+  return {
+    id: 's1',
+    courseId: 'c1',
+    startedAt: '2026-10-05T00:00:00.000Z',
+    state: 'FOCUSED',
+    currentTaskId: 't1',
+    completedTaskIds: [],
+    updatedAt: '2026-10-05T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+function context(
+  courseValue: Course = course(),
+  sessionValue: LearningSession = session(),
+): AgentContext | null {
+  return buildAgentContext({
+    session: sessionValue,
+    progress: null,
+    course: courseValue,
+    courseCount: 1,
+    material: null,
+    events: [],
+    checkpoint: null,
+    learningState: sessionValue.state,
+  }).context;
+}
+
+const rewrite: TaskRewrite = {
+  action: 'MICRO_START',
+  taskId: 't1',
+  steps: [FOCUS],
+  estimatedMinutes: 2,
+  sourceEstimatedMinutes: 7,
+};
+
+describe('MICRO_START narrows a task to its first grounded step', () => {
+  it('turns a seven-minute task into one step of two minutes', () => {
+    expect(buildMicroStartRewrite(context())).toEqual({ status: 'suggested', rewrite });
+  });
+
+  it('refuses without a context rather than inventing a step', () => {
+    expect(buildMicroStartRewrite(null)).toEqual({
+      status: 'unavailable',
+      reason: 'missing-context',
+    });
+  });
+
+  it.each([
+    [
+      'a task that is already small',
+      course({ microTasks: [task({ estimatedMinutes: 1 })] }),
+      'already-small',
+    ],
+    [
+      'a two-minute task, which the promise does not fit',
+      course({ microTasks: [task({ estimatedMinutes: 2 })] }),
+      'not-two-minutes',
+    ],
+    [
+      'a quiz, which narrowing would stop measuring',
+      course({ microTasks: [task({ kind: 'quiz' })] }),
+      'unsupported-task-kind',
+    ],
+    [
+      'a concept with no key point',
+      course({
+        concepts: [{ id: 'k1', title: 'Rotations', summary: '', order: 0, keyPoints: [] }],
+      }),
+      'no-grounded-focus',
+    ],
+  ])('refuses %s', (_name, courseValue, reason) => {
+    expect(buildMicroStartRewrite(context(courseValue))).toEqual({ status: 'unavailable', reason });
+  });
+
+  it('refuses when the learner is on no task at all', () => {
+    expect(
+      buildMicroStartRewrite(context(course(), session({ currentTaskId: undefined }))),
+    ).toEqual({
+      status: 'unavailable',
+      reason: 'missing-task',
+    });
+  });
+});
+
+describe('the rewrite key', () => {
+  it('is one key per session, task and action', () => {
+    expect(rewriteIdempotencyKey('s1', 't1', 'MICRO_START')).toBe('task-rewrite:MICRO_START:s1:t1');
+    expect(rewriteIdempotencyKey('s1', 't1', 'SIMPLIFY')).not.toBe(
+      rewriteIdempotencyKey('s1', 't1', 'MICRO_START'),
+    );
+    expect(rewriteIdempotencyKey('s2', 't1', 'MICRO_START')).not.toBe(
+      rewriteIdempotencyKey('s1', 't1', 'MICRO_START'),
+    );
+  });
+});
+
+describe('applying a rewrite to the course the learner sees', () => {
+  it('narrows the named task and leaves the course handed in untouched', () => {
+    const original = course();
+    const narrowed = applyTaskRewrite(original, rewrite);
+    expect(narrowed.microTasks[0]).toMatchObject({
+      id: 't1',
+      instructions: FOCUS,
+      estimatedMinutes: 2,
+    });
+    expect(narrowed.microTasks[1]).toEqual(original.microTasks[1]);
+    // The task itself never changed: the full instruction and its minutes are still the stored ones.
+    expect(original.microTasks[0]?.instructions).toBe('Read the whole section and take notes');
+    expect(original.microTasks[0]?.estimatedMinutes).toBe(7);
+  });
+
+  it('returns the same course when the rewrite names a task that is not there', () => {
+    const original = course();
+    expect(applyTaskRewrite(original, { ...rewrite, taskId: 'gone' })).toBe(original);
+  });
+
+  it('joins several steps into one set of instructions', () => {
+    const narrowed = applyTaskRewrite(course(), {
+      ...rewrite,
+      action: 'SIMPLIFY',
+      steps: ['first', 'second'],
+    });
+    expect(narrowed.microTasks[0]?.instructions).toBe('first\n\nsecond');
+  });
+});

@@ -113,3 +113,73 @@ function dataRecord(
   }
   return result;
 }
+
+/**
+ * The applied form of a suggestion: the task as the learner sees it while a rescue is active.
+ *
+ * Presentation only, and bounded the same way a draft is. The stored course, the learner's own task
+ * and the task's minutes in the course are untouched, so the full task is what comes back the moment
+ * the rewrite stops applying — which is why there is no undo to get wrong.
+ */
+export const TASK_REWRITE_ACTIONS = ['MICRO_START', 'SIMPLIFY'] as const;
+export type TaskRewriteAction = (typeof TASK_REWRITE_ACTIONS)[number];
+
+export const TASK_REWRITE_LIMITS = {
+  /** More steps than a micro task may have minutes would be a split, not a narrowed first step. */
+  steps: ADAPTIVE_TASK_LIMITS.maxMinutes,
+  stepCharacters: ADAPTIVE_TASK_LIMITS.focusCharacters,
+} as const;
+
+export function isTaskRewriteAction(value: unknown): value is TaskRewriteAction {
+  return typeof value === 'string' && (TASK_REWRITE_ACTIONS as readonly string[]).includes(value);
+}
+
+export interface TaskRewrite {
+  readonly action: TaskRewriteAction;
+  readonly taskId: string;
+  /** What the learner reads instead of the whole task, front to back. */
+  readonly steps: readonly string[];
+  readonly estimatedMinutes: number;
+  /** The task's own estimate, kept so the narrowing can be shown as a comparison. */
+  readonly sourceEstimatedMinutes: number;
+}
+
+/**
+ * Shape validation does not authorize a rewrite: the engine writes one only from a proposal the
+ * learner confirmed, and it is the idempotency key of that proposal that decides whether it applies.
+ */
+export function isTaskRewrite(value: unknown): value is TaskRewrite {
+  try {
+    const rewrite = dataRecord(value, [
+      'action',
+      'taskId',
+      'steps',
+      'estimatedMinutes',
+      'sourceEstimatedMinutes',
+    ]);
+    if (rewrite === null || !isTaskRewriteAction(rewrite['action'])) return false;
+    if (!boundedText(rewrite['taskId'], ADAPTIVE_TASK_LIMITS.idCharacters)) return false;
+    const steps = rewrite['steps'];
+    if (!Array.isArray(steps)) return false;
+    if (steps.length === 0 || steps.length > TASK_REWRITE_LIMITS.steps) return false;
+    if (!steps.every((step) => boundedText(step, TASK_REWRITE_LIMITS.stepCharacters))) return false;
+    const minutes = boundedMinutes(rewrite['estimatedMinutes']);
+    const before = rewrite['sourceEstimatedMinutes'];
+    if (typeof before !== 'number' || !Number.isFinite(before) || before <= 0) return false;
+    // The task's own estimate is not bounded the way a suggestion is — it is whatever the course
+    // says — but it still has to be larger, because a rewrite that is not narrower is not a rewrite.
+    return minutes !== null && before > minutes;
+  } catch {
+    // Hostile non-JSON objects (e.g. throwing proxy traps) are not contract data.
+    return false;
+  }
+}
+
+function boundedMinutes(value: unknown): number | null {
+  return typeof value === 'number' &&
+    Number.isInteger(value) &&
+    value >= ADAPTIVE_TASK_LIMITS.minMinutes &&
+    value <= ADAPTIVE_TASK_LIMITS.maxMinutes
+    ? value
+    : null;
+}
