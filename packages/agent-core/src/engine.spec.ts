@@ -533,6 +533,37 @@ describe('FocusLoopEngine', () => {
       expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]).toEqual(stored);
     });
 
+    it('gives the whole task back when the learner continues it instead of the step', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const stored = ctx.store.getCourse(DEMO_COURSE_ID)!.microTasks[0]!;
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: stored.id },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'cannot-start', taskId: stored.id },
+      });
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]?.estimatedMinutes).toBe(2);
+
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'continue',
+      });
+
+      expect(ctx.engine.getCourse(DEMO_COURSE_ID)!.microTasks[0]).toEqual(stored);
+    });
+
     it('answers a reasoned help request through the engine, not only in the policy package', () => {
       /*
        * `docs/testing.md` asks agent-core to prove every policy rule *through the engine*, and the

@@ -1447,6 +1447,12 @@ test('accepting MICRO_START narrows the task to its first step, for two minutes'
   await expect(instructions).not.toHaveText(wholeTask);
   await expect(window.locator('.focus-task__meta')).toContainText('about 2 min');
 
+  // Continuing hands the whole task back, which is the learner saying they want the rest of it after
+  // all — and it is not an undo, because the task was never rewritten in the first place.
+  await window.getByTestId('agent-accepted').getByRole('button', { name: 'Continue' }).click();
+  await expect(instructions).toHaveText(wholeTask);
+  await expect(window.locator('.focus-task__meta')).not.toContainText('about 2 min');
+
   // The step is what the learner finishes, so the task after it must be its own self again.
   await window.getByTestId('complete-task').click();
   await window.getByTestId('start-task').first().click();

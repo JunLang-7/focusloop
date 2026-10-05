@@ -182,9 +182,10 @@ looks that proposal up by its deterministic idempotency key and applies it to th
 
 Two properties fall out of that shape rather than out of code that has to be correct. The learner's
 course is never overwritten, so there is nothing to restore and no half-applied rewrite to find later;
-and the narrowing stops applying the moment the task is no longer the current one, which is what
-"finishing returns the full task" means. A proposal that was refused or expired leaves the task exactly
-as it was, because "accepted and applied" is defined as `executed` and nothing else.
+and the narrowing stops applying the moment the task is no longer the current one, or the moment the
+learner continues the task, which is what "finishing or continuing returns the full task" means. A
+proposal that was refused or expired leaves the task exactly as it was, because "accepted and applied"
+is defined as `executed` and nothing else.
 
 ## The checkpoint and the resume card
 

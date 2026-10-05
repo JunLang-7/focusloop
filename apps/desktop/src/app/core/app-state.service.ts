@@ -399,11 +399,13 @@ export class AppStateService {
       this.decision.set(null);
       this.interventionId.set(null);
       /*
-       * An accepted MICRO_START narrows the task the learner is on, and the tasks they see come from
-       * the course the main process serves — so the list is refetched rather than patched here, and a
-       * refusal (a task that is already small) simply returns the course unchanged.
+       * An accepted MICRO_START narrows the task the learner is on, and continuing it hands the whole
+       * task back; both are served through the course list, so it is refetched rather than patched
+       * here. A refusal (a task that is already small) simply returns the course unchanged.
        */
-      if (resolution === 'accept') this.courses.set(await this.api.listCourses());
+      if (resolution === 'accept' || resolution === 'continue') {
+        this.courses.set(await this.api.listCourses());
+      }
       this.dashboard.set(await this.api.getDashboard());
     });
   }

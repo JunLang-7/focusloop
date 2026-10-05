@@ -246,7 +246,19 @@ export class FocusLoopEngine {
       const payload = stored.proposal.payload['rewrite'];
       // The task id is checked again here: a rewrite belongs to the task it was built for, whoever
       // else may have looked it up.
-      if (isTaskRewrite(payload) && payload.taskId === taskId) return payload;
+      if (!isTaskRewrite(payload) || payload.taskId !== taskId) continue;
+      /*
+       * Continuing the task ends the narrowing. "Continue" is the learner saying they want the whole
+       * task after all, and that is an outcome rather than a change to anything stored — so it is read
+       * from the outcome of the intervention that accepted the rewrite.
+       */
+      const interventionId = stored.proposal.payload['interventionId'];
+      if (
+        typeof interventionId === 'string' &&
+        this.store.getOutcomeByIntervention(interventionId)?.continuedAt !== undefined
+      )
+        continue;
+      return payload;
     }
     return null;
   }
@@ -1273,7 +1285,9 @@ export class FocusLoopEngine {
     const proposal = this.proposeStructuralChange({
       sessionId: record.session.id,
       kind: 'structural-write',
-      payload: { rewrite: built.rewrite },
+      // The intervention id is carried so the rewrite can be ended by the learner continuing the task,
+      // which is an outcome rather than a change to the course.
+      payload: { rewrite: built.rewrite, interventionId: intervention.id },
       createdBy: 'engine.rescue.MICRO_START',
       idempotencyKey: key,
     });
