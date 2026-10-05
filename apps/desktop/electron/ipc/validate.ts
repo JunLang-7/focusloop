@@ -83,7 +83,12 @@ const EVENT_SOURCES = new Set<string>(['user', 'extension', 'simulator', 'system
  * a proposal that never existed — and the audit trail would be forgeable by the very layer whose
  * privileged actions it is supposed to be evidence about.
  */
-const AGENT_ONLY_EVENT_TYPES = new Set<string>(['AGENT_PROPOSAL_EXECUTED']);
+const AGENT_ONLY_EVENT_TYPES = new Set<string>([
+  'AGENT_PROPOSAL_EXECUTED',
+  // A narrowing is the engine's own record that an accepted rescue changed what the learner sees.
+  'TASK_NARROWED',
+  'TASK_RESTORED',
+]);
 const MAX_PAYLOAD_BYTES = 4 * 1024;
 
 /** Validates the payload of `focusloop:event:dispatch`. */

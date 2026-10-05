@@ -1,4 +1,10 @@
-import type { LearningEvent, LearningState, StateTransition } from '@focusloop/shared-types';
+import { ADAPTIVE_TASK_LIMITS } from '@focusloop/shared-types';
+import type {
+  LearningEvent,
+  LearningState,
+  StateTransition,
+  TaskNarrowing,
+} from '@focusloop/shared-types';
 import type { StateEngineConfig } from './config';
 import { resolveStateEngineConfig } from './config';
 
@@ -23,6 +29,11 @@ export interface StateEngineState {
    * preference nobody can clear is the opposite of the direct manipulation this is for.
    */
   readonly taskOrder: readonly string[];
+  /**
+   * The rescue overlay on the current task (AG2.3), or `null`. Ends with the task, with a switch to
+   * another task, with `TASK_RESTORED` and with the session, so it can never outlive what it narrowed.
+   */
+  readonly narrowing: TaskNarrowing | null;
   readonly consecutiveIncorrect: number;
   /** ISO timestamps of recent HELP_REQUESTED events. */
   readonly recentHelpRequests: readonly string[];
@@ -54,6 +65,7 @@ export function createInitialState(at: string): StateEngineState {
     taskStartedAt: null,
     completedTaskIds: [],
     taskOrder: [],
+    narrowing: null,
     consecutiveIncorrect: 0,
     recentHelpRequests: [],
     awaySince: null,
@@ -130,6 +142,24 @@ function orderedTaskIds(value: unknown): readonly string[] | null {
   return order;
 }
 
+/** A narrowing payload, or `null`. Minutes are held to the same 1-5 bound the drafts are built to. */
+function narrowingFrom(payload: unknown): TaskNarrowing | null {
+  if (typeof payload !== 'object' || payload === null) return null;
+  const { taskId, estimatedMinutes, text } = payload as Record<string, unknown>;
+  if (
+    typeof taskId !== 'string' ||
+    taskId.length === 0 ||
+    typeof text !== 'string' ||
+    text.length === 0 ||
+    typeof estimatedMinutes !== 'number' ||
+    !Number.isFinite(estimatedMinutes) ||
+    estimatedMinutes < ADAPTIVE_TASK_LIMITS.minMinutes ||
+    estimatedMinutes > ADAPTIVE_TASK_LIMITS.maxMinutes
+  )
+    return null;
+  return { taskId, estimatedMinutes, text };
+}
+
 function withinWindow(timestamps: readonly string[], nowMs: number, windowMs: number): string[] {
   return timestamps.filter((ts) => {
     const ms = Date.parse(ts);
@@ -182,6 +212,7 @@ export function reduceState(
         taskStartedAt: null,
         completedTaskIds: [],
         taskOrder: [],
+        narrowing: null,
         consecutiveIncorrect: 0,
         recentHelpRequests: [],
         awaySince: null,
@@ -196,6 +227,7 @@ export function reduceState(
         currentTaskId: taskId,
         lastActiveTaskId: taskId,
         taskStartedAt: at,
+        narrowing: previous.narrowing?.taskId === taskId ? previous.narrowing : null,
         awaitingResume: false,
       });
     }
@@ -209,6 +241,7 @@ export function reduceState(
       return apply('FOCUSED', 'task completed', {
         completedTaskIds: completed,
         currentTaskId: previous.currentTaskId === taskId ? null : previous.currentTaskId,
+        narrowing: previous.narrowing?.taskId === taskId ? null : previous.narrowing,
         taskStartedAt: null,
         consecutiveIncorrect: 0,
         awaySince: null,
@@ -317,6 +350,23 @@ export function reduceState(
       const order = orderedTaskIds(event.payload.order);
       if (order === null) return stay();
       return stay({ taskOrder: order });
+    }
+
+    /*
+     * AG2.3. `stay` for the same reason as the reorder above: the learner is where they were, looking
+     * at less of it. Both are rejected quietly when they do not describe the task in front of the
+     * learner - the overlay must never end up attached to a task that is not on screen.
+     */
+    case 'TASK_NARROWED': {
+      const narrowing = narrowingFrom(event.payload);
+      if (narrowing === null || narrowing.taskId !== previous.currentTaskId) return stay();
+      return stay({ narrowing });
+    }
+
+    case 'TASK_RESTORED': {
+      const taskId = isTaskId(event.payload);
+      if (taskId === null || previous.narrowing?.taskId !== taskId) return stay();
+      return stay({ narrowing: null });
     }
 
     default: {

@@ -982,6 +982,8 @@ function mapSession(row: SessionRow): SessionRecord {
        * every reader having to work it out.
        */
       taskOrder: engineState?.taskOrder ?? [],
+      // Absent in rows written before the rescue could narrow a task; "no overlay" either way.
+      narrowing: engineState?.narrowing ?? null,
       updatedAt: row.started_at,
     },
     engineState: engineState as StateEngineState,

@@ -8,6 +8,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **Stuck rescue: accepting "cannot start" narrows the task to its first step.** MICRO_START now
+  shows one grounded piece of the current task (from the concept or the material, offline, never
+  generated) with a 2 minute estimate and a "First step only" label, and Continue brings the full
+  task back. The course task is never rewritten: the narrowing is an overlay on the session, recorded
+  as `TASK_NARROWED` / `TASK_RESTORED` events, and it ends with the task. (#171)
 - **Desktop shell: the sidebar folds completely.** The sidebar's own toggle collapses it; a small
   floating brand button in the top-left corner recalls it — during focus too. While a focus
   commitment runs, the sidebar now folds away entirely instead of shrinking to a 64px icon rail,

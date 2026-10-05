@@ -404,6 +404,18 @@ function projectEvent(event: unknown): AgentContextEvent | null {
       const order = taskIdList(payload['order']);
       return order === null ? null : { ...common, type, payload: { order } };
     }
+    case 'TASK_NARROWED': {
+      // The text is withheld: it is learner material, and the context's own excerpt already has it.
+      const taskId = stringField(payload, 'taskId');
+      const estimatedMinutes = nonNegativeFiniteNumber(payload['estimatedMinutes']);
+      return taskId === null || estimatedMinutes === null
+        ? null
+        : { ...common, type, payload: { taskId, estimatedMinutes } };
+    }
+    case 'TASK_RESTORED': {
+      const taskId = stringField(payload, 'taskId');
+      return taskId === null ? null : { ...common, type, payload: { taskId } };
+    }
     default:
       return null;
   }
@@ -429,7 +441,9 @@ function isLearningEventType(value: unknown): value is LearningEvent['type'] {
     value === 'RESUME_DISMISSED' ||
     value === 'SESSION_ENDED' ||
     value === 'AGENT_PROPOSAL_EXECUTED' ||
-    value === 'TASKS_REORDERED'
+    value === 'TASKS_REORDERED' ||
+    value === 'TASK_NARROWED' ||
+    value === 'TASK_RESTORED'
   );
 }
 

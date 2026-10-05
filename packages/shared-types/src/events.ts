@@ -29,6 +29,16 @@ export const LEARNING_EVENT_TYPES = [
    * kept (#23).
    */
   'TASKS_REORDERED',
+  /**
+   * An accepted rescue narrowed the current task to a small, grounded piece of itself (AG2.3).
+   *
+   * Written by the engine, never by a renderer. Not a learning-state transition: the learner is in the
+   * same place, looking at less of it. The course task is untouched; this event is the whole record of
+   * the narrowing, and `TASK_RESTORED` (or finishing the task) is what ends it.
+   */
+  'TASK_NARROWED',
+  /** The narrowing ended and the full task is back. */
+  'TASK_RESTORED',
 ] as const;
 
 export type LearningEventType = (typeof LEARNING_EVENT_TYPES)[number];
@@ -104,6 +114,12 @@ export type TasksReorderedEvent = LearningEventBase<
   { order: readonly string[] }
 >;
 
+export type TaskNarrowedEvent = LearningEventBase<
+  'TASK_NARROWED',
+  { taskId: string; estimatedMinutes: number; text: string }
+>;
+export type TaskRestoredEvent = LearningEventBase<'TASK_RESTORED', { taskId: string }>;
+
 export type SessionEndReason = 'user' | 'completed' | 'timeout' | 'crashed';
 
 export const SESSION_END_REASONS = ['user', 'completed', 'timeout', 'crashed'] as const;
@@ -123,7 +139,9 @@ export type LearningEvent =
   | ResumeDismissedEvent
   | SessionEndedEvent
   | AgentProposalExecutedEvent
-  | TasksReorderedEvent;
+  | TasksReorderedEvent
+  | TaskNarrowedEvent
+  | TaskRestoredEvent;
 
 export type LearningEventOf<TType extends LearningEventType> = Extract<
   LearningEvent,

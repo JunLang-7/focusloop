@@ -102,7 +102,14 @@ export type AgentContextEvent =
    * without the order would tell an agent that something happened while hiding the only part of it
    * that could inform anything.
    */
-  | AgentContextEventBase<'TASKS_REORDERED', { readonly order: readonly string[] }>;
+  | AgentContextEventBase<'TASKS_REORDERED', { readonly order: readonly string[] }>
+  // The overlay text comes from the material excerpt the context already carries; the event only
+  // says that a narrowing started or ended, and for which task.
+  | AgentContextEventBase<
+      'TASK_NARROWED',
+      { readonly taskId: string; readonly estimatedMinutes: number }
+    >
+  | AgentContextEventBase<'TASK_RESTORED', { readonly taskId: string }>;
 
 /** The bounded cognitive summary exposed to an agent, without persistence identifiers. */
 export interface AgentContextCheckpoint {

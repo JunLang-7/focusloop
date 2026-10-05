@@ -50,6 +50,7 @@ export function runAg2Adapter(input: JsonValue): JsonValue {
       // The learner has not reordered anything in this fixture, which is also the state every session
       // starts in.
       taskOrder: [],
+      narrowing: null,
       consecutiveIncorrect: 0,
       recentHelpRequests: [requestAt],
       awaySince: null,

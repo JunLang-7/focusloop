@@ -417,3 +417,79 @@ describe('TASKS_REORDERED', () => {
     expect(after.state.lastEventAt).toBe(at(3_000));
   });
 });
+
+describe('TASK_NARROWED / TASK_RESTORED', () => {
+  const narrowed = { taskId: 't1', estimatedMinutes: 2, text: 'Start with the first sentence.' };
+  function focused(): StateEngineState {
+    return run(createInitialState(T0), [event('TASK_STARTED', { taskId: 't1' }, 1_000)]);
+  }
+  function narrow(): StateEngineState {
+    return reduceState(focused(), event('TASK_NARROWED', narrowed, 2_000)).state;
+  }
+
+  it('starts with nothing narrowed', () => {
+    expect(createInitialState(T0).narrowing).toBeNull();
+  });
+
+  it('records the narrowing without moving the learner', () => {
+    const before = focused();
+    const result = reduceState(before, event('TASK_NARROWED', narrowed, 2_000));
+    expect(result.state.narrowing).toEqual(narrowed);
+    expect(result.transition).toBeNull();
+    expect(result.state.state).toBe(before.state);
+    expect(result.state.currentTaskId).toBe('t1');
+  });
+
+  it('ignores a narrowing for a task the learner is not on', () => {
+    const result = reduceState(
+      focused(),
+      event('TASK_NARROWED', { ...narrowed, taskId: 't9' }, 2_000),
+    );
+    expect(result.state.narrowing).toBeNull();
+  });
+
+  it.each([
+    ['no minutes', { taskId: 't1', text: 'x' }],
+    ['zero minutes', { ...narrowed, estimatedMinutes: 0 }],
+    ['more than the 1-5 minute bound', { ...narrowed, estimatedMinutes: 6 }],
+    ['non-finite minutes', { ...narrowed, estimatedMinutes: Number.NaN }],
+    ['empty text', { ...narrowed, text: '' }],
+    ['non-string text', { ...narrowed, text: 4 }],
+  ])('rejects a narrowing with %s', (_name, payload) => {
+    const after = reduceState(focused(), event('TASK_NARROWED', payload, 2_000));
+    expect(after.state.narrowing).toBeNull();
+    expect(after.state.lastEventAt).toBe(at(2_000));
+  });
+
+  it('is cleared by TASK_RESTORED for the same task only', () => {
+    expect(
+      reduceState(narrow(), event('TASK_RESTORED', { taskId: 't9' }, 3_000)).state.narrowing,
+    ).not.toBeNull();
+    expect(
+      reduceState(narrow(), event('TASK_RESTORED', { taskId: 't1' }, 3_000)).state.narrowing,
+    ).toBeNull();
+  });
+
+  it('is cleared by finishing the task', () => {
+    expect(
+      reduceState(narrow(), event('TASK_COMPLETED', { taskId: 't1' }, 3_000)).state.narrowing,
+    ).toBeNull();
+  });
+
+  it('is cleared by moving to a different task, and kept when the same one restarts', () => {
+    expect(
+      reduceState(narrow(), event('TASK_STARTED', { taskId: 't2' }, 3_000)).state.narrowing,
+    ).toBeNull();
+    expect(
+      reduceState(narrow(), event('TASK_STARTED', { taskId: 't1' }, 3_000)).state.narrowing,
+    ).toEqual(narrowed);
+  });
+
+  it('does not survive into the next session', () => {
+    const next = reduceState(
+      narrow(),
+      event('SESSION_STARTED', { courseId: 'c1', sessionId: SESSION }, 3_000),
+    );
+    expect(next.state.narrowing).toBeNull();
+  });
+});

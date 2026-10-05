@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ProviderError, createProviderSelection } from '@focusloop/llm-provider';
-import { TUTOR_LIMITS, type AIProvider, type CompletionRequest } from '@focusloop/shared-types';
+import {
+  TUTOR_LIMITS,
+  type AIProvider,
+  type CompletionRequest,
+  type LearningEvent,
+} from '@focusloop/shared-types';
 import { EngineError, FocusLoopEngine } from './engine';
 import { DEMO_COURSE_ID } from './demo-course';
 import { createTestEngine, type TestEngine } from './test-helpers';
@@ -485,6 +490,68 @@ describe('FocusLoopEngine', () => {
       expect(after?.session.currentTaskId).toBe('rbt-t1');
       // Only the wall clock moves: nothing was completed, skipped or reordered by taking a break.
       expect(after?.progress).toEqual({ ...before?.progress, elapsedMs: 3 * 60_000 });
+    });
+
+    describe('MICRO_START narrows the task (AG2.3)', () => {
+      function offered(): { sessionId: string; interventionId: string } {
+        const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+        ctx.engine.dispatch({
+          sessionId: session.id,
+          type: 'TASK_STARTED',
+          source: 'user',
+          payload: { taskId: 'rbt-t1' },
+        });
+        const response = ctx.engine.dispatch({
+          sessionId: session.id,
+          type: 'HELP_REQUESTED',
+          source: 'user',
+          payload: { reason: 'cannot-start', taskId: 'rbt-t1' },
+        });
+        expect(response.decision?.action).toBe('MICRO_START');
+        expect(response.decision?.estimatedMinutes).toBe(2);
+        return { sessionId: session.id, interventionId: response.interventionId! };
+      }
+      const resolve = (
+        ids: { sessionId: string; interventionId: string },
+        resolution: 'accept' | 'dismiss' | 'continue',
+      ): void => {
+        ctx.engine.resolveRescue({ ...ids, resolution });
+      };
+      const narrowedEvents = (sessionId: string): LearningEvent[] =>
+        ctx.engine.listEvents(sessionId).filter((event) => event.type === 'TASK_NARROWED');
+
+      it('offers without changing the task, and a dismissal changes nothing', () => {
+        const ids = offered();
+        expect(ctx.engine.getCurrentSession()?.session.narrowing ?? null).toBeNull();
+        resolve(ids, 'dismiss');
+        expect(ctx.engine.getCurrentSession()?.session.narrowing ?? null).toBeNull();
+        expect(narrowedEvents(ids.sessionId)).toHaveLength(0);
+      });
+
+      it('narrows to a 2 minute grounded piece on accept, once, and restores on Continue', () => {
+        const ids = offered();
+        resolve(ids, 'accept');
+        const narrowing = ctx.engine.getCurrentSession()?.session.narrowing;
+        expect(narrowing).toMatchObject({ taskId: 'rbt-t1', estimatedMinutes: 2 });
+        expect(narrowing?.text.length).toBeGreaterThan(0);
+
+        resolve(ids, 'accept');
+        expect(narrowedEvents(ids.sessionId)).toHaveLength(1);
+
+        resolve(ids, 'continue');
+        expect(ctx.engine.getCurrentSession()?.session.narrowing ?? null).toBeNull();
+        expect(ctx.engine.getCurrentSession()?.session.currentTaskId).toBe('rbt-t1');
+        // The course itself was never rewritten.
+        const original = DEMO_COURSE_ID && ctx.engine.getCourse(DEMO_COURSE_ID)?.microTasks[0];
+        expect(original?.estimatedMinutes).not.toBe(2);
+      });
+
+      it('survives a restart of the engine, because it is stored', () => {
+        const ids = offered();
+        resolve(ids, 'accept');
+        const reread = ctx.store.getSession(ids.sessionId);
+        expect(reread?.session.narrowing).toMatchObject({ taskId: 'rbt-t1' });
+      });
     });
 
     it('does not restore or accept a rescue after the task has changed', () => {

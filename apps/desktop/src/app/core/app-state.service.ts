@@ -398,7 +398,8 @@ export class AppStateService {
       this.rescue.set(response.rescue);
       this.decision.set(null);
       this.interventionId.set(null);
-      this.dashboard.set(await this.api.getDashboard());
+      // Accepting a MICRO_START narrows the task and Continue puts it back; both live on the session.
+      await this.reloadSnapshot();
     });
   }
 

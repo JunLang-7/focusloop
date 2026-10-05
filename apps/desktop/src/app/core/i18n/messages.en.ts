@@ -152,6 +152,7 @@ const en = {
   'focus.progress': 'Progress',
   'focus.started': 'Started',
   'focus.currentTask': 'Current micro task',
+  'focus.firstStepOnly': 'First step only',
   'focus.taskMeta': 'about {minutes} min',
   'focus.nextTask': 'Next small step',
   'focus.startThree': 'Start for 3 minutes',
@@ -304,6 +305,8 @@ const en = {
   'event.type.SESSION_ENDED': 'Session ended',
   'event.type.AGENT_PROPOSAL_EXECUTED': 'A suggested change was applied',
   'event.type.TASKS_REORDERED': 'You changed the order',
+  'event.type.TASK_NARROWED': 'The step was narrowed to its first part',
+  'event.type.TASK_RESTORED': 'The full step is back',
 
   'event.source.user': 'you',
   'event.source.extension': 'browser extension',

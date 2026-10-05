@@ -49,6 +49,7 @@ import {
   isStuckReason,
   message,
 } from '@focusloop/shared-types';
+import { buildShrinkDraft } from './adaptive-task';
 import { buildAgentContext } from './agent-context';
 import {
   DEFAULT_INSIGHT_RANGE,
@@ -1203,10 +1204,75 @@ export class FocusLoopEngine {
       ...(continuedAt === undefined ? {} : { continuedAt }),
     });
     this.store.saveOutcome(outcome);
+    if (
+      request.resolution === 'accept' &&
+      !prior?.accepted &&
+      intervention.action === 'MICRO_START'
+    )
+      this.narrowCurrentTask(intervention);
+    if (request.resolution === 'continue') this.restoreNarrowedTask(intervention);
     return {
       outcome: this.store.getOutcomeByIntervention(intervention.id),
       rescue: this.getPendingRescue(request.sessionId),
     };
+  }
+
+  /**
+   * AG2.3: accepting MICRO_START shows only the first grounded piece of the task, for 2 minutes.
+   *
+   * The piece is the offline draft #149 already builds from the agent's own context, so nothing here
+   * reaches a provider and nothing is invented. When no draft exists (a quiz, a task that is already
+   * one minute, no material to point at) the rescue still proceeds as plain guidance: there is no
+   * honest narrowing to show, and showing a made-up one would be worse than none.
+   *
+   * The event id is derived from the intervention, so a replayed accept is a duplicate the store
+   * refuses rather than a second narrowing.
+   */
+  private narrowCurrentTask(intervention: Intervention): void {
+    const result = buildShrinkDraft(this.getAgentContext().context);
+    if (result.status !== 'suggested') return;
+    this.applyEngineEvent(intervention.sessionId, {
+      id: `narrow:${intervention.id}`,
+      type: 'TASK_NARROWED',
+      payload: {
+        taskId: result.draft.sourceTaskId,
+        estimatedMinutes: result.draft.estimatedMinutes,
+        text: result.draft.focus.text,
+      },
+    });
+  }
+
+  private restoreNarrowedTask(intervention: Intervention): void {
+    const narrowing = this.store.getSession(intervention.sessionId)?.engineState.narrowing;
+    if (narrowing === null || narrowing === undefined) return;
+    this.applyEngineEvent(intervention.sessionId, {
+      id: `restore:${intervention.id}`,
+      type: 'TASK_RESTORED',
+      payload: { taskId: narrowing.taskId },
+    });
+  }
+
+  /**
+   * Records an event the engine itself originates and folds it into the session.
+   *
+   * Unlike `dispatch` this does not run the intervention policy: these events describe the engine's
+   * own answer to an intervention, and evaluating the policy again on top of one would risk offering
+   * a second card in reply to the first.
+   */
+  private applyEngineEvent(
+    sessionId: string,
+    event: {
+      id: string;
+      type: 'TASK_NARROWED' | 'TASK_RESTORED';
+      payload: Record<string, unknown>;
+    },
+  ): void {
+    const record = this.requireSession(sessionId);
+    const at = this.clock();
+    const learningEvent = { ...event, sessionId, at, source: 'agent' } as unknown as LearningEvent;
+    if (!this.store.appendEvent(learningEvent)) return;
+    const { state } = reduceState(record.engineState, learningEvent, this.stateConfig);
+    this.store.saveSession({ session: toSession(state, record.session, at), engineState: state });
   }
 
   private taskIdForIntervention(intervention: Intervention): string | null {
@@ -1520,6 +1586,7 @@ function toSession(
     // Carried on the session as well as in the blob, because the renderer only ever sees a session:
     // `engine_state` is the engine's own value object and is not part of any snapshot.
     taskOrder: engineState.taskOrder,
+    narrowing: engineState.narrowing,
     updatedAt,
   };
 }

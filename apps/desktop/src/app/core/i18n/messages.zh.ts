@@ -133,6 +133,7 @@ export const zh: Record<MessageKey, string> = {
   'focus.progress': '进度',
   'focus.started': '开始时间',
   'focus.currentTask': '当前微任务',
+  'focus.firstStepOnly': '只做第一步',
   'focus.taskMeta': '约 {minutes} 分钟',
   'focus.nextTask': '下一小步',
   'focus.startThree': '先做 3 分钟',
@@ -273,6 +274,8 @@ export const zh: Record<MessageKey, string> = {
   'event.type.SESSION_ENDED': '会话结束',
   'event.type.AGENT_PROPOSAL_EXECUTED': '应用了一项建议的变更',
   'event.type.TASKS_REORDERED': '你更改了顺序',
+  'event.type.TASK_NARROWED': '这一步缩小为最先要做的一小部分',
+  'event.type.TASK_RESTORED': '已恢复完整的这一步',
 
   'event.source.user': '你',
   'event.source.extension': '浏览器扩展',

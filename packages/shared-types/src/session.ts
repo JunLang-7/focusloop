@@ -1,5 +1,18 @@
 import type { LearningState } from './state';
 
+/**
+ * A small, grounded piece of the current task that stands in for it until the learner is through it
+ * (AG2.3). The course task is never rewritten: this is an overlay the engine keeps on the session, so
+ * "the full task comes back" is the absence of the overlay rather than code that undoes a write.
+ */
+export interface TaskNarrowing {
+  readonly taskId: string;
+  /** Within `ADAPTIVE_TASK_LIMITS` (1-5 minutes). */
+  readonly estimatedMinutes: number;
+  /** What to do, taken from the concept or the material, never generated. */
+  readonly text: string;
+}
+
 export interface LearningSession {
   readonly id: string;
   readonly courseId: string;
@@ -21,6 +34,8 @@ export interface LearningSession {
    * partial list cannot lose anyone's work.
    */
   readonly taskOrder?: readonly string[];
+  /** The overlay shown instead of the current task's full text, or absent when there is none. */
+  readonly narrowing?: TaskNarrowing | null;
   /** Task the learner was on when the most recent friction state began. */
   readonly lastActiveTaskId?: string;
   readonly updatedAt: string;

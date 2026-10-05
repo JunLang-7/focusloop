@@ -27,7 +27,7 @@ export interface DecideInterventionInput {
 
 const ACTION_MINUTES: Record<InterventionAction, number> = {
   NO_ACTION: 0,
-  MICRO_START: 5,
+  MICRO_START: 2,
   SIMPLIFY: 3,
   HINT: 2,
   EXAMPLE: 4,

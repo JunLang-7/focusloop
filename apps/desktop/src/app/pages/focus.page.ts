@@ -11,7 +11,7 @@ import {
 } from '@angular/core';
 import type { ElementRef, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
-import type { MicroTask, MicroTaskKind, StuckReason } from '@focusloop/shared-types';
+import type { MicroTask, MicroTaskKind, StuckReason, TaskNarrowing } from '@focusloop/shared-types';
 import { STUCK_REASONS } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import {
@@ -160,10 +160,25 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
               <div class="focus-task__copy">
                 <p class="eyebrow">{{ t('focus.currentTask') }}</p>
                 <h2 id="focus-task-title" data-testid="task-title">{{ currentTask.title }}</h2>
-                <p class="focus-task__instructions">{{ currentTask.instructions }}</p>
+                @if (narrowingFor(currentTask.id); as narrowing) {
+                  <p class="focus-task__instructions" data-testid="task-narrowed">
+                    {{ narrowing.text }}
+                  </p>
+                } @else {
+                  <p class="focus-task__instructions">{{ currentTask.instructions }}</p>
+                }
                 <div class="focus-task__meta">
                   <span class="chip" data-testid="task-kind">{{ kind(currentTask.kind) }}</span>
-                  <span class="muted small">{{ estimate(currentTask.estimatedMinutes) }}</span>
+                  <span class="muted small">{{
+                    estimate(
+                      narrowingFor(currentTask.id)?.estimatedMinutes ?? currentTask.estimatedMinutes
+                    )
+                  }}</span>
+                  @if (narrowingFor(currentTask.id)) {
+                    <span class="chip" data-testid="task-narrowed-chip">{{
+                      t('focus.firstStepOnly')
+                    }}</span>
+                  }
                 </div>
               </div>
               <div class="focus-clock" role="timer" [attr.aria-label]="t('focus.timerAria')">
@@ -512,6 +527,11 @@ export class FocusPage implements OnDestroy {
   }
   protected kind(value: string): string {
     return kindLabel(value, this.t);
+  }
+  /** The rescue's overlay for this task, when one is in force; the course task itself is untouched. */
+  protected narrowingFor(taskId: string): TaskNarrowing | null {
+    const narrowing = this.snapshot()?.session.narrowing ?? null;
+    return narrowing !== null && narrowing.taskId === taskId ? narrowing : null;
   }
   protected estimate(minutes: number): string {
     return this.t('focus.taskMeta', { minutes: `${minutes}` });
