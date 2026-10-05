@@ -13,10 +13,27 @@ declare global {
 
 const MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs');
 
+/**
+ * A touch boundary is not an overlap.
+ *
+ * The task is laid out to end exactly where the notice begins, so the two boxes meet at a fractional
+ * coordinate. After `scrollIntoViewIfNeeded` the fractional scroll offset puts one a hundredth of a
+ * pixel past the other — 0.09px at 800x700, with the 15px scrollbars this test forces — which is not
+ * something a learner can see and not something float comparison can decide. One pixel is the
+ * tolerance: a real overlap is orders of magnitude larger, so this cannot hide one.
+ */
+const TOUCH_TOLERANCE = 1;
+
 /** The actual task and its action, not merely the notice, must remain usable. */
 async function taskIsUnobstructed(page: Page): Promise<void> {
   await page.locator('.focus-task--active').scrollIntoViewIfNeeded();
   await page.getByTestId('complete-task').scrollIntoViewIfNeeded();
+  /*
+   * Named before it is measured. A null box below would otherwise surface as arithmetic on null,
+   * which says nothing about what was wrong; a task that is not on screen now fails saying so, and
+   * the geometry assertions keep their meaning because they still run against real boxes.
+   */
+  await expect(page.locator('.focus-task--active')).toBeVisible();
   const task = await page.locator('.focus-task--active').boundingBox();
   const action = await page.getByTestId('complete-task').boundingBox();
   const notice = await page.getByTestId('focus-notice').boundingBox();
@@ -27,10 +44,10 @@ async function taskIsUnobstructed(page: Page): Promise<void> {
   expect(task).not.toBeNull();
   expect(action).not.toBeNull();
   expect(notice).not.toBeNull();
-  expect(task!.y + task!.height).toBeLessThanOrEqual(notice!.y);
-  expect(action!.y + action!.height).toBeLessThanOrEqual(notice!.y);
+  expect(task!.y + task!.height).toBeLessThanOrEqual(notice!.y + TOUCH_TOLERANCE);
+  expect(action!.y + action!.height).toBeLessThanOrEqual(notice!.y + TOUCH_TOLERANCE);
   expect(notice!.y + notice!.height).toBeLessThanOrEqual(
-    simulator?.y ?? page.viewportSize()!.height,
+    (simulator?.y ?? page.viewportSize()!.height) + TOUCH_TOLERANCE,
   );
   await expect(page.getByTestId('complete-task')).toBeInViewport();
 }
@@ -52,6 +69,26 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     await page.getByTestId('start-task').first().click();
     const notice = page.getByTestId('focus-notice');
     const toggle = page.getByTestId('focus-notice-toggle');
+
+    /*
+     * The renderer arms its 250ms timer interval only after its TASK_STARTED dispatch has answered,
+     * and a fake clock fires the timers that already exist. Jumping before that lands is a silent
+     * no-op — nothing ticks, the commitment never expires, the notice never appears — and which side
+     * of the race the run lands on is what made this test environment-dependent (#152). So the clock
+     * is jumped only once the timer is demonstrably ticking under it.
+     */
+    const clock = page.locator('.focus-clock__value');
+    await expect(page.locator('.focus-task--active')).toBeVisible();
+    await expect
+      .poll(
+        async () => {
+          const shown = await clock.textContent();
+          await page.clock.runFor(1_000);
+          return (await clock.textContent()) !== shown;
+        },
+        { message: 'the renderer timer never ticked, so the clock jump would be a no-op' },
+      )
+      .toBe(true);
 
     // The three-minute commitment expires without changing main-process time or policy.
     await page.clock.fastForward(180_250);
