@@ -86,11 +86,49 @@ function parseJson<T>(value: string, fallback: T): T {
  * these repositories.
  */
 export class FocusLoopStore {
-  constructor(private readonly db: SqlDatabase) {}
+  /**
+   * Whether this store has a usable connection.
+   *
+   * False from `close` until a replacement is opened and its schema is up, which is why `close` is idempotent
+   * and why a failed replacement leaves the store reporting that it cannot be used rather than claiming a
+   * handle nobody can read from.
+   */
+  private connected = true;
+
+  constructor(private db: SqlDatabase) {}
 
   /** Idempotent. Safe to call on every boot. */
   initialize(): readonly string[] {
     return migrate(this.db);
+  }
+
+  /**
+   * Moves the store onto a different connection, and brings the schema up on it.
+   *
+   * This exists for the delete-everything path. The store is built once and handed to the engine, which
+   * hands it to everything else, so a deletion that replaced the store object would leave every holder
+   * of it pointing at a closed database; deleting the file has to change the connection underneath the
+   * object everybody already has. That is why `db` is not `readonly`. The caller owns the path — this
+   * only ever owns the handle — so the replacement is opened by the caller and passed in here.
+   */
+  replaceDatabase(database: SqlDatabase): readonly string[] {
+    this.db = database;
+    /*
+     * Closed until the schema is up on it. `connected` is a claim about whether this store can be used, and a
+     * handle whose migrations failed is not one — reporting it as connected would be the same kind of lie as
+     * reporting a deletion that did not happen.
+     */
+    this.connected = false;
+    try {
+      const applied = this.initialize();
+      this.connected = true;
+      return applied;
+    } catch (error) {
+      // The replacement cannot be used, so it is closed here rather than left open behind a flag that says
+      // otherwise, and the caller is left to report the failure.
+      database.close();
+      throw error;
+    }
   }
 
   // ---------------------------------------------------------------- courses
@@ -756,6 +794,14 @@ export class FocusLoopStore {
   }
 
   close(): void {
+    /*
+     * Idempotent, so "the store has no live connection" is a state this object can be in and stay in. The caller
+     * that needs it most is the delete-everything path (#10): it closes the connection to unlink the file, and a
+     * reopen can fail — after which the store must still survive its own shutdown (`dispose`) and a second
+     * deletion attempt without throwing from the teardown.
+     */
+    if (!this.connected) return;
+    this.connected = false;
     this.db.close();
   }
 }

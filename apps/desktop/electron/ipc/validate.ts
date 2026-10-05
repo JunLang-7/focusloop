@@ -8,6 +8,7 @@ import {
   LEARNING_EVENT_TYPES,
   SESSION_END_REASONS,
   TUTOR_LIMITS,
+  type ConfirmDeleteDataRequest,
   type ConfirmProposalRequest,
   type DispatchEventRequest,
   type ExecuteProposalRequest,
@@ -284,6 +285,22 @@ export function parseNoArgs(channel: string, value: unknown): void {
   if (value !== undefined && value !== null) {
     fail(channel, 'this channel takes no arguments');
   }
+}
+
+/**
+ * The deletion's payload is its consent.
+ *
+ * Every other channel here can be called by any code the renderer happens to run; this is the one that
+ * leaves the learner with nothing, so an empty payload is not enough and the confirmation has to be on
+ * the wire. Extra keys are dropped like everywhere else, so a payload cannot smuggle a path in and get
+ * something other than the one database the process already has open deleted.
+ */
+export function parseDeleteAllData(channel: string, value: unknown): ConfirmDeleteDataRequest {
+  const record = asRecord(channel, value);
+  if (record['confirmed'] !== true) {
+    fail(channel, '"confirmed" must be true to delete all data');
+  }
+  return { confirmed: true };
 }
 
 /**

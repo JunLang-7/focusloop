@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   INSIGHT_RANGES,
+  IPC_CHANNELS,
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
   TUTOR_LIMITS,
@@ -8,6 +9,7 @@ import {
 } from '@focusloop/shared-types';
 import {
   IpcValidationError,
+  parseDeleteAllData,
   parseDispatchRequest,
   parseEndSession,
   parseImportMaterial,
@@ -398,5 +400,39 @@ describe('parseTutorAsk', () => {
     });
 
     expect(parsed).toEqual({ sessionId: 's1', mode: 'HINT', question: 'why?' });
+  });
+});
+
+describe('the data controls', () => {
+  it('name the channels the renderer can reach them through', () => {
+    expect(IPC_CHANNELS.getDataInfo).toBe('focusloop:data:info');
+    expect(IPC_CHANNELS.openDataFolder).toBe('focusloop:data:open-folder');
+    expect(IPC_CHANNELS.deleteAllData).toBe('focusloop:data:delete-all');
+  });
+
+  it("take nothing to read the path or open the folder, because the path is the process's", () => {
+    expect(parseNoArgs(IPC_CHANNELS.getDataInfo, undefined)).toBeUndefined();
+    expect(parseNoArgs(IPC_CHANNELS.openDataFolder, undefined)).toBeUndefined();
+  });
+
+  /*
+   * The deletion's payload is the consent, so it is the one payload that is not allowed to be
+   * empty: every other channel can be called by any code the renderer runs, and this is the one
+   * that leaves the learner with nothing.
+   */
+  it('refuse a deletion that does not carry the confirmation', () => {
+    expectFailure(() => parseDeleteAllData(CHANNEL, undefined));
+    expectFailure(() => parseDeleteAllData(CHANNEL, null));
+    expectFailure(() => parseDeleteAllData(CHANNEL, {}));
+    expectFailure(() => parseDeleteAllData(CHANNEL, { confirmed: false }));
+    expectFailure(() => parseDeleteAllData(CHANNEL, { confirmed: 'yes' }));
+    expectFailure(() => parseDeleteAllData(CHANNEL, { confirmed: 1 }));
+  });
+
+  it('accept the one payload that confirms it, and carry nothing else', () => {
+    expect(parseDeleteAllData(CHANNEL, { confirmed: true })).toEqual({ confirmed: true });
+    expect(parseDeleteAllData(CHANNEL, { confirmed: true, path: '/etc' })).toEqual({
+      confirmed: true,
+    });
   });
 });

@@ -97,6 +97,11 @@ const api: FocusLoopApi = {
       payload.setShowMaterialText(request.showMaterialText),
     ),
 
+  getDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getDataInfo, payload.none()),
+  openDataFolder: () => ipcRenderer.invoke(IPC_CHANNELS.openDataFolder, payload.none()),
+  deleteAllData: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.deleteAllData, payload.confirmDeleteAllData(request)),
+
   getInsights: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.getInsights, payload.insights(request.range)),
 

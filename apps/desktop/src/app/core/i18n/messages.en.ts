@@ -23,6 +23,31 @@ const en = {
   'app.language.switch': 'Switch interface language',
   'app.theme': 'Theme',
   'app.theme.switch': 'Switch theme',
+  /*
+   * The data controls (#10). The path itself is not in the dictionary: it is whatever the main
+   * process resolved, and a translated path would be a lie about where the data is.
+   */
+  'app.data': 'Your data',
+  'app.data.open': 'Open folder',
+  'app.data.delete': 'Delete everything',
+  'app.data.openFailed': 'The system file manager did not open the folder.',
+  'app.data.locked':
+    'The database is open in another program, so nothing was deleted. Close that program, then try again.',
+  'app.data.failed':
+    'Nothing was deleted. FocusLoop could not remove the file, so your data is still there.',
+  'app.data.deleted': 'The database has been deleted.',
+  'app.data.leftBehind': 'These files could not be removed and may still hold your data: {files}',
+  'app.data.unavailable':
+    'FocusLoop could not open its database again. Restart the app to keep using it.',
+  'app.data.confirm.title': 'Delete everything FocusLoop has stored?',
+  'app.data.confirm.course': 'Your courses, and the material they were generated from.',
+  'app.data.confirm.sessions': 'Every session, event, checkpoint and progress record.',
+  'app.data.confirm.settings': 'Your language, theme and display settings.',
+  'app.data.confirm.path': 'This deletes the database in {path}.',
+  'app.data.confirm.irreversible':
+    'FocusLoop keeps no copy anywhere else, so this cannot be undone.',
+  'app.data.confirm.cancel': 'Keep my data',
+  'app.data.confirm.action': 'Yes, delete everything',
 
   // The sidebar fold. Both are buttons, so a screen reader needs the verb rather than the
   // state: the floating button, and the sidebar's own toggle whenever the sidebar is

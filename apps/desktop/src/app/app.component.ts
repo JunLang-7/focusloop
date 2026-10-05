@@ -27,6 +27,7 @@ import { applyTheme, resolveTheme } from './core/theme';
 import { contextInspectorVisibleOn } from './core/inspector-visibility';
 import { isFocusRoute } from './core/focus-notice';
 import { ResumeCardComponent } from './components/resume-card.component';
+import { DataControlsComponent } from './components/data-controls.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
 import { AgentContextPanelComponent } from './components/agent-context-panel.component';
 import { SimulatorBarComponent } from './components/simulator-bar.component';
@@ -60,6 +61,7 @@ const PEEK_CLOSE_DELAY_MS = 150;
     AgentPanelComponent,
     AgentContextPanelComponent,
     SimulatorBarComponent,
+    DataControlsComponent,
   ],
   template: `
     <div
@@ -210,6 +212,13 @@ const PEEK_CLOSE_DELAY_MS = 150;
               </button>
             </div>
           </div>
+
+          <!--
+            Where the learner's data is, and the way to delete it (#10). In the footer with the other
+            preferences: the feature exists so that nobody has to go hunting through %APPDATA% for a file
+            a document told them about.
+          -->
+          <fl-data-controls />
         </div>
       </aside>
 

@@ -1,4 +1,5 @@
 import type {
+  ConfirmDeleteDataRequest,
   ConfirmProposalRequest,
   DispatchEventRequest,
   EndSessionRequest,
@@ -28,6 +29,13 @@ import type {
  */
 export const payload = {
   none: (): undefined => undefined,
+  /**
+   * The one builder whose value is a decision rather than data: it carries the learner's confirmation
+   * through unchanged, so the field the validator insists on is the field the renderer had to supply.
+   */
+  confirmDeleteAllData: (request: ConfirmDeleteDataRequest): ConfirmDeleteDataRequest => ({
+    confirmed: request.confirmed,
+  }),
   courseId: (courseId: string): { courseId: string } => ({ courseId }),
   sessionId: (sessionId: string): { sessionId: string } => ({ sessionId }),
   startSession: (courseId: string): StartSessionRequest => ({ courseId }),

@@ -135,7 +135,26 @@ export async function startBridgeServer(options: BridgeServerOptions): Promise<B
         return;
       }
 
-      socket.send(JSON.stringify(submit(message)));
+      let reply: BridgeOutboundMessage;
+      /*
+       * Answered as a value, like every other failure this handler can produce.
+       *
+       * The store is closed while a deletion replaces the database (#10), and it stays that way if the reopen
+       * fails, which is the state the learner is told to restart from. A paired extension sends tab and idle
+       * events with nobody at the app, so this is a caller with no learner behind it, like the tick: a throw
+       * here escapes this listener in the main process, where nothing catches it, once per message, over the
+       * notice telling the learner to restart.
+       */
+      try {
+        reply = submit(message);
+      } catch {
+        reply = {
+          protocol: BRIDGE_PROTOCOL_VERSION,
+          type: 'ERROR',
+          reason: 'store-unavailable',
+        };
+      }
+      socket.send(JSON.stringify(reply));
     });
   });
 

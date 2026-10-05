@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Added
+
+- **Your data, in the app.** The sidebar footer shows the directory the database lives in, read from
+  Electron rather than written down, with a button that opens it in the OS file manager. **Delete
+  everything** says what will be lost, asks for a second press, and then removes the database and its
+  sidecars and returns the app to a first-run state without a restart. A file another program has open is
+  reported as not deleted rather than shown as a success, and a file that could not be removed is named. See
+  `docs/privacy.md`.
+
 ### Changed
 
 - **Desktop shell: the sidebar folds completely.** The sidebar's own toggle collapses it; a small

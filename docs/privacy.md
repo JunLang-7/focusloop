@@ -46,8 +46,21 @@ The database lives at:
 - macOS: `~/Library/Application Support/FocusLoop/focusloop.sqlite`
 - Linux: `~/.config/FocusLoop/focusloop.sqlite`
 
-Deleting that file removes everything FocusLoop knows. Uninstalling leaves it in place on purpose,
-so a reinstall does not lose your progress.
+Deleting that file removes everything FocusLoop knows. You do not have to go looking for it: the
+sidebar footer shows this directory under **Your data**, with **Open folder** and **Delete
+everything** beside it. The path there is read from Electron's `app.getPath('userData')`, so it is the
+directory the running app is using rather than a path copied into this document.
+
+**Delete everything** says what will be lost, asks for a second press, and then removes the file and
+returns the app to a first-run state without a restart. If another program has the database open, the
+app says so instead of reporting a success it did not have.
+
+One corner is worth stating rather than implying: if the database file is deleted but FocusLoop cannot open
+the database again afterwards (something holding the path, a transient permission error), the data is gone
+and the app says that a restart is needed before it can be used. That is the only case in which a deletion
+involves a restart, and it is reported rather than passed over.
+
+Uninstalling leaves the file in place on purpose, so a reinstall does not lose your progress.
 
 ## What FocusLoop never collects
 

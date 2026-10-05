@@ -209,6 +209,20 @@ export class FocusLoopEngine {
     this.store.saveCourse(demoCourse(), { source: 'builtin' });
   }
 
+  /**
+   * Drops the learner's words that were never written to disk.
+   *
+   * The tutor transcript and the last outbound request are held in memory on purpose (the transcript is
+   * a working aid, and persisting model prose would be a table that grows with every question), which
+   * makes them the part of "my data" that deleting the database does not reach. Called by the
+   * delete-everything path, after the file is gone, so nothing of the learner is left in this process
+   * either — a deletion that leaves the last question in memory is not the deletion it claims to be.
+   */
+  discardTransientData(): void {
+    this.transcript.clear();
+    this.outboundBySession.clear();
+  }
+
   // --------------------------------------------------------------- catalogue
 
   listCourses(): Course[] {

@@ -10,6 +10,7 @@ import { payload } from './payloads';
 import {
   parseConfirmProposal,
   parseCourseId,
+  parseDeleteAllData,
   parseDispatchRequest,
   parseEndSession,
   parseExecuteProposal,
@@ -50,6 +51,8 @@ describe('the preload and the main process agree on every payload', () => {
       // Added with AG1 and initially left off this list — which made the one channel that was new the
       // one channel the test did not drive, in the file whose stated premise is *every* payload.
       IPC_CHANNELS.getAgentContext,
+      IPC_CHANNELS.getDataInfo,
+      IPC_CHANNELS.openDataFolder,
     ];
     for (const channel of channels) {
       expect(() => parseNoArgs(channel, payload.none())).not.toThrow();
@@ -157,6 +160,20 @@ describe('the preload and the main process agree on every payload', () => {
     expect(
       parseEndSession(IPC_CHANNELS.endSession, payload.endSession('session-1', 'user')),
     ).toEqual({ sessionId: 'session-1', reason: 'user' });
+
+    /*
+     * The deletion's confirmation is the one payload that is a decision rather than data, and it is asserted
+     * from the builder for the same reason as the rest: the renderer's press and the main process's rule have
+     * to be talking about the same field.
+     */
+    expect(
+      parseDeleteAllData(
+        IPC_CHANNELS.deleteAllData,
+        payload.confirmDeleteAllData({
+          confirmed: true,
+        }),
+      ),
+    ).toEqual({ confirmed: true });
 
     const dispatch = payload.dispatchEvent({
       sessionId: 'session-1',

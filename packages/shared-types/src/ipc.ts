@@ -63,6 +63,9 @@ export const IPC_CHANNELS = {
   setLocale: 'focusloop:settings:set-locale',
   setTheme: 'focusloop:settings:set-theme',
   setShowMaterialText: 'focusloop:settings:set-material-text',
+  getDataInfo: 'focusloop:data:info',
+  openDataFolder: 'focusloop:data:open-folder',
+  deleteAllData: 'focusloop:data:delete-all',
   subscribeEvents: 'focusloop:event:subscribe',
   unsubscribeEvents: 'focusloop:event:unsubscribe',
   onEvent: 'focusloop:event:push',
@@ -216,6 +219,63 @@ export interface SetShowMaterialTextRequest {
   readonly showMaterialText: boolean;
 }
 
+/**
+ * Where the learner's data is. Both paths are the main process's answer, not the renderer's guess:
+ * `directory` is `app.getPath('userData')` and `databasePath` is the file the store actually opened,
+ * so what the UI shows cannot drift from where the data is.
+ */
+export interface DataInfo {
+  readonly directory: string;
+  readonly databasePath: string;
+}
+
+/** `opened` is false when the OS would not show the folder; the renderer says so rather than nothing. */
+export interface OpenDataFolderResponse {
+  readonly opened: boolean;
+}
+
+/**
+ * A deletion carries the confirmation the learner pressed, not only the fact that a button was pressed.
+ *
+ * The dialog is what asks the question. This is what stops every other path to `deleteAllData` from
+ * being one call away from an empty database, and it keeps the decision visible on the wire, where the
+ * validator can refuse a payload that does not carry it.
+ */
+export interface ConfirmDeleteDataRequest {
+  readonly confirmed: true;
+}
+
+/** Why the data is still there. A token the renderer translates, never a sentence from the OS. */
+export type DeleteDataFailureReason = 'locked' | 'failed';
+
+/**
+ * What the deletion did, in the process's own words.
+ *
+ * `ok` is what the learner is told, so it is derived from the file being gone rather than from the code
+ * path having run: a delete that reports success while the database is still on disk is the one outcome
+ * this feature must not have.
+ */
+export interface DeleteDataResponse {
+  readonly ok: boolean;
+  readonly reason: DeleteDataFailureReason | null;
+  /** The files this call removed, so a report can be checked against the disk rather than trusted. */
+  readonly removed: readonly string[];
+  /**
+   * The files that are still there, which is not the same as "nothing was removed": the database can be
+   * gone while a sidecar that holds its page images is not. Empty in the ordinary case.
+   *
+   * A leftover file is not by itself a reason the app cannot be used again, but it is the state in which
+   * that can happen: the reopen has to get past whatever kept the file there. `usable` is what reports it.
+   */
+  readonly leftBehind: readonly string[];
+  /**
+   * False when the database could not be opened again after the delete, which is not the same question as
+   * `ok`: the learner's data can be gone while nothing in the app works until it is restarted. The two are
+   * reported separately because either one can be true on its own.
+   */
+  readonly usable: boolean;
+}
+
 /** Typed, promise-based API exposed as `window.focusloop`. */
 export interface FocusLoopApi {
   getAppVersion(): Promise<string>;
@@ -260,6 +320,20 @@ export interface FocusLoopApi {
   setLocale(request: SetLocaleRequest): Promise<AppSettings>;
   setTheme(request: SetThemeRequest): Promise<AppSettings>;
   setShowMaterialText(request: SetShowMaterialTextRequest): Promise<AppSettings>;
+
+  /**
+   * Where the local database is. Local-first, so this is the whole of it: one directory, one file, and
+   * a button that opens the folder so the learner can see it for themselves instead of trusting a page.
+   */
+  getDataInfo(): Promise<DataInfo>;
+  openDataFolder(): Promise<OpenDataFolderResponse>;
+  /**
+   * Deletes everything FocusLoop has stored and returns the app to a first-run state.
+   *
+   * Takes the confirmation rather than assuming it, and reports what happened instead of promising it:
+   * see `DeleteDataResponse`.
+   */
+  deleteAllData(request: ConfirmDeleteDataRequest): Promise<DeleteDataResponse>;
 
   getInsights(request: InsightsRequest): Promise<InsightsSummary>;
   /**

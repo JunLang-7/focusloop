@@ -96,6 +96,21 @@ describe('bridge server', () => {
     expect(response.type).toBe('ERROR');
   });
 
+  /*
+   * The store can be closed underneath the bridge, and not by a learner: a deletion replaces the database
+   * (#10) and it stays closed if the reopen fails, which is the state the learner is told to restart from. A
+   * paired extension keeps sending tab and idle events with nobody at the app, so this is a caller with no
+   * learner behind it, like the five-second tick. A throw here escapes a WebSocket listener in the main
+   * process, where nothing catches it; the answer is a value, like every other failure this handler can give.
+   */
+  it('answers an error when the store is not available', async () => {
+    ctx.store.close();
+
+    const response = await send(bridge.url, message());
+
+    expect(response).toMatchObject({ type: 'ERROR', reason: 'store-unavailable' });
+  });
+
   it('applies the same event id only once', async () => {
     const payload = message({ eventId: 'duplicate-1' });
     const first = await send(bridge.url, payload);

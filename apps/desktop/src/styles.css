@@ -205,7 +205,15 @@ ol {
   /* `min-width: 0` is what lets the grid track reach zero; without it the sidebar's
      min-content width would keep the column open while the shell folded. */
   min-width: 0;
-  overflow: hidden;
+  /*
+   * Clipped sideways, scrollable downwards. The horizontal clip is part of the fold (a 0-width track
+   * must not leak a sliver of label into the gutter), but the column carries the navigation, the
+   * ambient summary and the whole preferences footer, and at the window's minimum height that is
+   * taller than the screen. Clipping vertically would have made the last block the one nobody could
+   * reach, and the last block is where the data controls are (#10).
+   */
+  overflow-x: hidden;
+  overflow-y: auto;
   transition: opacity 140ms ease;
   /*
    * Both columns are named, never auto-placed. Ordering the columns by document order would
@@ -1246,6 +1254,21 @@ body:has(.simulator) .agent-context {
   background: transparent;
 }
 
+/*
+ * The one button in the app that destroys something. It reads as dangerous at rest rather than only on
+ * hover: the learner should be able to tell it apart from "Open folder" beside it before pressing it,
+ * and the confirmation dialog is the second press, not the only warning.
+ */
+.btn--danger {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.btn--danger:hover {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
 .btn--small {
   padding: 5px 10px;
   font-size: 12px;
@@ -1331,6 +1354,79 @@ body:has(.simulator) .agent-context {
   font-size: 12px;
   color: var(--text-muted);
   white-space: pre-wrap;
+}
+
+/* ------------------------------------------------------- data controls (#10) */
+
+/*
+ * The path, wrapped rather than truncated. It is the answer to "where is my data", so a path clipped at
+ * the panel edge would be a worse answer than none; `anywhere` breaks inside a segment, which is the
+ * only way a long folder name with no spaces can be shown at all in a 232px sidebar.
+ */
+.data__path {
+  margin: 2px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.data__notice {
+  margin: 6px 0 0;
+  color: var(--text-muted);
+}
+
+/* One line per message inside the single live region, so a deletion that has three things to say reads as
+   three lines rather than one run-on sentence. */
+.data__line {
+  display: block;
+}
+
+.data__notice[data-kind='warning'] {
+  color: var(--warn);
+}
+
+.data__notice[data-kind='error'] {
+  color: var(--danger);
+}
+
+.confirm {
+  width: min(460px, 100%);
+  padding: 22px;
+  border: 1px solid var(--danger);
+  border-radius: 16px;
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-lg);
+}
+
+/*
+ * What is lost, as a list rather than a sentence. The acceptance criterion is that the action says
+ * plainly what it removes, and a list is the shape that stays readable when it is translated.
+ */
+.confirm__list {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.confirm__path {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+
+.confirm__warning {
+  margin: 0;
+  font-size: 12px;
+  color: var(--danger);
+}
+
+.confirm__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
 }
 
 /* -------------------------------------------------------------- agent bar */

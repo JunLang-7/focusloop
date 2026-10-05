@@ -212,6 +212,49 @@ describe('agent memory clear (ADR 0001)', () => {
     }
   });
 
+  /*
+   * The delete-everything path (#10) rather than the per-session clear: the database is about to be
+   * removed, so there is no session left to clear one at a time. What the transcript and the outbound map
+   * hold is the learner's own words, which is why a deletion that stopped at the file would be a
+   * deletion that says less than it does.
+   */
+  it('Working: discarding transient data forgets the session, with no session named', async () => {
+    const prompts: string[] = [];
+    const scripted = createTestEngine({
+      providers: createProviderSelection(capturingProvider(prompts)),
+    });
+    try {
+      /*
+       * One session, because the engine allows one: starting a second ends the first, and ending it clears the
+       * outbound entry anyway, so "every session" is not a state this engine can be put in to be asserted. What
+       * the difference from `clearAgentMemory` rests on is that nothing is named here — the call takes no id.
+       */
+      const { session } = scripted.engine.startSession(DEMO_COURSE_ID);
+      await scripted.engine.askTutor({
+        sessionId: session.id,
+        mode: 'HINT',
+        question: 'QUESTION_BEFORE_DELETE',
+      });
+      expect(scripted.engine.getOutboundRequest(session.id)).not.toBeNull();
+
+      scripted.engine.discardTransientData();
+
+      expect(scripted.engine.getOutboundRequest(session.id)).toBeNull();
+
+      // The transcript is observable only through the next prompt, which is where it would come back.
+      await scripted.engine.askTutor({
+        sessionId: session.id,
+        mode: 'HINT',
+        question: 'QUESTION_AFTER_DELETE',
+      });
+      const after = prompts.at(-1) ?? '';
+      expect(after).toContain('QUESTION_AFTER_DELETE');
+      expect(after).not.toContain('QUESTION_BEFORE_DELETE');
+    } finally {
+      scripted.close();
+    }
+  });
+
   it('Episodic: clear deletes the session proposal rows as well', () => {
     const { engine, store } = ctx;
     const { session } = engine.startSession(DEMO_COURSE_ID);

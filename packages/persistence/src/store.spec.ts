@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -556,6 +556,84 @@ describe('FocusLoopStore', () => {
         rmSync(`${file}-wal`, { force: true });
         rmSync(`${file}-shm`, { force: true });
       }
+    });
+
+    /*
+     * The delete-everything path (#10), one level down: the file is removed underneath a store that the
+     * engine and every IPC handler already hold. Replacing the store object instead would leave all of
+     * them pointing at a closed database, so the connection is what moves.
+     */
+    it('moves onto a new database in place when the file behind it was deleted', () => {
+      const file = join(tmpdir(), `focusloop-test-${randomUUID()}.sqlite`);
+      const store = new FocusLoopStore(openDatabase(file));
+      try {
+        store.initialize();
+        store.saveCourse(courseFixture());
+        store.setMeta('locale', 'zh');
+
+        // This is what the delete does: close the handle, remove the files, open a fresh database at the
+        // same path. Nothing about the store object changes, which is the property under test.
+        store.close();
+        rmSync(file, { force: true });
+        rmSync(`${file}-wal`, { force: true });
+        rmSync(`${file}-shm`, { force: true });
+
+        // A brand-new file is an unmigrated one, so this is where the schema comes back.
+        expect(store.replaceDatabase(openDatabase(file)).length).toBeGreaterThan(0);
+        expect(store.getCourse('course-1')).toBeNull();
+        /*
+         * The learner's row is gone and the default is back, which is the difference between "the
+         * database is empty" and "the app is in its first-run state": the migration seeds the defaults,
+         * so `en` here is the same value a fresh install would have rather than a leftover.
+         */
+        expect(store.getMeta('locale')).toBe('en');
+
+        // And it is a working database rather than merely an empty one.
+        store.saveCourse(courseFixture());
+        expect(store.getCourse('course-1')).toEqual(courseFixture());
+      } finally {
+        // Closed here rather than at the end of the body: a failing assertion would otherwise leave the
+        // replacement handle open, and the unlink would fail with an unrelated EPERM that hides the real
+        // failure behind it.
+        store.close();
+        rmSync(file, { force: true });
+        rmSync(`${file}-wal`, { force: true });
+        rmSync(`${file}-shm`, { force: true });
+      }
+    });
+
+    /*
+     * The other half of the same call, and the reason `connected` is not set until the schema is up on the new
+     * handle: a replacement that cannot be brought up has to leave the store saying it has no working
+     * connection, rather than claiming one it does not have.
+     *
+     * A stub rather than a real closed handle, so the trigger is the migration failing (which is what happens
+     * when a file cannot be used as a database) and the assertion can be about the handle itself: closed
+     * exactly once, by the store, instead of being closed again by `close` at some later point.
+     */
+    it('stays closed when the replacement cannot be brought up', () => {
+      const handle = {
+        exec: (): void => {
+          throw new Error('the schema could not be brought up');
+        },
+        prepare: (): never => {
+          throw new Error('not reached');
+        },
+        transaction: <T>(fn: () => T): (() => T) => fn,
+        close: vi.fn(),
+      };
+
+      expect(() => store.replaceDatabase(handle)).toThrow('the schema could not be brought up');
+      expect(handle.close).toHaveBeenCalledTimes(1);
+
+      // No working connection, and the store knows it: its own teardown touches nothing rather than closing a
+      // handle it does not own any more.
+      expect(() => store.close()).not.toThrow();
+      expect(handle.close).toHaveBeenCalledTimes(1);
+
+      // And a healthy replacement still lands, so the state is recoverable rather than terminal.
+      store.replaceDatabase(openDatabase(':memory:'));
+      expect(store.getMeta('locale')).toBe('en');
     });
 
     it('keeps sessions isolated from one another', () => {

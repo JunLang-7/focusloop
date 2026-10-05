@@ -53,7 +53,6 @@ export interface TranscriptRecord {
  */
 export class TutorTranscript {
   private readonly bySession = new Map<string, TutorTurn[]>();
-
   /**
    * Adds an exchange, and reports what had to be given up to keep it.
    *
@@ -143,6 +142,17 @@ export class TutorTranscript {
   /** How many sessions are held. For the leak test rather than for the product. */
   size(): number {
     return this.bySession.size;
+  }
+
+  /**
+   * Forgets every conversation.
+   *
+   * The one caller is the delete-everything path. The transcript is deliberately not in the store — it
+   * is a working aid, not history — which is exactly why deleting the database is not a complete
+   * deletion on its own: the question the learner just asked about would still be in this process.
+   */
+  clear(): void {
+    this.bySession.clear();
   }
 }
 

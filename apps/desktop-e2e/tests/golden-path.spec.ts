@@ -1,6 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import {
   _electron as electron,
   expect,
@@ -185,6 +186,18 @@ test.afterAll(async () => {
 /** The state chip's visible text is translated; the raw state is a data attribute. */
 function stateIs(expected: string) {
   return expect(window.getByTestId('state')).toHaveAttribute('data-state', expected);
+}
+
+/**
+ * A path as the filesystem sees it, or as given when it cannot be resolved.
+ *
+ * Two spellings can name one directory — a symlinked prefix on macOS, a differently cased drive on Windows —
+ * and a comparison that treats those as a mismatch is testing how the OS spells a path rather than where the
+ * app says its data is. A path that does not resolve is returned unchanged, so a path that is wrong still
+ * fails with both strings printed.
+ */
+function resolvedPath(path: string): string {
+  return existsSync(path) ? realpathSync(path) : path;
 }
 
 /**
@@ -1700,4 +1713,175 @@ test('an active focus commitment survives leaving and returning to the route', a
   await expect.poll(() => value.innerText(), { timeout: 5_000 }).not.toBe(afterReturn);
   await window.getByTestId('end-session').click();
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
+/*
+ * Last in this file, and it has to be: this is the one test that deletes everything the tests above spent
+ * the run storing, so anything after it *in this file* would be asserting against a first-run app. Every
+ * other suite in this package launches against a temp `--user-data-dir` of its own, so the only state this
+ * deletion can reach is what is above it here. Nothing but this comment enforces the order, which is why it
+ * says only what is true.
+ *
+ * Being last is not the same as depending on what is above it, and this test does not: it stores the data it
+ * asserts on itself, because a test that borrowed it would be reading a database Playwright is free to
+ * replace when it restarts the worker. See the comment inside.
+ *
+ * It ends on a session, which is also what makes its last assertions the interesting ones: "back to a
+ * first-run state without a restart" is only shown by the app still working afterwards, not by the screen
+ * it redrew.
+ */
+test('the learner can find their data and delete all of it, without a restart', async () => {
+  /*
+   * The data the assertions below are about is stored here rather than borrowed from the tests above, and
+   * the difference is not tidiness. `beforeAll` creates one profile for the file, but Playwright starts a
+   * fresh worker — and calls `beforeAll` again, with a brand new profile — after a failed attempt, and the
+   * suite has more than one test that can fail on CI (the import-form flake, #152). This test read 0 on CI
+   * exactly that way: the only test that stores an interruption had run before the worker was recycled, so
+   * the second attempt had a profile with almost nothing in it, and the first had one whose interruptions
+   * came from a test that no longer shared its database. Storing an interruption here costs a second and
+   * makes the precondition this test's own.
+   */
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+  await window.getByTestId('complete-task').click();
+  await window.getByTestId('sim-distraction').click();
+  await window.getByTestId('sim-return').click();
+  // The interruption is stored when the state engine marks it, which is what the dashboard counts below.
+  await stateIs('INTERRUPTED');
+  await window.getByTestId('resume-continue').click();
+
+  // The dashboard's aggregate over the current window, which is the app's own count of what the run has
+  // stored. Read before the delete so that "the cancel changed nothing" is a comparison rather than a
+  // second guess.
+  await clickSidebarLink('Dashboard');
+  const stored = window.getByTestId('insights-interruptions');
+  await expect(stored).toBeVisible();
+  const before = await stored.innerText();
+  expect(
+    Number(before),
+    'the run stored interruptions; with 0 stored the checks below are vacuous',
+  ).toBeGreaterThan(0);
+
+  /*
+   * The path is the app's, not the test's: it is compared against the profile this launch was given, which
+   * is what `--user-data-dir` and `app.getPath('userData')` agree on. Compared by what each resolves to,
+   * because more than one spelling names the same directory: Windows may report a different drive case
+   * (`D:\a` for `d:\a`), and macOS resolves `/var/folders/…` to `/private/var/folders/…` — `/var` is a
+   * symlink there, so Electron reports the target while `os.tmpdir()` keeps the name the test created. A
+   * path that differs only in how it is spelled is not the defect this assertion is for; a path that
+   * resolves somewhere else is, and it still fails here, spelled differently.
+   */
+  const shownPath = window.getByTestId('data-path');
+  await expect(shownPath).toBeVisible();
+  const shown = (await shownPath.innerText()).trim();
+  expect(resolvedPath(shown).toLowerCase()).toBe(resolvedPath(userDataDir).toLowerCase());
+
+  /*
+   * `data-open-folder` is present and is not pressed: the channel behind it hands the directory to the OS
+   * file manager, and a test that presses it opens a File Explorer window on whatever machine is running
+   * the suite. What the button can be held to from here is that it exists next to the path it acts on.
+   */
+  await expect(window.getByTestId('data-open-folder')).toBeEnabled();
+
+  /*
+   * 1. A deletion that cannot happen is reported rather than performed.
+   *
+   * Windows-only, because that is the only platform where deleting a file another program has open fails:
+   * POSIX unlinks it without complaint. The lock is a second connection from this process, which is what
+   * another program with the database open looks like from the app's side — and it is a real SQLite
+   * connection rather than `fs.open`, because Node opens files with `FILE_SHARE_DELETE` and a read handle
+   * can be unlinked underneath itself.
+   */
+  if (process.platform === 'win32') {
+    const other = new DatabaseSync(join(userDataDir, 'focusloop.sqlite'));
+    try {
+      await window.getByTestId('data-delete').click();
+      await window.getByTestId('data-confirm').click();
+
+      /*
+       * The notice names the cause, and there is only ever one notice: a failure for any other reason would
+       * raise a different message, and a success would raise the opposite one, so this single assertion
+       * distinguishes all three outcomes.
+       */
+      await expect(window.getByTestId('data-notice')).toContainText('open in another program');
+    } finally {
+      other.close();
+    }
+
+    /*
+     * And the data is still there, read back rather than assumed. Leaving and re-entering the dashboard is
+     * what makes this a read of the database rather than of a screen the failed delete never touched: the
+     * page asks for its window again when it is created.
+     */
+    await clickSidebarLink('Home');
+    await clickSidebarLink('Dashboard');
+    await expect(stored).toHaveText(before);
+  }
+
+  // 2. The first press is a question, not a decision.
+  await window.getByTestId('data-delete').click();
+  const dialog = window.getByTestId('data-confirm-dialog');
+  await expect(dialog).toBeVisible();
+
+  // It says what will be lost, and where it lives.
+  await expect(dialog).toContainText('courses');
+  await expect(dialog).toContainText('session');
+  await expect(dialog).toContainText('cannot be undone');
+  await expect(window.getByTestId('data-confirm-path')).toContainText('focusloop.sqlite');
+
+  /*
+   * The keyboard contract, which is the whole of what `aria-modal="true"` claims: focus is inside the dialog
+   * rather than on the page behind it, Tab wraps at both ends instead of escaping, and Escape cancels. The
+   * dialog holds two buttons in document order (keep, then delete), so the wrap is checkable in both
+   * directions. The non-modal resume card is asserted the same way; this is the same contract on the surface
+   * that removes data.
+   */
+  await expect(dialog).toBeFocused();
+  await window.keyboard.press('Tab');
+  await expect(window.getByTestId('data-cancel')).toBeFocused();
+  await window.keyboard.press('Shift+Tab');
+  await expect(window.getByTestId('data-confirm')).toBeFocused();
+  await window.keyboard.press('Tab');
+  await expect(window.getByTestId('data-cancel')).toBeFocused();
+
+  // 3. Cancelling leaves the data exactly where it was, and hands focus back to the button that opened it.
+  await window.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(window.getByTestId('data-delete')).toBeFocused();
+  await expect(stored).toHaveText(before);
+
+  // 4. Confirming deletes it, and the app says so rather than showing a success it did not have.
+  await window.getByTestId('data-delete').click();
+  await window.getByTestId('data-confirm').click();
+
+  await expect(dialog).toBeHidden();
+  await expect(window.getByTestId('data-notice')).toContainText('has been deleted');
+
+  /*
+   * The stored history is gone, in the two places the app reports it. The activity panel falls back to its
+   * empty state rather than to a row of zeros, so the count is absent rather than 0 — and the sidebar's own
+   * summary, which is a separate reading of the same database, says nothing was recorded.
+   */
+  await expect(stored).toHaveCount(0);
+  await expect(window.getByText('Nothing recorded today.')).toBeVisible();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
+  // 5. Home is in its first-run state: nothing running, and the block that explains the app is back.
+  await clickSidebarLink('Home');
+  await expect(window.getByTestId('getting-started')).toBeVisible();
+  await expect(window.getByText('No session running. Pick a course below to begin.')).toBeVisible();
+
+  /*
+   * 6. And the app still works, which is what "without a restart" means. The built-in course is still
+   * there because it is the product's own content rather than the learner's, and a new session runs
+   * against the database the delete left behind.
+   */
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await stateIs('READY');
+  await window.getByTestId('start-task').first().click();
+  await stateIs('FOCUSED');
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
 });

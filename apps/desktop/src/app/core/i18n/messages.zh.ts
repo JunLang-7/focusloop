@@ -21,6 +21,27 @@ export const zh: Record<MessageKey, string> = {
   'app.language.switch': '切换界面语言',
   'app.theme': '主题',
   'app.theme.switch': '切换主题',
+  /*
+   * 数据控制（#10）。路径本身不进词典：它是主进程实际解析出来的位置，
+   * 被翻译过的路径就是在说谎。
+   */
+  'app.data': '你的数据',
+  'app.data.open': '打开文件夹',
+  'app.data.delete': '删除全部数据',
+  'app.data.openFailed': '系统文件管理器没有打开该文件夹。',
+  'app.data.locked': '数据库正被其他程序占用，因此没有删除任何内容。请关闭那个程序后重试。',
+  'app.data.failed': '没有删除任何内容。FocusLoop 无法移除该文件，你的数据仍然在。',
+  'app.data.deleted': '数据库已删除。',
+  'app.data.leftBehind': '这些文件无法移除，其中可能仍保留着你的数据：{files}',
+  'app.data.unavailable': 'FocusLoop 无法再次打开数据库。请重启应用以继续使用。',
+  'app.data.confirm.title': '删除 FocusLoop 存储的所有内容？',
+  'app.data.confirm.course': '你的课程，以及生成课程所用的材料。',
+  'app.data.confirm.sessions': '所有会话、事件、检查点与进度记录。',
+  'app.data.confirm.settings': '你的语言、主题与显示设置。',
+  'app.data.confirm.path': '这会删除 {path} 中的数据库。',
+  'app.data.confirm.irreversible': 'FocusLoop 不在别处保留任何副本，因此这项操作无法撤销。',
+  'app.data.confirm.cancel': '保留我的数据',
+  'app.data.confirm.action': '是，全部删除',
 
   // 边栏折叠。两个方向都是按钮，读屏听到的是动作而不是状态：悬浮按钮、以及边栏收起时边栏
   // 自己的开关，读作“展开”；边栏停靠时，开关读作“收起”。
