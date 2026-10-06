@@ -25,7 +25,7 @@
     "@focusloop/material-parser": "workspace:*",
     "@focusloop/persistence": "workspace:*",
     "@focusloop/shared-types": "workspace:*",
-    "ws": "^8.18.0"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@angular/build": "^20.0.0",
@@ -37,7 +37,7 @@
     "@angular/forms": "^20.3.33",
     "@angular/platform-browser": "^20.3.33",
     "@angular/router": "^20.3.33",
-    "@types/ws": "^8.5.13",
+    "@types/ws": "^8.18.2",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.28.2",
