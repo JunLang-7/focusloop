@@ -17,6 +17,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **One rule decides whether the developer surfaces appear, and it is tested.** The simulator bar and
+  the context inspector asked the same question with the same copied expression; both now call
+  `developerModeEnabled(runtime)`, which is `false` for a packaged build and for an answer that has not
+  arrived yet. Absence from a learner's screen used to be two files agreeing; it is now a tested rule.
+  (#98)
 - **The eval suite covers what the rescue actions actually do.** `agent-evals` gains eight fixtures for
   the MICRO_START/SIMPLIFY rewrite (through the production builder, read back through
   `applyTaskRewrite`, with the original task's text forbidden in the output) and eight for what a HINT
