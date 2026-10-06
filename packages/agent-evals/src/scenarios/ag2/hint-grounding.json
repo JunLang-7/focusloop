@@ -1,0 +1,224 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "ag2-hint-concept-summary-happy",
+    "capability": "AG2",
+    "kind": "happy",
+    "description": "A HINT quotes the idea behind the step, taken from the concept.",
+    "input": {
+      "reason": "went-wrong",
+      "concept": {
+        "summary": "A rotation restructures three nodes."
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "action",
+        "value": "HINT"
+      },
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": "concept-summary"
+      },
+      {
+        "type": "equals",
+        "path": "groundingText",
+        "value": "A rotation restructures three nodes."
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-hint-falls-back-to-first-key-point-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "With no summary the hint falls back to the concept's first key point.",
+    "input": {
+      "reason": "went-wrong",
+      "concept": {
+        "summary": ""
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": "concept-key-point"
+      },
+      {
+        "type": "equals",
+        "path": "groundingText",
+        "value": "in-order traversal is sorted"
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-example-material-sentence-happy",
+    "capability": "AG2",
+    "kind": "happy",
+    "description": "An EXAMPLE quotes a sentence of the learner's own material.",
+    "input": {
+      "reason": "do-not-understand",
+      "materialText": "A left rotation lifts the right child. It keeps the order."
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "action",
+        "value": "EXAMPLE"
+      },
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": "material-sentence"
+      },
+      {
+        "type": "equals",
+        "path": "groundingText",
+        "value": "A left rotation lifts the right child."
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-example-without-material-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "With no material the example falls back to a key point, and to the last one so it differs from the hint.",
+    "input": {
+      "reason": "do-not-understand"
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": "concept-key-point"
+      },
+      {
+        "type": "equals",
+        "path": "groundingText",
+        "value": "a rotation keeps the order"
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-grounding-no-context-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "description": "With no session there is nothing to quote, and the card keeps its fixed steps.",
+    "input": {
+      "reason": "went-wrong",
+      "hasSession": false
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "action",
+        "value": "HINT"
+      },
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": null
+      },
+      {
+        "type": "equals",
+        "path": "groundingText",
+        "value": null
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-hint-does-not-reprint-the-task-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "description": "A summary that is the task's own words is not help, so the hint moves to a key point.",
+    "input": {
+      "reason": "went-wrong",
+      "task": {
+        "instructions": "Read the whole section and take notes."
+      },
+      "concept": {
+        "summary": "Read the whole section and take notes."
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": "concept-key-point"
+      },
+      {
+        "type": "equals",
+        "path": "groundingText",
+        "value": "in-order traversal is sorted"
+      }
+    ],
+    "forbidden": [
+      {
+        "type": "forbidden-value",
+        "value": "Read the whole section and take notes."
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-grounding-is-bounded-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "A summary longer than a drafted step may be is not quoted at all.",
+    "input": {
+      "reason": "went-wrong",
+      "concept": {
+        "summary": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": "concept-key-point"
+      },
+      {
+        "type": "max-length",
+        "path": "groundingText",
+        "max": 600
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-example-chinese-sentence-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "A Chinese full stop ends a sentence too, so the quote does not run on.",
+    "input": {
+      "reason": "do-not-understand",
+      "materialText": "旋转会改变三个节点。顺序保持不变。"
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "groundingSource",
+        "value": "material-sentence"
+      },
+      {
+        "type": "equals",
+        "path": "groundingText",
+        "value": "旋转会改变三个节点。"
+      }
+    ],
+    "forbidden": []
+  }
+]

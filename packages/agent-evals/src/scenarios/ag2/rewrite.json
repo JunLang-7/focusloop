@@ -1,0 +1,303 @@
+[
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-micro-start-happy",
+    "capability": "AG2",
+    "kind": "happy",
+    "description": "MICRO_START shows the task's first grounded point, for two minutes.",
+    "input": {
+      "action": "MICRO_START",
+      "task": {
+        "estimatedMinutes": 7,
+        "kind": "read"
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "status",
+        "value": "suggested"
+      },
+      {
+        "type": "equals",
+        "path": "action",
+        "value": "MICRO_START"
+      },
+      {
+        "type": "equals",
+        "path": "steps",
+        "value": ["in-order traversal is sorted"]
+      },
+      {
+        "type": "equals",
+        "path": "stepMinutes",
+        "value": [2]
+      },
+      {
+        "type": "equals",
+        "path": "estimatedMinutes",
+        "value": 2
+      },
+      {
+        "type": "equals",
+        "path": "sourceEstimatedMinutes",
+        "value": 7
+      },
+      {
+        "type": "equals",
+        "path": "renderedInstructions",
+        "value": "in-order traversal is sorted"
+      },
+      {
+        "type": "equals",
+        "path": "renderedMinutes",
+        "value": 2
+      },
+      {
+        "type": "equals",
+        "path": "idempotencyKey",
+        "value": "task-rewrite:MICRO_START:session-ag2:task-ag2"
+      }
+    ],
+    "forbidden": [
+      {
+        "type": "forbidden-value",
+        "value": "Read the whole section and take notes."
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-simplify-happy",
+    "capability": "AG2",
+    "kind": "happy",
+    "description": "SIMPLIFY splits the task into its concept's own points, stopping while the total still fits inside the task.",
+    "input": {
+      "action": "SIMPLIFY",
+      "task": {
+        "estimatedMinutes": 6,
+        "kind": "read"
+      },
+      "concept": {
+        "keyPoints": [
+          "left rotation moves the pivot down-right",
+          "rotations are O(1)",
+          "a recoloured node never moves"
+        ]
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "status",
+        "value": "suggested"
+      },
+      {
+        "type": "equals",
+        "path": "action",
+        "value": "SIMPLIFY"
+      },
+      {
+        "type": "equals",
+        "path": "steps",
+        "value": ["left rotation moves the pivot down-right", "rotations are O(1)"]
+      },
+      {
+        "type": "equals",
+        "path": "stepMinutes",
+        "value": [2, 2]
+      },
+      {
+        "type": "equals",
+        "path": "estimatedMinutes",
+        "value": 4
+      },
+      {
+        "type": "equals",
+        "path": "sourceEstimatedMinutes",
+        "value": 6
+      },
+      {
+        "type": "max-items",
+        "path": "steps",
+        "max": 5
+      }
+    ],
+    "forbidden": [
+      {
+        "type": "forbidden-value",
+        "value": 6,
+        "path": "estimatedMinutes"
+      },
+      {
+        "type": "forbidden-value",
+        "value": 6,
+        "path": "renderedMinutes"
+      }
+    ]
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-simplify-refuses-one-step-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "A split that would produce one step is refused rather than renamed into a shrink.",
+    "input": {
+      "action": "SIMPLIFY",
+      "task": {
+        "estimatedMinutes": 3,
+        "kind": "read"
+      },
+      "concept": {
+        "keyPoints": ["left rotation moves the pivot down-right"]
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "status",
+        "value": "unavailable"
+      },
+      {
+        "type": "equals",
+        "path": "reason",
+        "value": "no-split-steps"
+      },
+      {
+        "type": "equals",
+        "path": "steps",
+        "value": []
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-quiz-refused-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "description": "Shrinking a scored quiz would change what it measures, so it is refused.",
+    "input": {
+      "action": "MICRO_START",
+      "task": {
+        "kind": "quiz"
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "status",
+        "value": "unavailable"
+      },
+      {
+        "type": "equals",
+        "path": "reason",
+        "value": "unsupported-task-kind"
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-already-small-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "A two-minute task cannot promise a two-minute narrowing that is narrower than it.",
+    "input": {
+      "action": "MICRO_START",
+      "task": {
+        "estimatedMinutes": 2
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "status",
+        "value": "unavailable"
+      },
+      {
+        "type": "equals",
+        "path": "reason",
+        "value": "not-two-minutes"
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-no-session-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "With no session there is no current moment to narrow.",
+    "input": {
+      "action": "MICRO_START",
+      "hasSession": false
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "status",
+        "value": "unavailable"
+      },
+      {
+        "type": "equals",
+        "path": "reason",
+        "value": "missing-context"
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-no-grounded-focus-adversarial",
+    "capability": "AG2",
+    "kind": "adversarial",
+    "description": "A step that only reprints the task's own goal is not a smaller step.",
+    "input": {
+      "action": "MICRO_START",
+      "concept": {
+        "keyPoints": ["Read the whole section and take notes."]
+      }
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "status",
+        "value": "unavailable"
+      },
+      {
+        "type": "equals",
+        "path": "reason",
+        "value": "no-grounded-focus"
+      }
+    ],
+    "forbidden": []
+  },
+  {
+    "schemaVersion": 1,
+    "id": "ag2-rewrite-material-grounds-a-point-edge",
+    "capability": "AG2",
+    "kind": "edge",
+    "description": "With no key points, a sentence of the learner's own material is the grounded step.",
+    "input": {
+      "action": "MICRO_START",
+      "concept": {
+        "keyPoints": []
+      },
+      "materialText": "A left rotation lifts the right child. It keeps the order."
+    },
+    "expected": [
+      {
+        "type": "equals",
+        "path": "steps",
+        "value": ["A left rotation lifts the right child."]
+      },
+      {
+        "type": "equals",
+        "path": "estimatedMinutes",
+        "value": 2
+      }
+    ],
+    "forbidden": []
+  }
+]

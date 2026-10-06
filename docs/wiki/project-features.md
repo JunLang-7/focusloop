@@ -453,7 +453,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 6. **状态与证据**：已合并 — `534bc1c` (#100)；Rescue 计划与成功评估器同样已合并（`ae1d690`，PR #124）；`MICRO_START` 接受后真正缩小任务（#171）、`SIMPLIFY` 接受后真正拆成步骤（#172）：确认 + 幂等提案，课程只在读时派生。
 7. **已知限制**：其余动作要真正改写任务前需要 AG4/AG8 的动作契约。
 8. **依赖**：F1；可执行动作依赖 AG8。
-9. **怎么验证**：`intervention-policy` 单测 + 18 个 AG2 JSON 场景（已合并，`packages/agent-evals`）+ `golden path`。
+9. **怎么验证**：`intervention-policy` 单测 + AG2 JSON 场景 34 个（18 rescue + 8 rewrite + 8 grounding，已合并，`packages/agent-evals`）+ `golden path`。
 
 #### F3 AG3 Contextual Tutor — 已合并（#101）
 

@@ -5,11 +5,14 @@ import {
 } from '@focusloop/intervention-policy';
 import {
   isLearningState,
+  isRescueAction,
   isStuckReason,
   type LearningEvent,
   type LearningState,
   type StuckReason,
 } from '@focusloop/shared-types';
+import { buildRescueGrounding } from '@focusloop/agent-core';
+import { fixtureContext } from './ag2-fixtures';
 import type { JsonObject, JsonValue } from './scenario';
 
 function isRecord(value: JsonValue): value is JsonObject {
@@ -104,9 +107,19 @@ export function runAg2Adapter(input: JsonValue): JsonValue {
           events,
           now,
         });
+  /*
+   * The passage a HINT or EXAMPLE quotes (AG2.5/2.6), from the same production function the engine
+   * calls on the same context the inspector shows. Its absence is the ordinary case: a card with
+   * nothing grounded keeps its fixed steps, and a fixture with no context proves that path stays open.
+   */
+  const grounding = isRescueAction(decision.action)
+    ? buildRescueGrounding(decision.action, fixtureContext(input))
+    : null;
   return {
     action: decision.action,
     reasonKey: decision.reason.key,
+    groundingSource: grounding?.source ?? null,
+    groundingText: grounding?.text ?? null,
     stepKeys: plan?.steps.map((step) => step.key) ?? [],
     estimatedMinutes: plan?.estimatedMinutes ?? decision.estimatedMinutes,
     source: plan?.source ?? null,

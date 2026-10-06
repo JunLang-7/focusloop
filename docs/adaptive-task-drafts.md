@@ -97,3 +97,9 @@ field projection. What compiles those specs is #140, not this slice: every `tsco
 excludes `src/**/*.spec.ts` and ESLint here is not type-aware, so on a base branch without #140 a type
 error in these files is reported by neither `pnpm typecheck` nor `pnpm lint`. With #140 in the base
 branch, `pnpm verify:spec-types` covers them like every other project's.
+
+The AG2 rewrite behaviour is additionally held by
+`packages/agent-evals/src/scenarios/ag2/rewrite.json` (eight cases), which drives the production
+`buildTaskRewrite` and reads the task back through `applyTaskRewrite` — the card's wording can stay
+green while the task never changes, and that is what happened when the two actions were text only. The
+hint/example quotes are held the same way by `scenarios/ag2/hint-grounding.json` (eight cases).
