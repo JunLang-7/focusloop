@@ -1474,6 +1474,8 @@ test('accepting MICRO_START narrows the task to its first step, for two minutes'
   await window.getByTestId('course-card').first().getByTestId('start-session').click();
   await window.getByTestId('start-task').first().click();
 
+  // The running task has to own the panel before its title is read, or the read races the start.
+  await expect(window.locator('.focus-task--active')).toBeVisible();
   const title = await window.getByTestId('task-title').innerText();
   const instructions = window.locator('.focus-task__instructions');
   const wholeTask = await instructions.innerText();
@@ -1539,6 +1541,13 @@ test('accepting SIMPLIFY splits the task into the steps it is made of', async ()
   await window.getByTestId('complete-task').click();
   await window.getByTestId('start-task').first().click();
 
+  /*
+   * `startQuick` starts the task asynchronously: the panel that says "next up" is still mounted for the
+   * round trip, and once the session's current task is the new one, that preview names the task *after*
+   * it. Reading the title before the running task takes the panel therefore reads the wrong task's name
+   * — intermittently, because it is a race, which is how this failed about one run in three.
+   */
+  await expect(window.locator('.focus-task--active')).toBeVisible();
   const title = await window.getByTestId('task-title').innerText();
   const instructions = window.locator('.focus-task__instructions');
   const wholeTask = await instructions.innerText();
@@ -1615,6 +1624,8 @@ test('the tutor asks the main process, and says so when no model is connected', 
   await window.getByTestId('course-card').first().getByTestId('start-session').click();
   await window.getByTestId('start-task').first().click();
 
+  // Same race as above: the title is read once the running task owns the panel.
+  await expect(window.locator('.focus-task--active')).toBeVisible();
   // Read off the screen rather than written here: the assertion below is that the fallback names the step
   // the question was about, and a title typed into the test would be a second copy of the demo course.
   const stepTitle = (await window.getByTestId('task-title').innerText()).trim();
