@@ -1,5 +1,6 @@
 import { Component, inject } from '@angular/core';
 import { AppStateService } from '../core/app-state.service';
+import { developerModeEnabled } from '../core/developer-mode';
 import { I18nService } from '../core/i18n/i18n.service';
 
 /**
@@ -67,7 +68,7 @@ export class SimulatorBarComponent {
 
   protected readonly t = this.i18n.t;
   protected readonly hasSession = this.state.hasSession;
-  protected readonly enabled = () => this.state.runtime()?.simulatorEnabled ?? false;
+  protected readonly enabled = () => developerModeEnabled(this.state.runtime());
 
   protected run(command: 'distraction' | 'return' | 'confusion' | 'overload' | 'success'): void {
     void this.state.simulate(command);
