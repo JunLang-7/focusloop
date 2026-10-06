@@ -107,7 +107,7 @@ function focusText(value: unknown, context: AgentContext): string | null {
   return text;
 }
 
-function materialSentence(context: AgentContext): string | null {
+export function materialSentence(context: AgentContext): string | null {
   const text = context.material.text;
   if (
     text.length > AGENT_CONTEXT_LIMITS.materialCharacters * 2 ||

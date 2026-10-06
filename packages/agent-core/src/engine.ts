@@ -55,6 +55,7 @@ import {
   message,
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
+import { buildRescueGrounding } from './rescue-grounding';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
@@ -1204,9 +1205,23 @@ export class FocusLoopEngine {
         )
           return null;
       }
-      return buildRescueView(decision, seed, outcome?.accepted ? 'active' : 'offered');
+      const view = buildRescueView(decision, seed, outcome?.accepted ? 'active' : 'offered');
+      return view.plan === null ? view : this.withGrounding(view, sessionId);
     }
     return null;
+  }
+
+  /**
+   * Adds the passage a HINT or EXAMPLE quotes (AG2.5/2.6), taken from the same context the inspector
+   * shows. Done on read, like the task rewrites, so nothing is stored and a replayed accept cannot
+   * differ from the first one; a card with nothing to quote keeps its fixed steps.
+   */
+  private withGrounding(view: RescueView, sessionId: string): RescueView {
+    if (view.plan === null) return view;
+    const record = this.store.getSession(sessionId);
+    if (record === null) return view;
+    const grounding = buildRescueGrounding(view.plan.action, this.contextFor(record).context);
+    return grounding === null ? view : { ...view, plan: { ...view.plan, grounding } };
   }
 
   /** The decision and seed a stored rescue intervention is rebuilt from. */

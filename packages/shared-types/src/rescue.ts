@@ -13,6 +13,20 @@ export function isRescueAction(value: unknown): value is RescueAction {
 
 export type RescuePhase = 'offered' | 'active';
 
+/** Where a rescue's grounding text was taken from. */
+export type RescueGroundingSource = 'concept-summary' | 'concept-key-point' | 'material-sentence';
+
+/**
+ * A passage from the learner's own concept or material that a HINT or EXAMPLE card quotes (AG2.5/2.6).
+ *
+ * Taken, never generated: it is bounded text the agent context already carried, so it is as offline
+ * and as checkable as the context itself. A card without one falls back to the fixed steps.
+ */
+export interface RescueGrounding {
+  readonly source: RescueGroundingSource;
+  readonly text: string;
+}
+
 /** A local, deterministic plan. It contains no model output or executable tool call. */
 export interface RescuePlan {
   readonly interventionId: string;
@@ -20,6 +34,8 @@ export interface RescuePlan {
   readonly taskId: string | null;
   readonly action: RescueAction;
   readonly steps: readonly LocalizedMessage[];
+  /** HINT and EXAMPLE only, and only when the context has something to quote. */
+  readonly grounding?: RescueGrounding;
   readonly estimatedMinutes: number;
   readonly source: 'deterministic-local';
 }

@@ -744,6 +744,34 @@ describe('FocusLoopEngine', () => {
       expect(after?.progress).toEqual({ ...before?.progress, elapsedMs: 3 * 60_000 });
     });
 
+    it('quotes the concept on an accepted HINT and the material on an EXAMPLE, offline', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'went-wrong', taskId: 'rbt-t1' },
+      });
+      expect(asked.rescue?.decision.action).toBe('HINT');
+      expect(asked.rescue?.plan).toBeNull();
+      const accepted = ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+      expect(accepted.rescue?.plan?.grounding).toMatchObject({ source: 'concept-summary' });
+      expect(accepted.rescue?.plan?.grounding?.text.length).toBeGreaterThan(0);
+      expect(ctx.engine.getPendingRescue(session.id)?.plan?.grounding).toEqual(
+        accepted.rescue?.plan?.grounding,
+      );
+    });
+
     it('reports how accepted rescues turned out, per action, from the event log', () => {
       const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
       ctx.engine.dispatch({

@@ -1545,6 +1545,14 @@ body:has(.simulator) .agent-context {
   font-size: 13px;
 }
 
+.agent__quote {
+  margin: 10px 0;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .simulator {
   position: fixed;
   left: 0;

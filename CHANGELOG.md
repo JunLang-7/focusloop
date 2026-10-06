@@ -17,6 +17,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **Stuck rescue: HINT and EXAMPLE quote your own concept and material.** An accepted HINT shows the
+  idea behind the step (the concept summary, else its first key point); an accepted EXAMPLE shows a
+  passage of your material (else a key point). The text is taken from what the agent context already
+  carries, so it works offline, is never generated, and is not stored. A card with nothing to quote
+  keeps its fixed steps. (#170)
 - **Stuck rescue: the dashboard says how each rescue went.** A new "How rescues went" section shows,
   per action, how many accepted rescues helped (a Continue or progress on the task), how many were
   followed by another request for help, how many showed no progress, and how many are still inside

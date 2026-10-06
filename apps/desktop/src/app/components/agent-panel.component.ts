@@ -1,5 +1,10 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
-import type { InterventionAction, LocalizedMessage, RescuePlan } from '@focusloop/shared-types';
+import type {
+  InterventionAction,
+  LocalizedMessage,
+  RescueGroundingSource,
+  RescuePlan,
+} from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { ACTION_KEYS } from '../core/i18n/labels';
@@ -64,6 +69,12 @@ import { ACTION_KEYS } from '../core/i18n/labels';
               <li>{{ stepText(step) }}</li>
             }
           </ol>
+          @if (plan.grounding; as grounding) {
+            <blockquote class="agent__quote" data-testid="agent-grounding">
+              <p class="muted small">{{ groundingLabel(grounding.source) }}</p>
+              <p>{{ grounding.text }}</p>
+            </blockquote>
+          }
           <button
             type="button"
             class="btn btn--small btn--primary"
@@ -126,6 +137,17 @@ export class AgentPanelComponent {
   /** Templates cannot reach the global `String`, so the conversion lives here. */
   protected minutes(value: number): string {
     return this.t('course.minutes', { minutes: `${value}` });
+  }
+
+  protected groundingLabel(source: RescueGroundingSource): string {
+    switch (source) {
+      case 'concept-summary':
+        return this.i18n.t('agent.rescue.from.concept-summary');
+      case 'concept-key-point':
+        return this.i18n.t('agent.rescue.from.concept-key-point');
+      case 'material-sentence':
+        return this.i18n.t('agent.rescue.from.material-sentence');
+    }
   }
 
   protected stepText(step: RescuePlan['steps'][number]): string {
