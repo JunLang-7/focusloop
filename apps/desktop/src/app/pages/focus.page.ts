@@ -12,8 +12,7 @@ import {
 import type { ElementRef, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import type { MicroTask, MicroTaskKind, StuckReason } from '@focusloop/shared-types';
-import { applyTaskOrder } from '@focusloop/shared-types';
-import { STUCK_REASONS } from '@focusloop/shared-types';
+import { STUCK_REASONS, applyTaskOrder } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import {
   DEFAULT_FOCUS_MINUTES,
