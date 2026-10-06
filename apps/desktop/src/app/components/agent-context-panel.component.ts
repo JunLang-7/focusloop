@@ -1,6 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import type { AgentContext, AgentContextReport } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
+import { developerModeEnabled } from '../core/developer-mode';
 import { I18nService } from '../core/i18n/i18n.service';
 
 type InspectorTab = 'context' | 'outbound';
@@ -140,7 +141,7 @@ export class AgentContextPanelComponent {
   private readonly i18n = inject(I18nService);
 
   protected readonly t = this.i18n.t;
-  protected readonly enabled = () => this.state.runtime()?.simulatorEnabled ?? false;
+  protected readonly enabled = () => developerModeEnabled(this.state.runtime());
   protected readonly showMaterial = this.state.showMaterialText;
   protected readonly tab = signal<InspectorTab>('context');
 
