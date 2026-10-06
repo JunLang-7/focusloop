@@ -1,3 +1,4 @@
+import { orderedTasks } from '@focusloop/continuity';
 import {
   AGENT_CONTEXT_LIMITS,
   DOMAIN_MESSAGE_KEYS,
@@ -62,7 +63,13 @@ export function buildAgentContext(source: AgentContextSource): AgentContextRepor
   }
 
   const omissions: AgentContextOmission[] = [];
-  const tasks = source.course?.microTasks ?? [];
+  /*
+   * Sorted by the course's own position, not taken in array order: `step`/`totalSteps` count the
+   * course, and the checkpoint that carries the same number (`courseStep`) sorts too. The store hands
+   * tasks back sorted, but nothing in `Course` promises it, and two readers of one number must not
+   * disagree about which list it counts (#194).
+   */
+  const tasks = source.course === null ? [] : orderedTasks(source.course);
   const task = findCurrentTask(session, tasks);
   const concept = task === null ? null : findConcept(task, source.course);
   const material = excerptMaterial(source.material, concept, omissions);
@@ -223,7 +230,7 @@ function projectCheckpoint(
   const mastered = boundedList(checkpoint['mastered']);
   const unresolved = boundedList(checkpoint['unresolved']);
   const currentTaskTitle = boundedText(checkpoint['currentTaskTitle']);
-  const currentStep = checkpoint['currentStep'];
+  const courseStep = checkpoint['courseStep'];
   const frictionState = checkpoint['frictionState'];
   const createdAt = checkpoint['createdAt'];
   const action = checkpoint['nextBestAction'];
@@ -234,9 +241,9 @@ function projectCheckpoint(
     mastered === null ||
     unresolved === null ||
     currentTaskTitle === null ||
-    typeof currentStep !== 'number' ||
-    !Number.isInteger(currentStep) ||
-    currentStep < 0 ||
+    typeof courseStep !== 'number' ||
+    !Number.isInteger(courseStep) ||
+    courseStep < 0 ||
     !isLearningState(frictionState) ||
     !isIsoTimestamp(createdAt) ||
     !isRecord(action) ||
@@ -270,7 +277,7 @@ function projectCheckpoint(
     mastered,
     unresolved,
     currentTaskTitle,
-    currentStep,
+    courseStep,
     frictionState,
     nextBestAction: { key: action['key'], params },
     createdAt,

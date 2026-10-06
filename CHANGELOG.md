@@ -17,6 +17,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **The resume step number says whose order it counts, and the next task follows the plan (#194).**
+  `LearningCheckpoint.currentStep` and `AgentContextCheckpoint.currentStep` are now `courseStep`: the
+  one-based position in the course's own order, which is the list the "of 7" also counts. The learner's
+  reorder cannot answer that question — the plan deliberately excludes the running task, so it has
+  nowhere to put the task the checkpoint is about — and both numbers are now computed from the same
+  sorted list, so the agent's `task.step` and the checkpoint's `courseStep` cannot disagree. The
+  question the reorder _can_ answer, "which task comes next", now follows it: `firstIncompleteTask`
+  reads `session.taskOrder`, so the resume card's next task is the one the focus screen offers. The
+  one rule for that reading moved to `shared-types` with its tests, so the plan and the checkpoint
+  cannot drift into two plans. The stored column keeps its name, so no migration.
 - **The short resume is asserted on screen for what it is.** A short interruption lists one item per
   column even when more is done; the golden path only ever checked that a card appeared, so the one
   tier an e2e can actually reach was not pinned. (#192)

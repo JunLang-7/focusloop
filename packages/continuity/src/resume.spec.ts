@@ -394,7 +394,7 @@ describe('evaluateResumeOutcome', () => {
     unresolved: ['Concept one'],
     currentTaskId: 't1',
     currentTaskTitle: 'Read one',
-    currentStep: 1,
+    courseStep: 1,
     frictionState: 'FOCUSED' as const,
     nextBestAction: { key: 'action.read.summarise' as const, params: {} },
     createdAt: T0,

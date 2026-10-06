@@ -5,7 +5,7 @@ import type {
   LocalizedMessage,
   MicroTask,
 } from '@focusloop/shared-types';
-import { message } from '@focusloop/shared-types';
+import { applyTaskOrder, message } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 
 export interface BuildCheckpointInput {
@@ -72,13 +72,27 @@ function conceptTitle(course: Course, conceptId: string): string {
   return course.concepts.find((concept) => concept.id === conceptId)?.title ?? conceptId;
 }
 
-/** The first task that is neither completed nor the current one. */
+/**
+ * The first task that is neither completed nor the current one, in the order the learner means to
+ * reach them.
+ *
+ * The learner's own order when they have one (#23), because this is what answers "which task comes
+ * next" and the focus screen's *Next small step* card is built from that same list — a checkpoint that
+ * answered differently would offer a task the screen is not showing. Before the first drag there is no
+ * order, and the course's is the answer.
+ *
+ * It is deliberately not used for the step number: that plan excludes the running task, so it has
+ * nowhere to put the task this function is usually asked about. See `courseStep` on
+ * `LearningCheckpoint`, which says the same thing the other way round.
+ */
 export function firstIncompleteTask(
   course: Course,
   completedTaskIds: readonly string[],
+  taskOrder: readonly string[] = [],
 ): MicroTask | null {
   const completed = new Set(completedTaskIds);
-  return orderedTasks(course).find((task) => !completed.has(task.id)) ?? null;
+  const open = orderedTasks(course).filter((task) => !completed.has(task.id));
+  return applyTaskOrder(open, taskOrder)[0] ?? null;
 }
 
 /**
@@ -101,12 +115,14 @@ export function buildCheckpoint(input: BuildCheckpointInput): LearningCheckpoint
     (engineState.lastActiveTaskId === null
       ? null
       : (tasks.find((task) => task.id === engineState.lastActiveTaskId) ?? null)) ??
-    firstIncompleteTask(course, engineState.completedTaskIds);
+    firstIncompleteTask(course, engineState.completedTaskIds, session.taskOrder ?? []);
 
   const currentTaskId = focusTask?.id ?? '';
   const currentTaskTitle = focusTask?.title ?? '';
   const conceptId = focusTask?.conceptId ?? course.concepts[0]?.id ?? '';
-  const currentStep =
+  // The course's position, not the plan's: `tasks` comes from `orderedTasks` and never from the
+  // learner's reorder, for the reason written on the field (#194).
+  const courseStep =
     focusTask === null ? 0 : tasks.findIndex((task) => task.id === focusTask.id) + 1;
 
   return {
@@ -119,7 +135,7 @@ export function buildCheckpoint(input: BuildCheckpointInput): LearningCheckpoint
     unresolved: progress.unresolved,
     currentTaskId,
     currentTaskTitle,
-    currentStep,
+    courseStep,
     frictionState: engineState.state,
     nextBestAction: deriveNextBestAction(
       focusTask,

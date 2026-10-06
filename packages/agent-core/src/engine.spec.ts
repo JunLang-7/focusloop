@@ -252,7 +252,7 @@ describe('FocusLoopEngine', () => {
        */
       expect(report.context?.checkpoint).toMatchObject({
         currentTaskTitle: checkpoint.currentTaskTitle,
-        currentStep: checkpoint.currentStep,
+        courseStep: checkpoint.courseStep,
         frictionState: checkpoint.frictionState,
       });
       expect(report.context?.checkpoint).not.toHaveProperty('id');

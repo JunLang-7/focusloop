@@ -42,7 +42,7 @@ function checkpoint(id: string): LearningCheckpoint {
     unresolved: [],
     currentTaskId: 'rbt-t1',
     currentTaskTitle: 'Read rotations',
-    currentStep: 1,
+    courseStep: 1,
     frictionState: 'FOCUSED',
     nextBestAction: { key: 'action.read.summarise', params: {} },
     createdAt: T0,

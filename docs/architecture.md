@@ -210,7 +210,7 @@ interface LearningCheckpoint {
   unresolved: string[];
   currentTaskId;
   currentTaskTitle;
-  currentStep;
+  courseStep;
   frictionState: LearningState;
   nextBestAction;
   createdAt;

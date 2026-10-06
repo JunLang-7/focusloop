@@ -12,7 +12,7 @@ import {
 import type { ElementRef, OnDestroy } from '@angular/core';
 import { Router } from '@angular/router';
 import type { MicroTask, MicroTaskKind, StuckReason } from '@focusloop/shared-types';
-import { STUCK_REASONS } from '@focusloop/shared-types';
+import { STUCK_REASONS, applyTaskOrder } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import {
   DEFAULT_FOCUS_MINUTES,
@@ -33,7 +33,7 @@ import { KIND_GLYPHS, buildPlan } from '../core/session-plan';
 import { keepsRail, type FocusPhase } from '../core/focus-phase';
 import { FocusTimerService } from '../core/focus-timer.service';
 import { PLAN_INITIAL_OPEN, nextPlanOpen, type PlanEvent } from '../core/plan-visibility';
-import { applyTaskOrder, dropIndexFor, reorder, sameOrder } from '../core/task-order';
+import { dropIndexFor, reorder, sameOrder } from '../core/task-order';
 import { helpRequestPayload } from '../core/stuck-picker';
 import { TutorPanelComponent } from '../components/tutor-panel.component';
 import { FocusNoticeComponent } from '../components/focus-notice.component';
