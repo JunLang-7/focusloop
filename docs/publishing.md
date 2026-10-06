@@ -121,3 +121,9 @@ pnpm verify:spec-types
 The `quality` job runs exactly these on Ubuntu, Windows and macOS, plus `pnpm format:check`; the
 `golden path` job then runs `pnpm e2e` on Windows and macOS, and the `package (smoke)` job builds the
 installer directory and the extension zip so a packaging break is caught before a tag.
+
+The `dependency review` check (`.github/workflows/dependency-review.yml`) is the one gate with no
+local equivalent: it reads the dependency diff of a pull request and fails it on a high or critical
+advisory, which is what catches a newly added package rather than the ones already in the lockfile. It
+needs the repository's **Dependency graph** setting, which is on, and it asks for `contents: read`
+only, so it also runs on a pull request from a fork (#43).
