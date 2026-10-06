@@ -37,6 +37,45 @@ function checkpointFor(engineState: StateEngineState) {
   });
 }
 
+function cardInput(): Parameters<typeof buildResumeCard>[0] {
+  const engineState: StateEngineState = {
+    ...createInitialState(T0),
+    state: 'INTERRUPTED',
+    currentTaskId: 't2',
+    lastActiveTaskId: 't2',
+    completedTaskIds: ['t1'],
+    awaitingResume: true,
+  };
+  return {
+    checkpoint: checkpointFor(engineState),
+    session: tinySession({ completedTaskIds: ['t1'] }),
+    course: tinyCourse(),
+    recentEvents: [tabReturned(30_000)],
+    now: T1,
+  };
+}
+
+describe('the step the learner was on (AG5.6)', () => {
+  /*
+   * Only the engine knows that the task on screen is not the task in the course, so the card takes the
+   * step as an input rather than working it out. An absent step is the ordinary case: the card then
+   * describes the task, as it always did.
+   */
+  it('carries the step it is given, and nothing when it is given nothing', () => {
+    expect(
+      buildResumeCard({ ...cardInput(), currentStepText: 'in-order traversal is sorted' })
+        .currentStep,
+    ).toBe('in-order traversal is sorted');
+    expect(buildResumeCard(cardInput()).currentStep).toBeNull();
+    expect(buildResumeCard({ ...cardInput(), currentStepText: '   ' }).currentStep).toBeNull();
+  });
+
+  it('bounds it, because it is learner material that must not grow the card', () => {
+    const card = buildResumeCard({ ...cardInput(), currentStepText: 'x'.repeat(4000) });
+    expect(card.currentStep).toHaveLength(320);
+  });
+});
+
 describe('buildResumeCard', () => {
   it('summarises where the learner was and what comes next', () => {
     const engineState: StateEngineState = {

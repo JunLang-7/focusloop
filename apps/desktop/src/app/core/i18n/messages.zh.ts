@@ -314,6 +314,7 @@ export const zh: Record<MessageKey, string> = {
   'resume.nothingDone': '还没有完成的内容——这很正常。',
   'resume.open': '仍未解决',
   'resume.nothingOpen': '没有标记出的疑点。',
+  'resume.currentStep': '你刚才在做：',
   'resume.nextStep': '下一步：',
   'resume.minutes': '{minutes} 分钟',
   'resume.continue': '继续',

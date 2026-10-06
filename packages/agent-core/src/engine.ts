@@ -865,7 +865,22 @@ export class FocusLoopEngine {
     const session = toSession(engineState, record.session, at);
     this.store.saveSession({ session, engineState });
 
-    const resume = this.ensureResumeArtifacts(session, course, engineState, at);
+    /*
+     * Two views of the same course, and the difference is deliberate.
+     *
+     * The resume path reads the course as the learner is being served it, because the thing being
+     * resumed is what is on screen — after a rescue narrowed the task, that is a two-minute step and
+     * not the three-minute task the row holds (AG5.6). The policy keeps the authored task: its
+     * "runs far past its estimate" rule asks about the plan the course states, and moving that
+     * question onto the narrowed estimate would change when the agent speaks, which is a decision of
+     * its own rather than a side effect of this one.
+     */
+    const resume = this.ensureResumeArtifacts(
+      session,
+      this.getCourse(session.courseId),
+      engineState,
+      at,
+    );
     const policy = this.applyPolicy(session, course, engineState, at);
 
     return {
@@ -901,7 +916,13 @@ export class FocusLoopEngine {
     this.store.saveSession({ session, engineState });
 
     const course = this.store.getCourse(record.session.courseId);
-    const resume = this.ensureResumeArtifacts(session, course, engineState, now);
+    // Same split as `dispatch`: the resume artifacts follow what is on screen, the policy the plan.
+    const resume = this.ensureResumeArtifacts(
+      session,
+      this.getCourse(session.courseId),
+      engineState,
+      now,
+    );
     const policy = this.applyPolicy(session, course, engineState, now);
 
     /*
@@ -937,7 +958,8 @@ export class FocusLoopEngine {
 
   createCheckpoint(sessionId: string): LearningCheckpoint {
     const record = this.requireSession(sessionId);
-    const course = this.store.getCourse(record.session.courseId);
+    // The learner's position as they are being served it, narrowed step and all (AG5.6).
+    const course = this.getCourse(record.session.courseId);
     if (course === null) {
       throw new EngineError('course-not-found', `Unknown course: ${record.session.courseId}`);
     }
@@ -1010,9 +1032,23 @@ export class FocusLoopEngine {
         course,
         recentEvents: this.store.listEvents(session.id),
         now: checkpoint.createdAt,
+        currentStepText: this.servedStepText(course),
       }),
       timing,
     };
+  }
+
+  /**
+   * The step on screen, when a rescue has narrowed or split the task the learner is on (AG5.6).
+   *
+   * Read from the same executed proposal the served course is written from, so the card and the
+   * screen cannot disagree about which step this is; `null` when the task is the course's own.
+   */
+  private servedStepText(course: Course | null): string | null {
+    const rewrite = this.activeTaskRewrite();
+    if (rewrite === null || course === null) return null;
+    const task = course.microTasks.find((item) => item.id === rewrite.taskId);
+    return task?.instructions ?? null;
   }
 
   /** Returns the pending card, or null once it has been accepted/dismissed. */
@@ -1025,7 +1061,7 @@ export class FocusLoopEngine {
     }
     const record = this.store.getSession(sessionId);
     if (record === null) return null;
-    const course = this.store.getCourse(record.session.courseId);
+    const course = this.getCourse(record.session.courseId);
     if (course === null) return null;
     return this.resumeCardView(checkpoint, record.session, course);
   }

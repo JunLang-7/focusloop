@@ -349,6 +349,7 @@ const en = {
   'resume.nothingDone': 'Nothing completed yet — that is fine.',
   'resume.open': 'Still open',
   'resume.nothingOpen': 'Nothing flagged.',
+  'resume.currentStep': 'You were on:',
   'resume.nextStep': 'Next step:',
   'resume.minutes': '{minutes} min',
   'resume.continue': 'Continue',

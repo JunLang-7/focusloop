@@ -17,6 +17,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **Resuming after a rescue comes back to the step, not the task.** When a rescue has narrowed or split
+  the current task, the resume card is now built from the task as the learner is being served it: it
+  shows the step (`You were on: …`) and its own estimate, instead of the stored task's title and
+  minutes. Previously the card promised 3 minutes over a screen showing 2, because the resume path read
+  the stored row while the focus screen was served the narrowed one. The policy still reads the
+  authored task — its overrun rule asks about the plan the course states, and moving that question is a
+  separate decision. (#191)
 - **The eval suite covers what the rescue actions actually do.** `agent-evals` gains eight fixtures for
   the MICRO_START/SIMPLIFY rewrite (through the production builder, read back through
   `applyTaskRewrite`, with the original task's text forbidden in the output) and eight for what a HINT

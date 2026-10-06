@@ -1460,6 +1460,23 @@ test('accepting MICRO_START narrows the task to its first step, for two minutes'
   await expect(instructions).not.toHaveText(wholeTask);
   await expect(window.locator('.focus-task__meta')).toContainText('about 2 min');
 
+  /*
+   * And getting interrupted while narrowed resumes into the narrowed step (AG5.6), at its own
+   * estimate. The card used to be built from the stored course, so it promised the whole task's three
+   * minutes over a screen showing two — which is the one number on that card a learner can be misled
+   * by, since it is what they plan the next few minutes around.
+   */
+  await window.getByTestId('sim-distraction').click();
+  await window.waitForTimeout(300);
+  await window.getByTestId('sim-return').click();
+  const resume = window.getByRole('region', { name: 'Resume where you left off', exact: true });
+  await expect(resume).toBeVisible();
+  await expect(window.getByTestId('resume-step')).toContainText('in-order traversal is sorted');
+  await expect(resume.locator('.pill')).toHaveText('2 min');
+  await window.getByTestId('resume-continue').click();
+  await expect(resume).toBeHidden();
+  await expect(instructions).toHaveText('in-order traversal is sorted');
+
   // Continuing hands the whole task back, which is the learner saying they want the rest of it after
   // all — and it is not an undo, because the task was never rewritten in the first place.
   await window.getByTestId('agent-accepted').getByRole('button', { name: 'Continue' }).click();
