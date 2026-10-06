@@ -17,6 +17,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **The eval suite covers what the rescue actions actually do.** `agent-evals` gains eight fixtures for
+  the MICRO_START/SIMPLIFY rewrite (through the production builder, read back through
+  `applyTaskRewrite`, with the original task's text forbidden in the output) and eight for what a HINT
+  or an EXAMPLE quotes, including the cases where there is deliberately nothing to quote. (#173)
 - **Stuck rescue: HINT and EXAMPLE quote your own concept and material.** An accepted HINT shows the
   idea behind the step (the concept summary, else its first key point); an accepted EXAMPLE shows a
   passage of your material (else a key point). The text is taken from what the agent context already
