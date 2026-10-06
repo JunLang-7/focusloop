@@ -17,6 +17,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **The short resume is asserted on screen for what it is.** A short interruption lists one item per
+  column even when more is done; the golden path only ever checked that a card appeared, so the one
+  tier an e2e can actually reach was not pinned. (#192)
 - **Resuming after a rescue comes back to the step, not the task.** When a rescue has narrowed or split
   the current task, the resume card is now built from the task as the learner is being served it: it
   shows the step (`You were on: …`) and its own estimate, instead of the stored task's title and

@@ -51,7 +51,7 @@ import { focusableWithin, nextIndex } from '../core/focus-trap';
               @if (view.card.completed.length === 0) {
                 <p class="muted">{{ t('resume.nothingDone') }}</p>
               } @else {
-                <ul>
+                <ul data-testid="resume-done">
                   @for (item of view.card.completed; track item) {
                     <li>{{ item }}</li>
                   }
@@ -64,7 +64,7 @@ import { focusableWithin, nextIndex } from '../core/focus-trap';
               @if (view.card.unresolved.length === 0) {
                 <p class="muted">{{ t('resume.nothingOpen') }}</p>
               } @else {
-                <ul>
+                <ul data-testid="resume-open">
                   @for (item of view.card.unresolved; track item) {
                     <li>{{ item }}</li>
                   }
