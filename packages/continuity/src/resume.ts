@@ -21,12 +21,21 @@ export interface BuildResumeCardInput {
   readonly recentEvents: readonly LearningEvent[];
   readonly now: string;
   readonly config?: ResumePolicyOverrides;
+  /**
+   * The step being served, when the current task has been narrowed or split (AG2).
+   *
+   * Supplied rather than derived: only the engine knows that what the learner is looking at is not
+   * what the course holds, and a builder that guessed would have to reimplement that rule.
+   */
+  readonly currentStepText?: string | null;
 }
 
 const DEFAULT_ESTIMATED_MINUTES = 5;
 const MAX_COMPLETED_ITEMS = 3;
 const MAX_UNRESOLVED_ITEMS = 3;
 const LONG_REFRESHER_SECONDS = '30';
+/** A step is a line the learner reads, not a document; the same bound the checkpoint's text uses. */
+const MAX_STEP_CHARACTERS = 320;
 
 export function resolveResumePolicyConfig(
   overrides: ResumePolicyOverrides = {},
@@ -152,6 +161,7 @@ export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
     completed: completed.slice(-itemLimit),
     unresolved: [...checkpoint.unresolved].slice(-Math.min(itemLimit, MAX_UNRESOLVED_ITEMS)),
     nextAction: checkpoint.nextBestAction,
+    currentStep: boundStep(input.currentStepText),
     estimatedMinutes: clampMinutes(currentTask?.estimatedMinutes),
   };
 }
@@ -176,6 +186,14 @@ function formatDuration(ms: number): string {
   if (totalSeconds < 60) return `${totalSeconds}s`;
   const minutes = Math.round(totalSeconds / 60);
   return `${minutes} min`;
+}
+
+/** The step, or `null` when there is not one to show. */
+function boundStep(text: string | null | undefined): string | null {
+  if (typeof text !== 'string') return null;
+  const trimmed = text.trim();
+  if (trimmed.length === 0) return null;
+  return trimmed.length > MAX_STEP_CHARACTERS ? trimmed.slice(0, MAX_STEP_CHARACTERS) : trimmed;
 }
 
 function clampMinutes(minutes: number | undefined): number {
