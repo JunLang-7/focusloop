@@ -2232,6 +2232,21 @@ code {
 }
 
 /*
+ * The ambient layer's control (#57), in the session's row of the topbar.
+ *
+ * It is quiet by construction rather than by position: a small ghost button with no accent, beside the
+ * session state and End session, and never inside the task box — that box has a height contract against
+ * the notice's reserved row (#77) and against the tutor panel's placement, and a decorative control
+ * that spends any of it breaks both. The one thing the active state adds is the accent border the other
+ * "this is on" controls use.
+ */
+.ambient-toggle.is-active {
+  border-color: var(--accent);
+  background: var(--bg-soft);
+  color: var(--text);
+}
+
+/*
  * The reason chooser: a group inside the control row rather than a row of its own.
  *
  * It takes a line to itself, because seven labelled buttons beside Pause, +1 minute and Complete is

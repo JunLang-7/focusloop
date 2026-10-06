@@ -22,6 +22,7 @@ import {
   parseResumeDecision,
   parseSessionId,
   parseSetLocale,
+  parseSetAmbientSound,
   parseSetShowMaterialText,
   parseSetTheme,
   parseSimulatorCommand,
@@ -219,6 +220,11 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.setShowMaterialText,
       parse: parseSetShowMaterialText,
       handle: (request) => engine.setShowMaterialText(request.showMaterialText),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.setAmbientSound,
+      parse: parseSetAmbientSound,
+      handle: (request) => engine.setAmbientSound(request.ambientSound),
     }),
     /*
      * The data controls go to the service rather than to the engine.

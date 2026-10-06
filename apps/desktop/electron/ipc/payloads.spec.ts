@@ -22,6 +22,7 @@ import {
   parseResumeDecision,
   parseSessionId,
   parseSetLocale,
+  parseSetAmbientSound,
   parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
@@ -100,6 +101,14 @@ describe('the preload and the main process agree on every payload', () => {
   it('the theme channel accepts what the preload sends', () => {
     for (const theme of THEME_PREFERENCES) {
       expect(parseSetTheme(IPC_CHANNELS.setTheme, payload.setTheme(theme))).toEqual({ theme });
+    }
+  });
+
+  it('the ambient channel accepts what the preload sends', () => {
+    for (const ambientSound of [true, false]) {
+      expect(
+        parseSetAmbientSound(IPC_CHANNELS.setAmbientSound, payload.setAmbientSound(ambientSound)),
+      ).toEqual({ ambientSound });
     }
   });
 

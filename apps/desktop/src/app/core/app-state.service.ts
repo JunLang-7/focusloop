@@ -1,5 +1,6 @@
 import { Injectable, signal, computed } from '@angular/core';
 import {
+  DEFAULT_AMBIENT_SOUND,
   DEFAULT_INSIGHT_RANGE,
   DEFAULT_LOCALE,
   DEFAULT_SHOW_MATERIAL_TEXT,
@@ -123,6 +124,14 @@ export class AppStateService {
    */
   readonly showMaterialText = signal<boolean>(DEFAULT_SHOW_MATERIAL_TEXT);
   /**
+   * Whether the learner wants the generated ambient layer (#57).
+   *
+   * A preference the store owns, and deliberately not a playback state: the sound itself is started
+   * and stopped by a running session, so remembering `true` across a restart cannot make sound begin
+   * on its own.
+   */
+  readonly ambientSound = signal<boolean>(DEFAULT_AMBIENT_SOUND);
+  /**
    * Where the database is, as the main process resolved it.
    *
    * Read rather than assembled: the renderer has no business knowing that `%APPDATA%` exists, and a path
@@ -222,6 +231,7 @@ export class AppStateService {
         locale: DEFAULT_LOCALE,
         theme: DEFAULT_THEME,
         showMaterialText: DEFAULT_SHOW_MATERIAL_TEXT,
+        ambientSound: DEFAULT_AMBIENT_SOUND,
       };
     }
   }
@@ -245,6 +255,13 @@ export class AppStateService {
     await this.run(async () => {
       const settings = await this.api.setShowMaterialText({ showMaterialText });
       this.showMaterialText.set(settings.showMaterialText);
+    });
+  }
+
+  async setAmbientSound(ambientSound: boolean): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setAmbientSound({ ambientSound });
+      this.ambientSound.set(settings.ambientSound);
     });
   }
 

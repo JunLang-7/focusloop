@@ -1982,3 +1982,42 @@ test('the learner can find their data and delete all of it, without a restart', 
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+/*
+ * The ambient layer (#57) is a preference the store owns and a sound the session owns, and only the
+ * first half can be asserted here: a headless run has no audio device, so what is checked is what the
+ * control reports — off before anyone asks, and then whatever the store answered. That round trip is
+ * the point: `setAmbientSound` reflects `settings.ambientSound` from the main process, so the report
+ * only moves if the channel, the preload payload and the stored word all agreed. Whether the layer
+ * *should* be audible is `shouldPlayAmbient`, tested where it lives.
+ */
+test('the ambient layer is off until the learner asks for it, and the store answers the toggle', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  const toggle = window.getByTestId('ambient-toggle');
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(toggle).toHaveText('Quiet sound: off');
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveText('Quiet sound: on');
+
+  // Off again, reported by the store rather than by the click: the second press is a round trip too.
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+  /*
+   * And it is a quiet control rather than a second primary: the research document's rule is that the
+   * layer never takes the task's level, and the class is what carries that. It also lives in the
+   * session's own row of the topbar rather than in the task box, whose height is a contract against the
+   * notice's reserved row (#77) and against where the tutor panel decides to open.
+   */
+  await expect(toggle).toHaveClass(/btn--quiet/);
+  await expect(toggle).not.toHaveClass(/btn--primary/);
+
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});

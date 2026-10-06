@@ -8,6 +8,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Added
 
+- **An optional quiet layer, generated in the app rather than shipped (#57).** Brown noise through a
+  low-pass filter, off until the learner asks for it, offered as a small quiet control in the focus
+  screen's session row — beside the session state and End session, never inside the task box, whose
+  height is a contract against the notice and the tutor panel. It plays while a session runs, including
+  with the dashboard on screen, because the layer lives outside the focus route, and it stops when the
+  session ends or the toggle goes off. The choice is remembered, and remembering it never starts a sound
+  on its own. No audio files are added and nothing leaves the machine.
 - **Your data, in the app.** The sidebar footer shows the directory the database lives in, read from
   Electron rather than written down, with a button that opens it in the OS file manager. **Delete
   everything** says what will be lost, asks for a second press, and then removes the database and its

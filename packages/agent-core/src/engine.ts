@@ -59,6 +59,7 @@ import { buildRescueGrounding } from './rescue-grounding';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
+  coerceAmbientSound,
   coerceShowMaterialText,
   coerceTheme,
 } from '@focusloop/shared-types';
@@ -118,6 +119,9 @@ export const THEME_KEY = 'theme';
 
 /** The `app_meta` key the "show the imported text" preference is stored under. */
 export const SHOW_MATERIAL_TEXT_KEY = 'show-material-text';
+
+/** The `app_meta` key the ambient-layer preference is stored under (#57). */
+export const AMBIENT_SOUND_KEY = 'ambient-sound';
 
 /**
  * A request the engine refuses, carrying the code the caller branches on — so a rejection is a value
@@ -1654,6 +1658,7 @@ export class FocusLoopEngine {
       locale: coerceLocale(this.store.getMeta(LOCALE_KEY)),
       theme: coerceTheme(this.store.getMeta(THEME_KEY)),
       showMaterialText: coerceShowMaterialText(this.store.getMeta(SHOW_MATERIAL_TEXT_KEY)),
+      ambientSound: coerceAmbientSound(this.store.getMeta(AMBIENT_SOUND_KEY)),
     };
   }
 
@@ -1669,6 +1674,11 @@ export class FocusLoopEngine {
 
   setShowMaterialText(showMaterialText: boolean): AppSettings {
     this.store.setMeta(SHOW_MATERIAL_TEXT_KEY, showMaterialText ? 'true' : 'false');
+    return this.getSettings();
+  }
+
+  setAmbientSound(ambientSound: boolean): AppSettings {
+    this.store.setMeta(AMBIENT_SOUND_KEY, ambientSound ? 'true' : 'false');
     return this.getSettings();
   }
 

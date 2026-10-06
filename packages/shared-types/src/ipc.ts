@@ -63,6 +63,7 @@ export const IPC_CHANNELS = {
   setLocale: 'focusloop:settings:set-locale',
   setTheme: 'focusloop:settings:set-theme',
   setShowMaterialText: 'focusloop:settings:set-material-text',
+  setAmbientSound: 'focusloop:settings:set-ambient-sound',
   getDataInfo: 'focusloop:data:info',
   openDataFolder: 'focusloop:data:open-folder',
   deleteAllData: 'focusloop:data:delete-all',
@@ -219,6 +220,10 @@ export interface SetShowMaterialTextRequest {
   readonly showMaterialText: boolean;
 }
 
+export interface SetAmbientSoundRequest {
+  readonly ambientSound: boolean;
+}
+
 /**
  * Where the learner's data is. Both paths are the main process's answer, not the renderer's guess:
  * `directory` is `app.getPath('userData')` and `databasePath` is the file the store actually opened,
@@ -320,6 +325,7 @@ export interface FocusLoopApi {
   setLocale(request: SetLocaleRequest): Promise<AppSettings>;
   setTheme(request: SetThemeRequest): Promise<AppSettings>;
   setShowMaterialText(request: SetShowMaterialTextRequest): Promise<AppSettings>;
+  setAmbientSound(request: SetAmbientSoundRequest): Promise<AppSettings>;
 
   /**
    * Where the local database is. Local-first, so this is the whole of it: one directory, one file, and

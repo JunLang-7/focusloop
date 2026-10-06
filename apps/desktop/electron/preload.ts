@@ -96,6 +96,8 @@ const api: FocusLoopApi = {
       IPC_CHANNELS.setShowMaterialText,
       payload.setShowMaterialText(request.showMaterialText),
     ),
+  setAmbientSound: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setAmbientSound, payload.setAmbientSound(request.ambientSound)),
 
   getDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getDataInfo, payload.none()),
   openDataFolder: () => ipcRenderer.invoke(IPC_CHANNELS.openDataFolder, payload.none()),

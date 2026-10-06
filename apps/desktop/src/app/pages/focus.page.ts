@@ -71,6 +71,25 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
             >
               {{ stateLabel() }}
             </span>
+            <!--
+              The ambient layer (#57), in the session's own row rather than beside the task.
+
+              Two rules decide this. The research document's: sound never takes the task's level, so it
+              is a quiet control and not a second primary. And #77's: the task box has a height contract
+              against the notice's reserved row, so a control that is decoration must not be inside it —
+              the first attempt was, and both the notice geometry and the tutor panel's placement said so.
+            -->
+            <button
+              type="button"
+              class="btn btn--small btn--quiet ambient-toggle"
+              data-testid="ambient-toggle"
+              [title]="t('focus.ambient.hint')"
+              [class.is-active]="ambientSound()"
+              [attr.aria-pressed]="ambientSound()"
+              (click)="toggleAmbient()"
+            >
+              {{ t(ambientSound() ? 'focus.ambient.on' : 'focus.ambient.off') }}
+            </button>
             <button type="button" class="btn btn--ghost" data-testid="end-session" (click)="end()">
               {{ t('focus.end') }}
             </button>
@@ -406,6 +425,7 @@ export class FocusPage implements OnDestroy {
   protected readonly t = this.i18n.t;
   protected readonly snapshot = this.state.snapshot;
   protected readonly task = this.state.currentTask;
+  protected readonly ambientSound = this.state.ambientSound;
   private readonly timer = this.focusTimer.state;
   protected readonly CLOCK_RADIUS = CLOCK_RADIUS;
   protected readonly CLOCK_CIRCUMFERENCE = CLOCK_CIRCUMFERENCE;
@@ -829,6 +849,14 @@ export class FocusPage implements OnDestroy {
     this.focusTimer.set(createFocusTimer());
     this.completedView.set(true);
   }
+  /**
+   * The learner's own call, like the material text: the layer is offered rather than assumed, and
+   * turning it on does not make it start on its own the next time the app opens.
+   */
+  protected toggleAmbient(): void {
+    void this.state.setAmbientSound(!this.ambientSound());
+  }
+
   protected readonly STUCK_REASON_KEYS = STUCK_REASON_KEYS;
   protected readonly stuckReasons = STUCK_REASONS;
   protected readonly stuckOpen = signal(false);

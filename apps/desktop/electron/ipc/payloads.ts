@@ -11,6 +11,7 @@ import type {
   ProposeStructuralChangeRequest,
   ResumeDecisionRequest,
   ResolveInterventionRequest,
+  SetAmbientSoundRequest,
   SetLocaleRequest,
   SetThemeRequest,
   SetShowMaterialTextRequest,
@@ -61,6 +62,7 @@ export const payload = {
   setShowMaterialText: (showMaterialText: boolean): SetShowMaterialTextRequest => ({
     showMaterialText,
   }),
+  setAmbientSound: (ambientSound: boolean): SetAmbientSoundRequest => ({ ambientSound }),
   insights: (range: InsightRange): InsightsRequest => ({ range }),
   askTutor: (request: TutorAskRequest): TutorAskRequest => request,
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,

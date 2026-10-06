@@ -21,6 +21,7 @@ import {
   type ResolveInterventionRequest,
   type ResolveRescueRequest,
   type SessionEndReason,
+  type SetAmbientSoundRequest,
   type SetLocaleRequest,
   type SetThemeRequest,
   type SetShowMaterialTextRequest,
@@ -207,6 +208,16 @@ export function parseSetShowMaterialText(
     fail(channel, `showMaterialText must be a boolean, received ${typeof showMaterialText}`);
   }
   return { showMaterialText };
+}
+
+/** The ambient layer's preference, checked the same way and for the same reason as the one above. */
+export function parseSetAmbientSound(channel: string, value: unknown): SetAmbientSoundRequest {
+  const record = asRecord(channel, value);
+  const ambientSound = record['ambientSound'];
+  if (typeof ambientSound !== 'boolean') {
+    fail(channel, `ambientSound must be a boolean, received ${typeof ambientSound}`);
+  }
+  return { ambientSound };
 }
 
 export function parseInsightsRequest(channel: string, value: unknown): InsightsRequest {

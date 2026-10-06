@@ -190,6 +190,12 @@ const en = {
   'focus.pause': 'Pause',
   'focus.resume': 'Continue',
   'focus.addMinute': '+1 minute',
+  // ----------------------------------------------------------- ambient layer
+  // Generated rather than shipped: nothing to license, nothing to download, and it stops with the
+  // session. Off until the learner asks for it (#57).
+  'focus.ambient.on': 'Quiet sound: on',
+  'focus.ambient.off': 'Quiet sound: off',
+  'focus.ambient.hint': 'Generated noise, under the task',
   'focus.stuck': "I'm stuck",
   'focus.stuck.aria': 'What kind of stuck?',
   'focus.stuck.cannot-start': "I can't see where to start",

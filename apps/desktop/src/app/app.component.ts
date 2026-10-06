@@ -19,6 +19,7 @@ import {
   type ThemePreference,
 } from '@focusloop/shared-types';
 import { AppStateService } from './core/app-state.service';
+import { AmbientSoundService } from './core/ambient-sound.service';
 import { I18nService, LOCALE_LABELS, type MessageKey } from './core/i18n/i18n.service';
 import { STATE_KEYS } from './core/i18n/labels';
 import { applyLanguage } from './core/language';
@@ -333,6 +334,14 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly t = this.i18n.t;
 
   /**
+   * Injected for its lifetime rather than for its value: a root service starts its effect when it is
+   * first injected, and this is what keeps the ambient layer alive for the whole renderer, so the
+   * sound survives a move to the dashboard in the middle of a session (#57). Whether it should be
+   * playing is read from the store's preference inside the service.
+   */
+  private readonly ambientLayer = inject(AmbientSoundService);
+
+  /**
    * The renderer keeps no language state of its own: the store owns the choice,
    * `AppStateService.locale` mirrors it, and this effect is the single place that pushes
    * it into the translator and onto `<html lang>`. One direction, so the two cannot
@@ -364,6 +373,7 @@ export class AppComponent implements OnInit, OnDestroy {
       this.stateService.locale.set(settings.locale);
       this.stateService.theme.set(settings.theme);
       this.stateService.showMaterialText.set(settings.showMaterialText);
+      this.stateService.ambientSound.set(settings.ambientSound);
     });
     void this.stateService.refresh();
     this.unsubscribe = this.stateService.subscribeToEvents();

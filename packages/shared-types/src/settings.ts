@@ -50,6 +50,13 @@ export interface AppSettings {
    * wanted is not this module's decision, so it is stored rather than assumed.
    */
   readonly showMaterialText: boolean;
+  /**
+   * Whether a generated ambient sound plays while a session runs (#57).
+   *
+   * A preference, not a playback state: the layer still needs a running session, so a stored `true`
+   * never makes sound begin on its own after a restart.
+   */
+  readonly ambientSound: boolean;
 }
 
 export const DEFAULT_SHOW_MATERIAL_TEXT = true;
@@ -60,4 +67,14 @@ export function coerceShowMaterialText(value: unknown): boolean {
   if (value === 'true') return true;
   if (value === 'false') return false;
   return DEFAULT_SHOW_MATERIAL_TEXT;
+}
+
+export const DEFAULT_AMBIENT_SOUND = false;
+
+export function coerceAmbientSound(value: unknown): boolean {
+  if (typeof value === 'boolean') return value;
+  // Stored as the word, like the preference above: `app_meta` holds strings.
+  if (value === 'true') return true;
+  if (value === 'false') return false;
+  return DEFAULT_AMBIENT_SOUND;
 }

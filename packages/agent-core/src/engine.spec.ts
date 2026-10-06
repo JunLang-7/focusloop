@@ -38,11 +38,12 @@ describe('FocusLoopEngine', () => {
   });
 
   describe('settings', () => {
-    it('defaults to English, the system theme, and the material text shown', () => {
+    it('defaults to English, the system theme, the material text shown, and no ambient layer', () => {
       expect(ctx.engine.getSettings()).toEqual({
         locale: 'en',
         theme: 'system',
         showMaterialText: true,
+        ambientSound: false,
       });
     });
 
@@ -51,6 +52,7 @@ describe('FocusLoopEngine', () => {
         locale: 'zh',
         theme: 'system',
         showMaterialText: true,
+        ambientSound: false,
       });
       expect(ctx.engine.getSettings().locale).toBe('zh');
     });
@@ -61,11 +63,13 @@ describe('FocusLoopEngine', () => {
         locale: 'zh',
         theme: 'light',
         showMaterialText: true,
+        ambientSound: false,
       });
       expect(ctx.engine.getSettings()).toEqual({
         locale: 'zh',
         theme: 'light',
         showMaterialText: true,
+        ambientSound: false,
       });
     });
 
@@ -74,11 +78,24 @@ describe('FocusLoopEngine', () => {
         locale: 'en',
         theme: 'system',
         showMaterialText: false,
+        ambientSound: false,
       });
       // `app_meta` stores strings, so the value comes back as the word rather than the primitive.
       // A guard that only accepted a real boolean would silently fall back to the default, and the
       // preference would look like it saved while never taking effect.
       expect(ctx.engine.getSettings().showMaterialText).toBe(false);
+    });
+
+    it('remembers the ambient layer, which is off until the learner asks for it', () => {
+      expect(ctx.engine.getSettings().ambientSound).toBe(false);
+      expect(ctx.engine.setAmbientSound(true)).toEqual({
+        locale: 'en',
+        theme: 'system',
+        showMaterialText: true,
+        ambientSound: true,
+      });
+      // Stored as a word like the preference above, so it has to come back as one.
+      expect(ctx.engine.getSettings().ambientSound).toBe(true);
     });
 
     it('ignores a language nobody wrote wording for', () => {
