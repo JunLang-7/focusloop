@@ -404,8 +404,16 @@ function projectEvent(event: unknown): AgentContextEvent | null {
       const order = taskIdList(payload['order']);
       return order === null ? null : { ...common, type, payload: { order } };
     }
-    default:
-      return null;
+    default: {
+      /*
+       * Unreachable: `isLearningEventType` has already narrowed this to a member of the union, and every
+       * member has a case above. Written as `never` rather than as a silent `null` so that adding an
+       * event type without deciding what an agent may be told about it is a compile error, instead of
+       * an event that disappears from every context with only a count in the omissions to show for it.
+       */
+      const unprojected: never = type;
+      return unprojected;
+    }
   }
 }
 
