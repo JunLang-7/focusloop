@@ -36,6 +36,15 @@ updates:
       # stops that pull request arriving every Monday until Angular widens the range.
       - dependency-name: typescript
         update-types: ['version-update:semver-major']
+      # `@types/node` describes the runtime this project supports, not the newest one that exists, so
+      # its major moves when the runtime floor moves and not before: `.nvmrc` and `engines` both say
+      # 22.13. The 26 types also cannot pass as things stand — they require `[Symbol.asyncDispose]` on
+      # an `AsyncGenerator`, which the two hand-written generators in `llm-provider` do not implement,
+      # so `pnpm typecheck` fails in `runtime.ts` and `stream-control.ts`. Raising the floor is a
+      # decision with a Node upgrade and a code change in it, so it arrives as one when someone asks
+      # for one, the same rule as the majors above.
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
 
   # The actions the workflows run. These are pinned to full commit SHAs in the workflow files, so
   # Dependabot is the thing that moves the pins — with the release it moved to in the comment.
