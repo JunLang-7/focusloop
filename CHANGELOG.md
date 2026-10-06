@@ -20,6 +20,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **The short resume is asserted on screen for what it is.** A short interruption lists one item per
   column even when more is done; the golden path only ever checked that a card appeared, so the one
   tier an e2e can actually reach was not pinned. (#192)
+- **The agent-context event projection is exhaustive by construction (AG1.2).** Every learning event
+  type in `LEARNING_EVENT_TYPES` must have an explicit projection: adding one without deciding what an
+  agent may be told about it is now a compile error (the `default` branch is `never`, as the state
+  machine's switch already was) and a failing test (the spec's expectation map is keyed by the union).
+  previously such an event was dropped from every context with only a count in the omissions. (#97)
 - **One rule decides whether the developer surfaces appear, and it is tested.** The simulator bar and
   the context inspector asked the same question with the same copied expression; both now call
   `developerModeEnabled(runtime)`, which is `false` for a packaged build and for an answer that has not

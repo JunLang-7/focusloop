@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   AGENT_CONTEXT_LIMITS,
+  LEARNING_EVENT_TYPES,
   type Course,
   type LearningCheckpoint,
   type LearningEvent,
+  type LearningEventType,
   type LearningSession,
   type MaterialDocument,
 } from '@focusloop/shared-types';
@@ -524,6 +526,68 @@ describe('buildAgentContext', () => {
           payload: eventCase.output,
         },
       ]);
+    }
+  });
+
+  /*
+   * Every event type the log can hold has an explicit projection, and none of them is silently
+   * dropped.
+   *
+   * The list is a `Record<LearningEventType, ...>`, so adding a member to `LEARNING_EVENT_TYPES`
+   * without deciding what an agent may be told about it fails to compile rather than quietly leaving
+   * the event out of every context. That is the difference between a boundary and a habit: the
+   * projection's `default` branch is unreachable for the same reason.
+   */
+  it('projects every learning event type rather than dropping it', () => {
+    const payloads: Record<
+      LearningEventType,
+      { input: Record<string, unknown>; output: Record<string, unknown> }
+    > = {
+      SESSION_STARTED: { input: { courseId: 'c1', sessionId: 's1' }, output: {} },
+      TASK_STARTED: { input: { taskId: 't1' }, output: { taskId: 't1' } },
+      TASK_COMPLETED: { input: { taskId: 't1' }, output: { taskId: 't1' } },
+      HELP_REQUESTED: {
+        input: { taskId: 't1', reason: 'too-big' },
+        output: { taskId: 't1', reason: 'too-big' },
+      },
+      QUIZ_CORRECT: {
+        input: { taskId: 't1', quizId: 'q1' },
+        output: { taskId: 't1', quizId: 'q1' },
+      },
+      QUIZ_INCORRECT: {
+        input: { taskId: 't1', quizId: 'q1' },
+        output: { taskId: 't1', quizId: 'q1' },
+      },
+      TAB_LEFT: { input: { origin: 'https://private.test' }, output: {} },
+      TAB_RETURNED: { input: { awayMs: 30_000 }, output: { awayMs: 30_000 } },
+      IDLE_STARTED: { input: {}, output: {} },
+      IDLE_ENDED: { input: { idleMs: 45_000 }, output: { idleMs: 45_000 } },
+      RESUME_REQUESTED: { input: { checkpointId: 'cp1' }, output: {} },
+      RESUME_DISMISSED: { input: { checkpointId: 'cp1' }, output: {} },
+      SESSION_ENDED: { input: { reason: 'user' }, output: { reason: 'user' } },
+      AGENT_PROPOSAL_EXECUTED: {
+        input: { proposalId: 'p1', kind: 'structural-write', idempotencyKey: 'k1' },
+        output: {},
+      },
+      TASKS_REORDERED: { input: { order: ['t2', 't1'] }, output: { order: ['t2', 't1'] } },
+    };
+
+    for (const type of LEARNING_EVENT_TYPES) {
+      const expected = payloads[type];
+      const report = buildAgentContext(source({ events: [rawEvent(type, expected.input)] }));
+      expect(report.context?.recentEvents, type).toEqual([
+        {
+          type,
+          at: '2026-09-20T00:00:00.000Z',
+          source: 'user',
+          payload: expected.output,
+        },
+      ]);
+      // The event counts as kept, not as one of the rejected rows the omission would report.
+      expect(
+        report.omissions.filter((omission) => omission.field === 'events'),
+        type,
+      ).toEqual([]);
     }
   });
 
