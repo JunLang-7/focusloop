@@ -284,6 +284,12 @@ const en = {
   'dashboard.progressRate': 'Progress after resume',
   'dashboard.progressRate.sample': '{progressed} of {evaluated} progressed · {pending} pending',
   'dashboard.outcomes': 'Intervention outcomes',
+  'dashboard.rescues': 'How rescues went',
+  'dashboard.rescues.none': 'No rescue has been tried yet.',
+  'dashboard.rescues.rate': 'Helped {succeeded} of {evaluated}',
+  'dashboard.rescues.rateNone': 'Not judged yet',
+  'dashboard.rescues.counts':
+    'Tried {accepted} · asked again {repeated} · no sign of progress {expired} · still open {pending}',
   // The bar's own label, and the two things beside it: how often it was accepted, and the counts the
   // table used to carry. `N =` is written out because a row with one sample otherwise reads as a
   // 100% success rate.

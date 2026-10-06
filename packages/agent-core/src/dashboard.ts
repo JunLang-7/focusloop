@@ -5,9 +5,13 @@ import type {
   LearningCheckpoint,
   LearningEvent,
   LearningSession,
+  RescueAction,
+  RescueOutcomeSummary,
+  RescueSuccessEvaluation,
   ResumeCardTiming,
   ResumePolicyConfig,
 } from '@focusloop/shared-types';
+import { RESCUE_ACTIONS } from '@focusloop/shared-types';
 import { evaluateResumeOutcome } from '@focusloop/continuity';
 import { averageResumeLatencyMs, summarizeOutcomes } from '@focusloop/intervention-policy';
 
@@ -28,6 +32,8 @@ export interface BuildDashboardInput {
   readonly resumeTimings?: readonly ResumeCardTiming[];
   readonly checkpoints?: readonly LearningCheckpoint[];
   readonly events?: readonly LearningEvent[];
+  /** The session's accepted rescues, already evaluated against its event log. */
+  readonly rescues?: readonly EvaluatedRescue[];
   readonly resumePolicyConfig?: Partial<ResumePolicyConfig>;
   readonly now: string;
 }
@@ -114,6 +120,56 @@ export function summarizeResumeOutcomes(input: {
   };
 }
 
+/** An accepted rescue and how it was judged; the engine supplies these from the event log. */
+export interface EvaluatedRescue {
+  readonly action: RescueAction;
+  readonly evaluation: RescueSuccessEvaluation;
+}
+
+/**
+ * Totals the rescue evaluations per action (AG2.8). Every action is always present, so a rescue that
+ * has never been accepted reads as zero rather than as a missing row.
+ */
+export function summarizeRescueOutcomes(
+  rescues: readonly EvaluatedRescue[],
+): RescueOutcomeSummary[] {
+  return RESCUE_ACTIONS.map((action) => {
+    let accepted = 0;
+    let succeeded = 0;
+    let repeatedHelp = 0;
+    let expired = 0;
+    let pending = 0;
+    for (const rescue of rescues) {
+      if (rescue.action !== action) continue;
+      accepted += 1;
+      switch (rescue.evaluation.status) {
+        case 'succeeded':
+          succeeded += 1;
+          break;
+        case 'repeated-help':
+          repeatedHelp += 1;
+          break;
+        case 'expired':
+          expired += 1;
+          break;
+        case 'pending':
+          pending += 1;
+          break;
+      }
+    }
+    const evaluated = accepted - pending;
+    return {
+      action,
+      accepted,
+      succeeded,
+      repeatedHelp,
+      expired,
+      pending,
+      successRate: evaluated === 0 ? null : succeeded / evaluated,
+    };
+  });
+}
+
 export function buildDashboardSummary(input: BuildDashboardInput): DashboardSummary {
   const { session, course, outcomes, now } = input;
 
@@ -128,6 +184,7 @@ export function buildDashboardSummary(input: BuildDashboardInput): DashboardSumm
       averageResumeLatencyMs: null,
       resumeOutcomes: emptyResumeOutcomeSummary(),
       interventionOutcomes: summarizeOutcomes([]),
+      rescueOutcomes: summarizeRescueOutcomes([]),
     };
   }
 
@@ -153,6 +210,7 @@ export function buildDashboardSummary(input: BuildDashboardInput): DashboardSumm
       config: input.resumePolicyConfig,
     }),
     interventionOutcomes: summarizeOutcomes(outcomes),
+    rescueOutcomes: summarizeRescueOutcomes(input.rescues ?? []),
   };
 }
 

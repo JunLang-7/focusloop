@@ -256,6 +256,12 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.progressRate.sample':
     '已评估 {evaluated} 次，进步 {progressed} 次 · 待观察 {pending} 次',
   'dashboard.outcomes': '干预结果',
+  'dashboard.rescues': '解困效果',
+  'dashboard.rescues.none': '还没有试过解困。',
+  'dashboard.rescues.rate': '{evaluated} 次中有 {succeeded} 次帮到了你',
+  'dashboard.rescues.rateNone': '尚未判定',
+  'dashboard.rescues.counts':
+    '试过 {accepted} 次 · 又求助 {repeated} 次 · 没看到进展 {expired} 次 · 还在观察 {pending} 次',
   // 横条自己的说明，以及旁边的两件事：被接受的比例，和原先表格里的计数。N 写出来，是因为只有一次
   // 样本的行否则会读成“每次都成功”。
   'dashboard.outcomes.share': '{percent} 被接受',

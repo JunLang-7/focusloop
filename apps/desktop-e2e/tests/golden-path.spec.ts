@@ -1522,6 +1522,44 @@ test('accepting SIMPLIFY splits the task into the steps it is made of', async ()
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
 
+/*
+ * "I did it and it came out wrong" and "I knew it and it is gone" are different kinds of stuck with the
+ * same answer, a HINT (AG2), and the earlier tests reach the other four reasons. This one closes the set
+ * and then reads the result back from the dashboard (AG2.8): the evaluator is only worth having if the
+ * learner can see what it concluded.
+ */
+test('both remaining reasons are answered with a hint, and the dashboard reports how it went', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  for (const reason of ['went-wrong', 'cannot-recall'] as const) {
+    await window.getByTestId('focus-stuck').click();
+    await window.getByTestId(`stuck-${reason}`).click();
+    const agent = window.locator('.agent');
+    await expect(agent).toBeVisible();
+    await expect(agent).toHaveAttribute('data-action', 'HINT');
+    await agent.getByRole('button').first().click();
+    const accepted = window.getByTestId('agent-accepted');
+    await expect(accepted).toBeVisible();
+    await expect(accepted.locator('.agent__plan li')).toHaveCount(2);
+    await accepted.getByRole('button', { name: 'Continue' }).click();
+    await expect(accepted).toBeHidden();
+  }
+
+  await clickSidebarLink('Dashboard');
+  const row = window.locator('[data-testid="rescue-row"][data-action="HINT"]');
+  await expect(row).toBeVisible();
+  // Asking again on the same step inside the window is what the evaluator calls repeated help, so the
+  // first hint did not help and the second, which nothing followed, did.
+  await expect(row.getByTestId('rescue-rate')).toHaveText('Helped 1 of 2');
+  await expect(row.getByTestId('rescue-counts')).toContainText('asked again 1');
+
+  await clickSidebarLink('Focus Session');
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
 test('the tutor asks the main process, and says so when no model is connected', async () => {
   // The previous test leaves the app on the focus screen with no session — "No session running" and no
   // course list — so the session has to be started from the home screen, as the other tests do.

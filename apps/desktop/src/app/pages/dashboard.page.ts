@@ -6,6 +6,7 @@ import {
   type InsightRange,
   type InterventionOutcomeSummary,
   type LearningState,
+  type RescueOutcomeSummary,
 } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService, type MessageKey } from '../core/i18n/i18n.service';
@@ -333,6 +334,34 @@ const DONUT_RADIUS = 42;
           }
         </div>
       </section>
+
+      <section>
+        <h2 class="section-title">{{ t('dashboard.rescues') }}</h2>
+        <div class="card">
+          @if (rescueRows().length === 0) {
+            <p class="muted small">{{ t('dashboard.rescues.none') }}</p>
+          } @else {
+            <!--
+              Only rescues the learner took up: a dismissed card tried nothing, so it has no result. The
+              rate leaves out the ones still inside their window, and the sample is written out for the
+              same reason the intervention bars do it.
+            -->
+            <div class="bars" data-testid="rescue-rows">
+              @for (row of rescueRows(); track row.action) {
+                <div class="bar" data-testid="rescue-row" [attr.data-action]="row.action">
+                  <div class="bar__head">
+                    <span class="bar__name">{{ actionLabel(row.action) }}</span>
+                    <span class="muted small" data-testid="rescue-rate">{{ rescueRate(row) }}</span>
+                  </div>
+                  <p class="muted small bar__counts" data-testid="rescue-counts">
+                    {{ rescueCounts(row) }}
+                  </p>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </section>
     }
 
     <section>
@@ -427,6 +456,10 @@ export class DashboardPage {
   protected readonly summary = computed(() => this.state.dashboard());
   protected readonly insights = this.state.insights;
 
+  /** Rescues the learner never took up have no result to show. */
+  protected readonly rescueRows = computed(() =>
+    (this.summary()?.rescueOutcomes ?? []).filter((row) => row.accepted > 0),
+  );
   /** Policies that were never shown are rows of zeros — noise, not information. */
   protected readonly outcomeRows = computed(() =>
     (this.summary()?.interventionOutcomes ?? []).filter((row) => row.total > 0),
@@ -558,6 +591,26 @@ export class DashboardPage {
     return this.t('dashboard.outcomes.valueText', {
       percent: `${this.acceptedPercent(row)}%`,
       total: String(row.total),
+    });
+  }
+
+  /** "Helped 2 of 3", or the plain statement that nothing has been judged yet. */
+  protected rescueRate(row: RescueOutcomeSummary): string {
+    const evaluated = row.accepted - row.pending;
+    return evaluated === 0
+      ? this.t('dashboard.rescues.rateNone')
+      : this.t('dashboard.rescues.rate', {
+          succeeded: String(row.succeeded),
+          evaluated: String(evaluated),
+        });
+  }
+
+  protected rescueCounts(row: RescueOutcomeSummary): string {
+    return this.t('dashboard.rescues.counts', {
+      accepted: String(row.accepted),
+      repeated: String(row.repeatedHelp),
+      expired: String(row.expired),
+      pending: String(row.pending),
     });
   }
 

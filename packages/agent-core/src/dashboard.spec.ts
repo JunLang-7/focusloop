@@ -4,12 +4,15 @@ import type {
   LearningEvent,
   LearningSession,
   ResumeCardTiming,
+  RescueSuccessEvaluation,
 } from '@focusloop/shared-types';
+import { RESCUE_ACTIONS } from '@focusloop/shared-types';
 import {
   buildDashboardSummary,
   emptyResumeOutcomeSummary,
   formatDuration,
   formatLatency,
+  summarizeRescueOutcomes,
   summarizeResumeOutcomes,
 } from './dashboard';
 import { demoCourse } from './demo-course';
@@ -290,5 +293,66 @@ describe('formatting helpers', () => {
     expect(formatLatency(null)).toBe('—');
     expect(formatLatency(250)).toBe('250 ms');
     expect(formatLatency(2_500)).toBe('2.5 s');
+  });
+});
+
+describe('summarizeRescueOutcomes', () => {
+  const evaluation = (status: RescueSuccessEvaluation['status']): RescueSuccessEvaluation => ({
+    status,
+    interventionId: 'i',
+    sessionId: 's1',
+    taskId: 't1',
+    acceptedAt: T0,
+    windowEndsAt: T0,
+    evidenceEventIds: [],
+    repeatedHelpEventIds: [],
+  });
+
+  it('always has a row for every rescue action, with no rate until something is evaluated', () => {
+    const rows = summarizeRescueOutcomes([]);
+    expect(rows.map((row) => row.action)).toEqual(RESCUE_ACTIONS);
+    for (const row of rows) {
+      expect(row).toMatchObject({
+        accepted: 0,
+        succeeded: 0,
+        repeatedHelp: 0,
+        expired: 0,
+        pending: 0,
+        successRate: null,
+      });
+    }
+  });
+
+  it('files each accepted rescue under exactly one result', () => {
+    const rows = summarizeRescueOutcomes([
+      { action: 'HINT', evaluation: evaluation('succeeded') },
+      { action: 'HINT', evaluation: evaluation('repeated-help') },
+      { action: 'HINT', evaluation: evaluation('expired') },
+      { action: 'HINT', evaluation: evaluation('pending') },
+      { action: 'BREAK', evaluation: evaluation('succeeded') },
+    ]);
+    const hint = rows.find((row) => row.action === 'HINT');
+    expect(hint).toMatchObject({
+      accepted: 4,
+      succeeded: 1,
+      repeatedHelp: 1,
+      expired: 1,
+      pending: 1,
+    });
+    // pending is kept out of the denominator: one success out of three evaluated.
+    expect(hint?.successRate).toBeCloseTo(1 / 3);
+    expect(rows.find((row) => row.action === 'BREAK')?.successRate).toBe(1);
+    expect(rows.find((row) => row.action === 'EXAMPLE')?.successRate).toBeNull();
+  });
+
+  it('is part of the dashboard summary, empty without a session', () => {
+    const summary = buildDashboardSummary({
+      session: null,
+      course: null,
+      outcomes: [],
+      checkpointCount: 0,
+      now: T0,
+    });
+    expect(summary.rescueOutcomes).toHaveLength(RESCUE_ACTIONS.length);
   });
 });

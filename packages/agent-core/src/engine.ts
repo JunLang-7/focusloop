@@ -15,6 +15,7 @@ import type {
   InsightRange,
   InsightsSummary,
   Intervention,
+  InterventionDecision,
   InterventionOutcome,
   LearningCheckpoint,
   LearningEvent,
@@ -89,7 +90,7 @@ import {
   type CompleteWithFallbackResult,
   type ProviderSelection,
 } from '@focusloop/llm-provider';
-import { buildDashboardSummary } from './dashboard';
+import { buildDashboardSummary, type EvaluatedRescue } from './dashboard';
 import { buildInsightsSummary, type InsightsSessionSource } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
@@ -1188,21 +1189,7 @@ export class FocusLoopEngine {
         continue;
       const outcome = this.store.getOutcomeByIntervention(intervention.id);
       if (outcome?.dismissed || outcome?.continuedAt !== undefined) return null;
-      const decision = {
-        action: intervention.action,
-        state: intervention.state,
-        reason: intervention.reason,
-        confidence: 1,
-        estimatedMinutes: estimatedMinutesFor(intervention.action),
-        ...(intervention.answersRequestId === undefined
-          ? {}
-          : { answersRequestId: intervention.answersRequestId }),
-      };
-      const seed = {
-        interventionId: intervention.id,
-        sessionId,
-        taskId: this.taskIdForIntervention(intervention),
-      };
+      const { decision, seed } = this.rescueInputs(intervention);
       if (outcome?.accepted) {
         const plan = buildRescuePlan(decision, seed);
         if (
@@ -1220,6 +1207,61 @@ export class FocusLoopEngine {
       return buildRescueView(decision, seed, outcome?.accepted ? 'active' : 'offered');
     }
     return null;
+  }
+
+  /** The decision and seed a stored rescue intervention is rebuilt from. */
+  private rescueInputs(intervention: Intervention): {
+    decision: InterventionDecision;
+    seed: { interventionId: string; sessionId: string; taskId: string | null };
+  } {
+    return {
+      decision: {
+        action: intervention.action,
+        state: intervention.state,
+        reason: intervention.reason,
+        confidence: 1,
+        estimatedMinutes: estimatedMinutesFor(intervention.action),
+        ...(intervention.answersRequestId === undefined
+          ? {}
+          : { answersRequestId: intervention.answersRequestId }),
+      },
+      seed: {
+        interventionId: intervention.id,
+        sessionId: intervention.sessionId,
+        taskId: this.taskIdForIntervention(intervention),
+      },
+    };
+  }
+
+  /**
+   * Every rescue the learner accepted in a session, judged against that session's log (AG2.8).
+   *
+   * Not limited to the current rescue: the dashboard is about how rescues went, including the ones
+   * that have since been replaced. Recomputed on every read, so nothing is stored and a changed clock
+   * or a later event is reflected without a migration.
+   */
+  private evaluatedRescues(sessionId: string, events: readonly LearningEvent[]): EvaluatedRescue[] {
+    const now = this.clock();
+    const result: EvaluatedRescue[] = [];
+    for (const intervention of this.store.listInterventions(sessionId)) {
+      if (!isRescueAction(intervention.action)) continue;
+      const outcome = this.store.getOutcomeByIntervention(intervention.id);
+      if (!outcome?.accepted) continue;
+      const { decision, seed } = this.rescueInputs(intervention);
+      const plan = buildRescuePlan(decision, seed);
+      if (plan === null) continue;
+      result.push({
+        action: plan.action,
+        evaluation: evaluateRescueSuccess({
+          plan,
+          outcome,
+          events,
+          now,
+          rescueSuccessWindowMs: this.policyConfig.rescueSuccessWindowMs,
+        }),
+      });
+    }
+    return result;
   }
 
   resolveRescue(request: ResolveRescueRequest): ResolveRescueResponse {
@@ -1363,6 +1405,7 @@ export class FocusLoopEngine {
         now: this.clock(),
       });
     }
+    const events = this.store.listEvents(record.session.id);
     return buildDashboardSummary({
       session: record.session,
       course: this.store.getCourse(record.session.courseId),
@@ -1370,7 +1413,8 @@ export class FocusLoopEngine {
       checkpointCount: this.store.listCheckpoints(record.session.id).length,
       resumeTimings: this.store.listResumeTimings(record.session.id),
       checkpoints: this.store.listCheckpoints(record.session.id),
-      events: this.store.listEvents(record.session.id),
+      events,
+      rescues: this.evaluatedRescues(record.session.id, events),
       now: this.clock(),
     });
   }
