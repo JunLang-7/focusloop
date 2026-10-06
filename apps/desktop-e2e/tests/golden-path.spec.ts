@@ -1434,6 +1434,37 @@ test('the reason the learner gives is answered according to which kind of stuck 
 });
 
 /*
+ * The short tier is the one length an e2e can reach, because the simulator's interruption is 30
+ * seconds and the boundary is fifteen minutes. What it changes is visible: a short card lists one
+ * item per column even when more is done, which is the difference between "where was I" and a
+ * summary. Medium and long need a gap no test can wait for; the eval scenarios and the unit tests
+ * hold those (AG5.3-5.5).
+ */
+test('a short interruption resumes into one line, not a summary', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+  await window.getByTestId('complete-task').click();
+  await window.getByTestId('start-task').first().click();
+  await window.getByTestId('complete-task').click();
+  await window.getByTestId('start-task').first().click();
+
+  await window.getByTestId('sim-distraction').click();
+  await window.getByTestId('sim-return').click();
+
+  const resume = window.getByRole('region', { name: 'Resume where you left off', exact: true });
+  await expect(resume).toBeVisible();
+  // Two tasks are done; the card names one, because the learner was away a minute and not a week.
+  await expect(window.getByTestId('resume-done').locator('li')).toHaveCount(1);
+
+  await window.getByTestId('resume-continue').click();
+  await expect(resume).toBeHidden();
+
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
+/*
  * MICRO_START is the one action that changes the task rather than adding words to it (#171), and the
  * change is worth nothing unless it reaches the card the learner is reading: the assertion is on the
  * rendered task, not on the engine that computed it.
