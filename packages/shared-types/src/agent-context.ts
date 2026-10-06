@@ -56,7 +56,13 @@ export interface TaskContext {
   readonly instructions: string | null;
   readonly kind: MicroTaskKind | null;
   readonly estimatedMinutes: number | null;
-  /** One-based position inside the course, which is what "step 3 of 7" counts. */
+  /**
+   * One-based position of the task in the **course's own order**, which is what "Step 3 of 7" counts.
+   *
+   * Not the plan's position: the learner's reorder (#23) applies to the plan on screen, which excludes
+   * the running task, so it cannot number this one — and the denominator counts the course's tasks, so
+   * both halves come from the same list (#194).
+   */
   readonly step: number;
   readonly totalSteps: number;
 }
@@ -111,7 +117,11 @@ export interface AgentContextCheckpoint {
   readonly mastered: readonly string[];
   readonly unresolved: readonly string[];
   readonly currentTaskTitle: string;
-  readonly currentStep: number;
+  /**
+   * One-based position of the current task in the course's own order (#194) — the same number as
+   * `AgentContext.task.step`, projected here so the agent does not have to reconcile two.
+   */
+  readonly courseStep: number;
   readonly frictionState: LearningState;
   readonly nextBestAction: LocalizedMessage;
   readonly createdAt: string;

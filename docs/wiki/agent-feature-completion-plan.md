@@ -104,7 +104,7 @@
 
 **交付范围/基线**：复用 `LearningCheckpoint`、`buildCheckpoint`、`ResumeCard`、accept/dismiss 和 latency 记录；补短/中/长三档摘要、adaptive task 恢复和成功率指标。
 
-**数据模型**：保留 checkpoint 的 mastered/unresolved/currentTask/currentStep/frictionState/nextBestAction；扩展 `ResumeVariant = short|medium|long`、`gapMs`、`refresher: LocalizedMessage | null`（由 gap 派生，不重复存事实）；`ResumeCardTiming` 记录 shown/accepted/dismissed/latency。
+**数据模型**：保留 checkpoint 的 mastered/unresolved/currentTask/courseStep/frictionState/nextBestAction；扩展 `ResumeVariant = short|medium|long`、`gapMs`、`refresher: LocalizedMessage | null`（由 gap 派生，不重复存事实）；`ResumeCardTiming` 记录 shown/accepted/dismissed/latency。
 
 **API/UI 交付物**：复用 `getResumeCard/acceptResume/dismissResume`；按离开时长返回 short/medium/long；Long 增加 30 秒快速回忆；恢复 adaptive task、回到 material section；ResumeCard 显示“已完成/未解决/下一步”，接受后发 `RESUME_REQUESTED`。
 

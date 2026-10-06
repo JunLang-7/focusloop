@@ -67,7 +67,7 @@ describe('buildCheckpoint', () => {
       now: T0,
     });
     expect(checkpoint.currentTaskId).toBe('t1');
-    expect(checkpoint.currentStep).toBe(1);
+    expect(checkpoint.courseStep).toBe(1);
     expect(checkpoint.conceptTitle).toBe('Concept one');
     expect(checkpoint.goal).toBe('Read one');
   });
@@ -80,7 +80,7 @@ describe('buildCheckpoint', () => {
       now: T1,
     });
     expect(checkpoint.currentTaskId).toBe('t2');
-    expect(checkpoint.currentStep).toBe(2);
+    expect(checkpoint.courseStep).toBe(2);
     expect(checkpoint.nextBestAction).toEqual({
       key: 'action.practice.example',
       params: { title: 'Practise one' },
@@ -144,5 +144,54 @@ describe('buildCheckpoint', () => {
     });
     expect(checkpoint.id).toBe('cp-1');
     expect(checkpoint.goal).toBe('Custom goal');
+  });
+});
+
+/*
+ * Two questions, two answers, and the test is here so neither answer can quietly become the other
+ * (#194).
+ *
+ * The number answers "where does this task sit in the material" and counts the course's order, which
+ * is the same list the denominator (7) counts — the learner's plan cannot answer it, because the plan
+ * deliberately excludes the running task, so it has nowhere to put the task the checkpoint is about.
+ * The focus task answers "which task comes next" and follows the learner's plan, because that is the
+ * task the focus screen offers as the next small step.
+ */
+describe('whose order the checkpoint counts (#194)', () => {
+  it('counts the course order even when the learner reordered the plan', () => {
+    // On t2 (the course's second task) with t3 moved ahead of t1 in the plan. Following the plan would
+    // put t2 third; the course puts it second, and it is the course's seven that the "of 7" counts.
+    const checkpoint = buildCheckpoint({
+      session: tinySession({ taskOrder: ['t3', 't1'] }),
+      course: tinyCourse(),
+      engineState: started('t2'),
+      now: T1,
+    });
+
+    expect(checkpoint.courseStep).toBe(2);
+    expect(checkpoint.currentTaskId).toBe('t2');
+  });
+
+  it('offers the next task the way the plan offers it, and counts it in the course', () => {
+    // Nothing is running, so the checkpoint falls through to the first unfinished task — which is the
+    // same list the focus screen's "Next small step" card is built from.
+    const checkpoint = buildCheckpoint({
+      session: tinySession({ taskOrder: ['t3', 't1'] }),
+      course: tinyCourse(),
+      engineState: engineWith({}),
+      now: T1,
+    });
+
+    expect(checkpoint.currentTaskId).toBe('t3');
+    expect(checkpoint.courseStep).toBe(3);
+    expect(checkpoint.goal).toBe('Quiz two');
+    expect(checkpoint.nextBestAction).toEqual({
+      key: 'action.quiz.answer',
+      params: { title: 'Quiz two' },
+    });
+  });
+
+  it('still falls back to the course order when the learner has not reordered anything', () => {
+    expect(firstIncompleteTask(tinyCourse(), ['t1'])?.id).toBe('t2');
   });
 });

@@ -9,6 +9,8 @@ import {
   type LearningSession,
   type MaterialDocument,
 } from '@focusloop/shared-types';
+import { buildCheckpoint } from '@focusloop/continuity';
+import { createInitialState } from '@focusloop/learning-state';
 import { buildAgentContext, type AgentContextSource } from './agent-context';
 
 function course(): Course {
@@ -137,6 +139,35 @@ describe('buildAgentContext', () => {
     });
     expect(report.context?.concept.title).toBe('Rotations');
     expect(report.context?.concept.keyPoints).toEqual(['the in-order sequence is preserved']);
+  });
+
+  it('counts the position in the course, not in the array it was handed (#194)', () => {
+    // The store hands back tasks ordered by their position, but nothing in the type says so: a course
+    // whose array is in another order would otherwise tell the agent that t1 is the second step.
+    const unordered = { ...course(), microTasks: [...course().microTasks].reverse() };
+    const report = buildAgentContext(source({ course: unordered }));
+
+    expect(report.context?.task.step).toBe(1);
+    expect(report.context?.task.totalSteps).toBe(2);
+  });
+
+  it('counts the same position the checkpoint counts (#194)', () => {
+    // The two readers of this number are in different packages, so nothing but a test keeps them on
+    // the same list. Both are handed the same course, and both answer with the same position.
+    const unordered = { ...course(), microTasks: [...course().microTasks].reverse() };
+    const learnerSession = session({ currentTaskId: 't1' });
+    const checkpoint = buildCheckpoint({
+      session: learnerSession,
+      course: unordered,
+      engineState: { ...createInitialState(learnerSession.startedAt), currentTaskId: 't1' },
+      now: learnerSession.startedAt,
+    });
+    const report = buildAgentContext(
+      source({ course: unordered, session: learnerSession, checkpoint }),
+    );
+
+    expect(report.context?.task.step).toBe(1);
+    expect(report.context?.checkpoint?.courseStep).toBe(report.context?.task.step);
   });
 
   it('keeps the position after an interruption, instead of guessing the next one', () => {
@@ -300,7 +331,7 @@ describe('buildAgentContext', () => {
       ),
       currentTaskId: 'CHECKPOINT_TASK_ID_SECRET',
       currentTaskTitle: long,
-      currentStep: 2,
+      courseStep: 2,
       frictionState: 'CONFUSED',
       nextBestAction: {
         key: 'action.read.summarise',
@@ -347,7 +378,7 @@ describe('buildAgentContext', () => {
       unresolved: ['Rotations'],
       currentTaskId: 't1',
       currentTaskTitle: 'Read rotations',
-      currentStep: 1,
+      courseStep: 1,
       frictionState: 'NOT_A_STATE',
       nextBestAction: { key: 'action.read.summarise', params: {} },
       createdAt: '2026-09-20T00:00:00.000Z',
@@ -373,7 +404,7 @@ describe('buildAgentContext', () => {
       unresolved: [],
       currentTaskId: 't1',
       currentTaskTitle: 'Read rotations',
-      currentStep: 1,
+      courseStep: 1,
       frictionState: 'FOCUSED',
       nextBestAction: {
         key: 'action.read.summarise',

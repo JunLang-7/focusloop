@@ -179,7 +179,7 @@ function checkpoint(): LearningCheckpoint {
     unresolved: ['Rotations'],
     currentTaskId: 'CHECKPOINT_TASK_SENTINEL',
     currentTaskTitle: 'Read rotations',
-    currentStep: 1,
+    courseStep: 1,
     frictionState: 'CONFUSED',
     nextBestAction: { key: 'action.read.summarise', params: { title: 'Read rotations' } },
     createdAt: '2026-09-20T00:00:00.000Z',

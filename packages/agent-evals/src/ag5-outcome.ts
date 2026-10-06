@@ -97,7 +97,7 @@ export function buildAg5Outcome(input: Ag5OutcomeInput): Ag5OutcomeOutput {
     unresolved: [],
     currentTaskId: input.checkpoint.currentTaskId,
     currentTaskTitle: input.checkpoint.currentTaskTitle,
-    currentStep: 1,
+    courseStep: 1,
     frictionState: 'FOCUSED',
     nextBestAction: { key: 'action.read.summarise', params: {} },
     createdAt: input.shownAt,

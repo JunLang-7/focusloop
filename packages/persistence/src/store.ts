@@ -439,7 +439,7 @@ export class FocusLoopStore {
         JSON.stringify(checkpoint.unresolved),
         checkpoint.currentTaskId,
         checkpoint.currentTaskTitle,
-        checkpoint.currentStep,
+        checkpoint.courseStep,
         checkpoint.frictionState,
         checkpoint.nextBestAction.key,
         JSON.stringify(checkpoint.nextBestAction.params),
@@ -911,7 +911,9 @@ function mapCheckpoint(row: SqlRow): LearningCheckpoint {
     unresolved: parseJsonArray(readText(row, 'checkpoints', 'unresolved')),
     currentTaskId: readText(row, 'checkpoints', 'current_task_id'),
     currentTaskTitle: readText(row, 'checkpoints', 'current_task_title'),
-    currentStep: readInt(row, 'checkpoints', 'current_step'),
+    // The column keeps the name it was given (#194): renaming it would be a migration for a word, and
+    // the SQL is not the contract the agent and the renderer read. It holds the course's position.
+    courseStep: readInt(row, 'checkpoints', 'current_step'),
     frictionState: readText(row, 'checkpoints', 'friction_state') as LearningState,
     nextBestAction: {
       key: readText(row, 'checkpoints', 'next_action_key') as DomainMessageKey,

@@ -230,7 +230,7 @@ describe('offline SHRINK_TASK drafts', () => {
         mastered: [],
         unresolved: [],
         currentTaskTitle: 'private-checkpoint-task',
-        currentStep: 1,
+        courseStep: 1,
         frictionState: 'CONFUSED',
         nextBestAction: { key: 'action.read.summarise', params: {} },
         createdAt: '2026-01-01T00:00:00.000Z',
