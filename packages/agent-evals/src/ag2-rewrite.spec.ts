@@ -8,7 +8,7 @@ const scenarios = rewriteJson.map(parseScenario);
 describe('AG2 task rewrite scenarios', () => {
   /*
    * MICRO_START and SIMPLIFY change the task, so the fixture reads back the task the learner would be
-   * shown rather than the card's wording. Determinstic twice over, as the other AG2 suites are.
+   * shown rather than the card's wording. Deterministic twice over, as the other AG2 suites are.
    */
   it('runs every rewrite case deterministically', () => {
     const first = runScenarios(scenarios, (input: JsonValue) => runAg2RewriteAdapter(input));
