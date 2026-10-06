@@ -180,6 +180,15 @@ export interface ResumeDecisionResponse {
 export interface SimulatorCommand {
   readonly command: 'distraction' | 'return' | 'confusion' | 'overload' | 'success';
   readonly sessionId: string;
+  /**
+   * For `return`: how long the absence was, in milliseconds.
+   *
+   * The demo's own interruption is 30 seconds, which is the short tier, so before this the long card
+   * could only be reached by waiting a day (#192). A test says how long it was away, and the gap is
+   * then read from the event exactly as an extension's `awayMs` is read — nothing here fakes a clock.
+   * Omitted means the demo's own 30 seconds.
+   */
+  readonly durationMs?: number;
 }
 
 export interface SimulatorAvailability {

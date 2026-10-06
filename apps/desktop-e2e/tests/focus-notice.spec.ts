@@ -9,6 +9,11 @@ declare global {
   interface Window {
     focusloop: FocusLoopApi;
   }
+  // The same bridge, declared as a global variable as well as a `Window` property: a spec whose own
+  // file is called `window` cannot say `window.focusloop` (it would be the Playwright page), and
+  // `globalThis` only sees top-level `var`s. So reaching the bridge from such a spec means
+  // `globalThis.focusloop`.
+  var focusloop: FocusLoopApi;
 }
 
 const MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs');

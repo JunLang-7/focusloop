@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { DEFAULT_RESUME_POLICY_CONFIG } from '@focusloop/shared-types';
 import {
   _electron as electron,
   expect,
@@ -1460,6 +1461,46 @@ test('a short interruption resumes into one line, not a summary', async () => {
   await window.getByTestId('resume-continue').click();
   await expect(resume).toBeHidden();
 
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
+/*
+ * The long tier, which a test cannot wait for: the demo interruption is 30 seconds, so the absence
+ * says how long it was instead (#192). The number comes from the policy config — this test restates
+ * neither fifteen minutes nor twenty-four hours, it asks for the boundary itself, which is the exact
+ * edge the policy counts as long.
+ *
+ * Driven through the preload rather than a bar button, because the duration is a parameter and the
+ * bar has no way to carry one; `globalThis` because this file's Playwright page is called `window`.
+ */
+test('an absence as long as the policy boundary resumes with the refresher', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+
+  await window.getByTestId('sim-distraction').click();
+  const state = await window.evaluate(async (durationMs) => {
+    const snapshot = await globalThis.focusloop.getCurrentSession();
+    const response = await globalThis.focusloop.simulate({
+      command: 'return',
+      sessionId: snapshot!.session.id,
+      durationMs,
+    });
+    return response.state;
+  }, DEFAULT_RESUME_POLICY_CONFIG.longThresholdMs);
+  expect(state).toBe('INTERRUPTED');
+
+  const resume = window.getByRole('region', { name: 'Resume where you left off', exact: true });
+  await expect(resume).toBeVisible();
+  // The refresher is the one thing only the long card carries, and it is why the tier exists.
+  await expect(window.getByTestId('resume-refresher')).toBeVisible();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
+  await window.getByTestId('resume-continue').click();
+  await expect(resume).toBeHidden();
+
+  await clickSidebarLink('Focus Session');
   await window.getByTestId('end-session').click();
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });

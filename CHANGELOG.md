@@ -24,6 +24,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **The long resume can be reached without waiting a day, and its result reaches the screen (#192).**
+  The simulator's `return` takes an optional `durationMs`, so a test says how long it was away instead
+  of waiting it out; the demo's own 30 seconds is unchanged when nothing is given. The new e2e reads
+  the boundary from `DEFAULT_RESUME_POLICY_CONFIG` rather than restating it, and asserts the refresher
+  only the long card carries. The handler also pushes the result to the renderer: previously a
+  simulation the renderer had not clicked itself stayed invisible until some unrelated transition
+  pushed an update, which is why the card could be offered by the engine and never appear.
 - **The resume step number says whose order it counts, and the next task follows the plan (#194).**
   `LearningCheckpoint.currentStep` and `AgentContextCheckpoint.currentStep` are now `courseStep`: the
   one-based position in the course's own order, which is the list the "of 7" also counts. The learner's

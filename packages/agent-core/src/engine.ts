@@ -1524,7 +1524,8 @@ export class FocusLoopEngine {
     }
 
     const sessionId = command.sessionId;
-    const awayMs = demoInterruption().durationMs;
+    // The demo's 30 seconds unless a test says how long it was away — see `durationMs`.
+    const awayMs = command.durationMs ?? demoInterruption().durationMs;
     let last: DispatchEventResponse | null = null;
 
     const fire = (type: LearningEvent['type'], payload: Record<string, unknown>): void => {

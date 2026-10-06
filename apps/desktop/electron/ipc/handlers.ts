@@ -194,7 +194,20 @@ export function createHandlers(service: FocusLoopService) {
     defineHandler({
       channel: IPC_CHANNELS.simulateEvent,
       parse: parseSimulatorCommand,
-      handle: (command) => engine.simulate(command),
+      handle: (command, invokeEvent) => {
+        const response = engine.simulate(command);
+        /*
+         * Pushed to the renderer rather than left for a tick to carry.
+         *
+         * The renderer refreshes on its own actions and on whatever the five-second tick's
+         * transitions happen to push, so a simulation it did not click itself stays invisible until
+         * some unrelated state change arrives — which is how the long resume card stayed off screen
+         * while the engine had already offered it (#192). `subscribeToEvents` is subscribed to exactly
+         * this channel, waiting for events the renderer did not cause; this is one of them.
+         */
+        pushEventToRenderer(invokeEvent.sender, response);
+        return response;
+      },
     }),
     defineHandler({
       channel: IPC_CHANNELS.getBridgeInfo,

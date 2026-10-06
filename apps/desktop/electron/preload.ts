@@ -70,7 +70,7 @@ const api: FocusLoopApi = {
   simulate: (command) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.simulateEvent,
-      payload.simulatorCommand(command.command, command.sessionId),
+      payload.simulatorCommand(command.command, command.sessionId, command.durationMs),
     ),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getBridgeInfo, payload.none()),
   getAgentContext: () => ipcRenderer.invoke(IPC_CHANNELS.getAgentContext, payload.none()),
