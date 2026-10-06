@@ -38,6 +38,15 @@ export interface ResumeCard {
   readonly completed: readonly string[];
   readonly unresolved: readonly string[];
   readonly nextAction: LocalizedMessage;
+  /**
+   * The step the learner was in the middle of, when the task on screen is not the task in the course.
+   *
+   * A rescue can narrow or split the current task (AG2), and the course is never written, so the
+   * stored task is the wrong answer to "where was I". The engine passes the step it is serving; a
+   * card with no such step is the ordinary case, and `null` says so rather than repeating the task's
+   * title. Learner material, so it is bounded and not translated.
+   */
+  readonly currentStep: string | null;
   readonly estimatedMinutes: number;
 }
 

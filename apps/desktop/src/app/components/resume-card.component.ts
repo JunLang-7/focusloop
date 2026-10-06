@@ -33,6 +33,12 @@ import { focusableWithin, nextIndex } from '../core/focus-trap';
             <p class="muted">{{ context(view) }}</p>
           </header>
 
+          @if (view.card.currentStep; as step) {
+            <p class="resume__step" data-testid="resume-step">
+              <strong>{{ t('resume.currentStep') }}</strong> {{ step }}
+            </p>
+          }
+
           @if (view.card.refresher; as refresher) {
             <p class="resume__refresher" data-testid="resume-refresher">
               {{ i18n.translate(refresher) }}

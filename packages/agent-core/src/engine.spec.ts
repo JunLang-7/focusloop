@@ -808,6 +808,44 @@ describe('FocusLoopEngine', () => {
       expect(row()).toMatchObject({ accepted: 1, succeeded: 1, pending: 0, successRate: 1 });
     });
 
+    it('resumes the step the learner was on, not the task as stored (AG5.6)', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      const asked = ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'HELP_REQUESTED',
+        source: 'user',
+        payload: { reason: 'cannot-start', taskId: 'rbt-t1' },
+      });
+      ctx.engine.resolveRescue({
+        sessionId: session.id,
+        interventionId: asked.interventionId!,
+        resolution: 'accept',
+      });
+      // What the learner is looking at: the narrowed step, at its own two minutes.
+      const served = ctx.engine
+        .getCourse(DEMO_COURSE_ID)
+        ?.microTasks.find((task) => task.id === 'rbt-t1');
+      expect(served?.estimatedMinutes).toBe(2);
+      const step = served?.instructions ?? '';
+      expect(step.length).toBeGreaterThan(0);
+
+      ctx.engine.simulate({ command: 'distraction', sessionId: session.id });
+      ctx.clock.advance(30_000);
+      const response = ctx.engine.simulate({ command: 'return', sessionId: session.id });
+
+      const card = response.resumeCard?.card;
+      expect(card?.estimatedMinutes).toBe(served?.estimatedMinutes);
+      expect(card?.currentStep).toBe(step);
+      // The step is what the learner was in the middle of, not a second copy of the task's title.
+      expect(card?.currentStep).not.toBe(response.checkpoint?.currentTaskTitle);
+    });
+
     it('does not restore or accept a rescue after the task has changed', () => {
       const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
       ctx.engine.dispatch({

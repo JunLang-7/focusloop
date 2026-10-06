@@ -1333,6 +1333,16 @@ body:has(.simulator) .agent-context {
   color: var(--text-muted);
 }
 
+/*
+ * The step the learner was on, when a rescue had narrowed the task. Above the next step, because it
+ * is where they are and the next step is where they are going.
+ */
+.resume__step {
+  margin: 10px 0 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
 .resume__next {
   padding: 10px 12px;
   border-radius: var(--radius-sm);

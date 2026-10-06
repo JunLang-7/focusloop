@@ -20,6 +20,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **The short resume is asserted on screen for what it is.** A short interruption lists one item per
   column even when more is done; the golden path only ever checked that a card appeared, so the one
   tier an e2e can actually reach was not pinned. (#192)
+- **Resuming after a rescue comes back to the step, not the task.** When a rescue has narrowed or split
+  the current task, the resume card is now built from the task as the learner is being served it: it
+  shows the step (`You were on: …`) and its own estimate, instead of the stored task's title and
+  minutes. Previously the card promised 3 minutes over a screen showing 2, because the resume path read
+  the stored row while the focus screen was served the narrowed one. The policy still reads the
+  authored task — its overrun rule asks about the plan the course states, and moving that question is a
+  separate decision. (#191)
 - **The agent-context event projection is exhaustive by construction (AG1.2).** Every learning event
   type in `LEARNING_EVENT_TYPES` must have an explicit projection: adding one without deciding what an
   agent may be told about it is now a compile error (the `default` branch is `never`, as the state
