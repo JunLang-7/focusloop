@@ -75,11 +75,6 @@ const api: FocusLoopApi = {
       payload.simulatorCommand(command.command, command.sessionId, command.durationMs),
     ),
   getBridgeInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getBridgeInfo, payload.none()),
-  getAgentContext: () => ipcRenderer.invoke(IPC_CHANNELS.getAgentContext, payload.none()),
-  getOutboundRequest: (sessionId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.getOutboundRequest, payload.sessionId(sessionId)),
-  listToolCalls: (sessionId: string) =>
-    ipcRenderer.invoke(IPC_CHANNELS.listToolCalls, payload.sessionId(sessionId)),
   getMemorySummary: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.memorySummary, payload.sessionId(sessionId)),
   listMemory: (sessionId: string, scope: AgentMemoryScope, window?: AgentMemoryWindow) =>

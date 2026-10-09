@@ -35,7 +35,7 @@ describe('the agent-memory summary (AG7.5)', () => {
 
       const { summary } = result;
       expect(summary.sessionId).toBe(sessionId);
-      expect(summary.sources).toHaveLength(9);
+      expect(summary.sources).toHaveLength(8);
       const events = summary.sources.find((row) => row.source === 'learning_events');
       // Two dispatches plus the SESSION_STARTED that starting the session wrote.
       expect(events?.count).toBe(3);
@@ -133,13 +133,13 @@ describe('the agent-memory summary (AG7.5)', () => {
 
 describe('the working scope (AG7.5)', () => {
   /*
-   * Transcript turns and the last prompt are working memory the panel counts — and unlike the
-   * episodic tables they only exist after a *successful* ask, so this is the one test that needs a
-   * provider that answers. The list distinguishes them the way the type does: a transcript item
-   * carries no time (turns are kept, not timestamped), the outbound prompt carries the time it was
-   * actually sent.
+   * The transcript's turns are the whole of what working memory holds now that the developer panel
+   * and its outbound buffer are gone — and unlike the episodic tables they only exist after a
+   * *successful* ask, so this is the one test that needs a provider that answers. The list
+   * distinguishes them the way the type does: a transcript item carries no time, because turns are
+   * kept rather than timestamped.
    */
-  it('names what working memory holds: the transcript’s turns and the last prompt sent', async () => {
+  it('names what working memory holds: the transcript’s turns', async () => {
     const ctx = createTestEngine({
       providers: createProviderSelection({
         id: 'scripted',
@@ -167,16 +167,12 @@ describe('the working scope (AG7.5)', () => {
       if (!summary.ok) return;
       const transcript = summary.summary.sources.find((row) => row.source === 'transcript');
       expect(transcript?.count).toBeGreaterThan(0);
-      const outbound = summary.summary.sources.find((row) => row.source === 'outbound');
-      expect(outbound?.count).toBe(1);
-      expect(outbound?.latestAt).not.toBeNull();
 
       const list = ctx.engine.listMemory(session.id, 'working');
       expect(list.ok).toBe(true);
       if (!list.ok) return;
-      expect(list.list.items.map((item) => item.source)).toEqual(['transcript', 'outbound']);
+      expect(list.list.items.map((item) => item.source)).toEqual(['transcript']);
       expect(list.list.items.find((item) => item.source === 'transcript')?.at).toBeNull();
-      expect(list.list.items.find((item) => item.source === 'outbound')?.at).not.toBeNull();
     } finally {
       ctx.close();
     }

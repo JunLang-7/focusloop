@@ -9,7 +9,7 @@ future #145 retry policy.
 
 `RuntimeBudgets` declares `contextBudget` and `tokenBudget`. Despite the historical name,
 `contextBudget` bounds **all outbound text**: `system.length + prompt.length`, in UTF-16 code units.
-This matches the existing Tutor and outbound-inspector character accounting. It is not a token
+This matches the Tutor's existing character accounting. It is not a token
 estimate, Unicode glyph count, UTF-8 byte count or HTTP/role-wrapper size.
 
 A context budget must be a non-negative safe integer; zero accepts only empty system/prompt text.
@@ -65,7 +65,7 @@ Text and structured results include `budget`, with:
 Character counts describe the **assembled request**, not proof that a transport sent it: a request
 may expire or be cancelled before work. Usage describes the selected completion only, not a sum
 of primary/retry/fallback costs or a verified billing record. Invalid counters/opaque metadata are
-not propagated. No prompt logging, telemetry, persistence or inspector-UI change is introduced.
+not propagated. No prompt logging, telemetry, persistence or UI change is introduced.
 
 DeepSeek maps `prompt_tokens`, `completion_tokens` and `total_tokens` into the optional usage
 contract. A valid reported output count above the effective cap is a `bad-response` provider

@@ -8,10 +8,9 @@
  */
 import type { MemoryMessageKey } from './messages';
 
-/** Where memory lives. The nine places `clearAgentMemory` touches or will. */
+/** Where memory lives. The eight places `clearAgentMemory` touches or will. */
 export const AGENT_MEMORY_SOURCES = [
   'transcript',
-  'outbound',
   'learning_events',
   'checkpoints',
   'interventions',
@@ -31,7 +30,6 @@ export type AgentMemoryScope = (typeof AGENT_MEMORY_SCOPES)[number];
 /** Which class each source belongs to — closed, so a new source cannot be unclassified. */
 export const MEMORY_SCOPE_FOR_SOURCE: Readonly<Record<AgentMemorySource, AgentMemoryScope>> = {
   transcript: 'working',
-  outbound: 'working',
   learning_events: 'episodic',
   checkpoints: 'episodic',
   interventions: 'episodic',
@@ -57,7 +55,7 @@ export interface AgentMemoryClearAudit {
 
 export interface AgentMemorySummary {
   readonly sessionId: string;
-  /** All nine sources, always — zero counts are information, not absence. */
+  /** All sources, always — zero counts are information, not absence. */
   readonly sources: readonly AgentMemorySourceCount[];
   readonly cleared: AgentMemoryClearAudit | null;
 }

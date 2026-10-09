@@ -302,7 +302,7 @@ describe('the four read tools over the engine', () => {
     }
   });
 
-  it('exposes its attempts to the inspector, with the events a read never writes (#210)', () => {
+  it('exposes its attempts to a caller, with the events a read never writes (#210)', () => {
     const ctx = createTestEngine();
     try {
       const { session } = ctx.engine.startSession('course-red-black-trees');

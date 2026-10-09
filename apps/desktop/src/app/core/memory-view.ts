@@ -28,7 +28,6 @@ export interface MemoryRowView {
 
 export const MEMORY_SOURCE_KEYS = {
   transcript: 'app.data.memory.source.transcript',
-  outbound: 'app.data.memory.source.outbound',
   learning_events: 'app.data.memory.source.learning_events',
   checkpoints: 'app.data.memory.source.checkpoints',
   interventions: 'app.data.memory.source.interventions',
@@ -47,7 +46,6 @@ export const MEMORY_SCOPE_KEYS = {
 /** What deleting this source removes, in the ADR's own terms — never what the source contains. */
 export const MEMORY_IMPACT_KEYS = {
   transcript: 'app.data.memory.impact.transcript',
-  outbound: 'app.data.memory.impact.outbound',
   learning_events: 'app.data.memory.impact.learning_events',
   checkpoints: 'app.data.memory.impact.checkpoints',
   interventions: 'app.data.memory.impact.interventions',

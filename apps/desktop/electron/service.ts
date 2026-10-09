@@ -119,8 +119,8 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
      */
     if (databaseGone) {
       /*
-       * The in-memory copies of the learner's words go first and unconditionally: the transcript and the last
-       * outbound request touch no database, and the whole point of them is that they hold text the deletion
+       * The in-memory copies of the learner's words go first and unconditionally: the transcript touches no
+       * database, and the whole point of it is that it holds text the deletion
        * claims to have removed. Seeding the built-in course is the part that needs the store, so that is what
        * `reopened` gates.
        */

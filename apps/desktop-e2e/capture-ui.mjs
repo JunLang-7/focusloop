@@ -135,16 +135,6 @@ try {
   await window.waitForTimeout(300);
   await shot(window, '01b-focus-active-en');
 
-  /*
-   * The developer inspector, opened on purpose. It is a disclosure and it is empty until a session
-   * is running, so this is the only point in the walk where a screenshot of it means anything — and
-   * a screenshot of a collapsed disclosure says nothing about what is inside it.
-   */
-  await window.getByTestId('agent-context-toggle').click();
-  await window.waitForTimeout(300);
-  await shot(window, '01e-agent-context-en');
-  await window.getByTestId('agent-context-toggle').click();
-
   await window.getByTestId('complete-task').click();
   await window.getByTestId('sim-overload').click();
   await window.locator('.agent').waitFor();

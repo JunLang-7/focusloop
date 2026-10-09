@@ -23,8 +23,8 @@ describe('developerModeEnabled', () => {
   });
 
   it('hides them in a build whose main process reports no simulator', () => {
-    // `service.ts` reports `!app.isPackaged` by default, so a packaged build answers `false` and both
-    // the simulator bar and the context inspector go with it.
+    // `service.ts` reports `!app.isPackaged` by default, so a packaged build answers `false` and the
+    // simulator bar goes with it.
     expect(developerModeEnabled(runtime(false))).toBe(false);
   });
 

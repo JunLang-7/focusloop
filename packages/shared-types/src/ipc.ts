@@ -1,4 +1,3 @@
-import type { AgentContextReport } from './agent-context';
 import type { Course } from './course';
 import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
@@ -20,8 +19,6 @@ import type { ResumeCardView } from './resume';
 import type { LearningSession, SessionProgress } from './session';
 import type { LearningState } from './state';
 import type { TutorAnswer, TutorAskRequest } from './tutor';
-import type { OutboundRequest } from './outbound';
-import type { ToolCallRecord } from './tool';
 import type {
   AgentProposal,
   AgentProposalKind,
@@ -55,9 +52,6 @@ export const IPC_CHANNELS = {
   dismissResume: 'focusloop:resume:dismiss',
   getDashboard: 'focusloop:dashboard:get',
   getInsights: 'focusloop:insights:get',
-  getAgentContext: 'focusloop:agent:context',
-  getOutboundRequest: 'focusloop:agent:outbound-request',
-  listToolCalls: 'focusloop:agent:tool-calls',
   memorySummary: 'focusloop:agent:memory-summary',
   memoryList: 'focusloop:agent:memory-list',
   memoryClear: 'focusloop:agent:memory-clear',
@@ -378,28 +372,6 @@ export interface FocusLoopApi {
   deleteAllData(request: ConfirmDeleteDataRequest): Promise<DeleteDataResponse>;
 
   getInsights(request: InsightsRequest): Promise<InsightsSummary>;
-  /**
-   * What the agent would be given about the current moment, and what it would not.
-   *
-   * Built in the main process because that is where the course, the material and the event log are.
-   * The renderer only displays it — importing `@focusloop/agent-core` there would drag the engine,
-   * and `node:crypto`, into a sandboxed page that has neither.
-   */
-  getAgentContext(): Promise<AgentContextReport>;
-  /**
-   * Last outbound request for this session — the second inspector view.
-   *
-   * Development-only content (learner text); never persisted. Returns null when
-   * nothing has been sent yet for the session.
-   */
-  getOutboundRequest(sessionId: string): Promise<OutboundRequest | null>;
-  /**
-   * This session's tool-call attempts, newest first, each resolved to the event it produced (AG8.8).
-   *
-   * Read-only audit surface: it lists what was attempted and what became of it. Calling it cannot
-   * run, confirm or decline anything — that is what the tool contract's own channels are for.
-   */
-  listToolCalls(sessionId: string): Promise<readonly ToolCallRecord[]>;
   /**
    * What agent memory exists for a session, per source (AG7.5): count, newest time, opaque clear.
    *

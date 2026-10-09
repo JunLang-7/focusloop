@@ -1263,10 +1263,9 @@ test('the import form asks for a file name instead of failing on the channel', a
   await expect(reason).toBeHidden();
 
   /*
-   * The developer inspector is laid over this corner of the screen, and over this button in
-   * particular once a running session has pushed the form down. A press has to land on the button:
-   * `elementFromPoint` asks the document what is actually at that pixel, which no z-order or
-   * `pointer-events` mistake can talk its way out of.
+   * Nothing may be laid over this button once a running session has pushed the form down. A press
+   * has to land on the button: `elementFromPoint` asks the document what is actually at that pixel,
+   * which no z-order or `pointer-events` mistake can talk its way out of.
    */
   await submit.scrollIntoViewIfNeeded();
   await expect
@@ -1771,27 +1770,6 @@ test('the tutor asks the main process, and says so when no model is connected', 
   // A fallback is not a dead end: the step it was asked about is still on the screen behind it.
   await expect(window.getByTestId('task-title')).toBeVisible();
   await expect(window.locator('.banner--error')).toHaveCount(0);
-
-  /*
-   * Outbound Request Inspector (the second view, #112). This build is offline, so the engine refused
-   * to call a provider — nothing left the process, and the Outbound tab must say so rather than
-   * re-render the context. Count-equals-string-length is asserted in engine.spec, where a scripted
-   * provider actually receives the prompt.
-   */
-  await window.getByTestId('agent-context-toggle').click();
-  await expect(window.getByTestId('agent-context-panel')).toHaveAttribute('open', '');
-  await window.getByTestId('inspector-tab-outbound').click();
-  await expect(window.getByTestId('outbound-privacy')).toBeVisible();
-  await expect(window.getByTestId('outbound-empty')).toContainText('No request has been sent yet');
-  /*
-   * The third tab (AG8.8): the audit exists before the calls do — nothing in a packaged build can
-   * execute a tool yet, so the honest screen is the empty state, not a table waiting forever.
-   */
-  await window.getByTestId('inspector-tab-tools').click();
-  await expect(window.getByTestId('tool-calls-empty')).toBeVisible();
-  await window.getByTestId('inspector-tab-context').click();
-  await expect(window.getByTestId('agent-context-state')).toBeVisible();
-  await window.getByTestId('agent-context-toggle').click();
 
   /*
    * Escape closes the panel, from inside it — which is where the binding is and where the learner is when

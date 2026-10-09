@@ -54,7 +54,6 @@ describe('the preload and the main process agree on every payload', () => {
       IPC_CHANNELS.getSettings,
       // Added with AG1 and initially left off this list — which made the one channel that was new the
       // one channel the test did not drive, in the file whose stated premise is *every* payload.
-      IPC_CHANNELS.getAgentContext,
       IPC_CHANNELS.getDataInfo,
       IPC_CHANNELS.openDataFolder,
       IPC_CHANNELS.memoryCleanup,
@@ -79,8 +78,6 @@ describe('the preload and the main process agree on every payload', () => {
       IPC_CHANNELS.createCheckpoint,
       IPC_CHANNELS.getResumeCard,
       IPC_CHANNELS.listOutcomes,
-      IPC_CHANNELS.getOutboundRequest,
-      IPC_CHANNELS.listToolCalls,
       IPC_CHANNELS.memorySummary,
       IPC_CHANNELS.memoryClear,
       IPC_CHANNELS.preferencesList,

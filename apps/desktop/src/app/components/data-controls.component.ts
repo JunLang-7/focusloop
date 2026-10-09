@@ -266,7 +266,7 @@ export class DataControlsComponent implements OnDestroy {
   protected readonly working = signal(false);
   /** The whole memory read: `null` until it lands, then an answer or a refusal. */
   protected readonly memory = this.state.memorySummary;
-  /** What exists — zero counts are information, but nine rows of zeros is not a list. */
+  /** What exists — zero counts are information, but rows of zeros are not a list. */
   protected readonly rows = computed(() => {
     const result = this.memory();
     return result !== null && result.ok ? memoryRows(result.summary) : [];

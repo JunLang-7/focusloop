@@ -539,9 +539,9 @@ function sessionEndReason(value: unknown): SessionEndReason | null {
 }
 
 /**
- * "1 other courses are not included" is not English, and these strings are read by people in the
- * developer inspector. A count of one is not hypothetical either: it is what the panel shows the
- * moment a second course exists, which is the ordinary case, not the edge one.
+ * "1 other courses are not included" is not English, and these strings are read by learners in the
+ * omission notes. A count of one is not hypothetical either: it is the ordinary case the moment a
+ * second course exists, not the edge one.
  */
 function notIncluded(count: number, adjective: string, noun: string, of = ''): string {
   const plural = count === 1 ? '' : 's';

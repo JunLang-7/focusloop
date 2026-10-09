@@ -63,18 +63,14 @@ Home
 
 ### AG1 Learning Context — 已合并（13 类事件投影 allowlist 也已合并）
 
-- 当前证据（`main`）：`shared-types/agent-context.ts` 定义边界和 omission；`agent-core/agent-context.ts` 构建当前 session/concept/task/material/state/events/checkpoint；材料 1200 字符、事件 12 条；Electron IPC 暴露只读报告；桌面有 `fl-agent-context-panel`（`data-testid="agent-context-panel"`）面板；有单元、engine、IPC 测试。
+- 当前证据（`main`）：`shared-types/agent-context.ts` 定义边界和 omission；`agent-core/agent-context.ts` 构建当前 session/concept/task/material/state/events/checkpoint；材料 1200 字符、事件 12 条；有单元、engine 测试。**开发模式的 Inspector 面板与它的两个只读 IPC 通道已整体移除**（见 `project-features.md` §E7）；`AgentContext` 与 `engine.getAgentContext()` 本身不变——工具契约、Tutor、Rescue、Resume 都读它。
 - 当前证据（投影，已合并）：`AgentContextEvent` 的逐类型投影与穷举断言 `d938bb8` (#188)；评测层敏感 payload 场景 `packages/agent-evals/src/scenarios/ag1/`（含隐私类，#220）。
 - 差距：已闭合——字段级 allowlist 即 `AgentContextEvent` 联合与 `projectEvent`（穷举，新增类型不写投影是编译错误）；恶意/敏感 payload 的固定回归语料在 `agent-context.spec` 与 `scenarios/ag1/`。
-- **Inspector 不是“一个面板”，而是两个**（原表述自相矛盾，已修正）：
-  - **Context Inspector**：Agent **可访问**的数据。对应 `agent:context` 报告、omission 与截断长度。
-  - **Outbound Request Inspector**：这一次**实际发给 Provider** 的内容（已交付，见 #112）。
-  - 二者在多处必然不同，因为 Tutor 会在 AG1 上下文之上再次裁剪并拼装 system / preamble / question。
-    因此验收标准不能写“两者一致”，只能写“**两者都有视图，且差异可被解释**”。
-- 验收标准：任意 session 只包含当前课程路径所需数据；材料、事件、总 prompt 均在声明上限内；所有裁剪都有 omission；不得出现其他课程内容、完整日志、密钥、URL path/query、表单内容；**Context Inspector 与 Outbound Request Inspector 都存在，且从任一侧可追溯到另一侧**；无 session 返回显式空上下文。
-- 依赖：现有 domain types、store、material parser、IPC。
-- 风险：事件 payload 将来扩展后绕过过滤；字符预算与真实 token 预算偏差；Inspector 让开发者误以为它等于完整 Tutor prompt。
-- 实施步骤：写 Context Data Contract → 建字段 allowlist/denylist → 加敏感 payload fixtures → 统一 context/prompt inspection 导航 → 加预算与跨课程隔离回归测试。
+- **原「两个 Inspector」的验收已作废**：那两个视图（Agent **可访问**的数据，与这一次**实际发给 Provider** 的内容）都已移除。它们的区分曾经成立——Tutor 会在 AG1 上下文之上再次裁剪并拼装 system / preamble / question——但视图本身没了，所以“两者都有视图、差异可被解释”不再是可验收的条目。取而代之的断言是引擎侧的一条：`inputCharacters = system.length + prompt.length`（`engine.spec`），出站字符数由 Tutor 预算保证。
+- 验收标准：任意 session 只包含当前课程路径所需数据；材料、事件、总 prompt 均在声明上限内；所有裁剪都有 omission；不得出现其他课程内容、完整日志、密钥、URL path/query、表单内容；无 session 返回显式空上下文。
+- 依赖：现有 domain types、store、material parser。
+- 风险：事件 payload 将来扩展后绕过过滤；字符预算与真实 token 预算偏差。
+- 实施步骤：写 Context Data Contract → 建字段 allowlist/denylist → 加敏感 payload fixtures → 加预算与跨课程隔离回归测试。
 
 ### AG2 Stuck Rescue — 已合并（六类原因与记录、Rescue 计划与成功评估器均已合并）
 
@@ -182,7 +178,7 @@ Home
 
 ### Phase 1：收口现有 MVP（AG1 + AG2 + AG3 + AG5 + AG10）
 
-1. AG1 字段 allowlist、敏感 payload 回归、Inspector 说明。
+1. AG1 字段 allowlist、敏感 payload 回归。
 2. AG2 outcome 成功窗口与六类 E2E。
 3. AG3 中英场景、section anchor、transcript 生命周期。
 4. AG5 gap-band 与 resume success（先不依赖 adaptive restore）。

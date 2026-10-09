@@ -3,9 +3,9 @@ import type { RuntimeInfo } from '@focusloop/shared-types';
 /**
  * Whether the developer surfaces are on screen at all.
  *
- * The simulator bar and the context inspector are the two things a learner must never see, and until
- * now each of them asked the question itself, with the same expression copied — so "absent from a
- * packaged build" was a property of two files agreeing rather than of one rule.
+ * The simulator bar is the one thing a learner must never see, and it asks this rather than
+ * inferring the answer: "absent from a packaged build" should be one rule, not a property of every
+ * file that happens to draw a developer control agreeing with the others.
  *
  * The main process decides. `apps/desktop/electron/service.ts` reports
  * `simulatorEnabled: options.simulatorEnabled ?? !app.isPackaged`, so a packaged build answers `false`

@@ -114,21 +114,8 @@ enrichment (for example, generating an example for a hint). In that case:
   silently degrades to the mock provider and tells the UI that it did.
 
 You can verify the second claim by reading `packages/llm-provider/src/deepseek-provider.ts`: the
-request body contains exactly `model`, `messages`, `stream` and the sampling options.
-
-### Developer inspector: what was sent
-
-In development builds only, the **Outbound Request Inspector** (second tab of the agent inspector)
-shows the last tutor prompt **as handed to the provider** — system + prompt strings and their total
-character count. That content includes your question and the material excerpt.
-
-- It is held **in memory** in the main process, and **never written to the database** and **never
-  logged**. At most the most recent few sessions are held, so an abandoned session cannot keep it.
-- It is dropped when the session ends.
-- The **panel** is not rendered in packaged builds (the same gate as the simulator and the Context
-  Inspector). The IPC channel that serves it exists in every build, exactly as the Context Inspector's
-  does; the only caller is this application's own sandboxed renderer, which is also the only thing that
-  can reach the database through that boundary.
+request body contains exactly `model`, `messages`, `stream` and the sampling options. That reading is
+also the only way to inspect what was sent: there is no on-screen "what left the process" view.
 
 ## What the app can see, and what it does about it
 

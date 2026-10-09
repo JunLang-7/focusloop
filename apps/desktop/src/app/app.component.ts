@@ -25,13 +25,11 @@ import { STATE_KEYS } from './core/i18n/labels';
 import { applyLanguage } from './core/language';
 import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
 import { applyTheme, resolveTheme } from './core/theme';
-import { contextInspectorVisibleOn } from './core/inspector-visibility';
 import { isFocusRoute } from './core/focus-notice';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { DataControlsComponent } from './components/data-controls.component';
 import { ProposalConfirmComponent } from './components/proposal-confirm.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
-import { AgentContextPanelComponent } from './components/agent-context-panel.component';
 import { SimulatorBarComponent } from './components/simulator-bar.component';
 
 /** The theme preference is a closed vocabulary too. */
@@ -61,7 +59,6 @@ const PEEK_CLOSE_DELAY_MS = 150;
     RouterLinkActive,
     ResumeCardComponent,
     AgentPanelComponent,
-    AgentContextPanelComponent,
     SimulatorBarComponent,
     DataControlsComponent,
     ProposalConfirmComponent,
@@ -262,15 +259,6 @@ const PEEK_CLOSE_DELAY_MS = 150;
       is not a confirmation — so this sits outside the focus-route block the resume card is in.
     -->
     <fl-proposal-confirm />
-    <!--
-      The inspector is a fixed overlay, and the dashboard is where it does harm: it sits across the
-      "today" card in the sidebar and the totals that screen exists to show. Kept on every other route,
-      collapsed to one line in the corner until it is asked for. Developer builds only either way — the
-      panel itself gates on simulatorEnabled, which the main process reports.
-    -->
-    @if (contextInspectorVisible()) {
-      <fl-agent-context-panel />
-    }
     <fl-simulator-bar />
   `,
 })
@@ -283,14 +271,11 @@ export class AppComponent implements OnInit, OnDestroy {
    * Where the shell is, as a signal.
    *
    * The router's own URL is not reactive; this mirrors it so the shell can gate what it lays over a screen
-   * by route (see `contextInspectorVisibleOn`). Set on the navigation that actually completed, which is the
+   * by route (see `isFocusRoute`). Set on the navigation that actually completed, which is the
    * URL the screen is showing rather than the one that was requested.
    */
   private readonly currentUrl = signal(this.router.url);
   protected readonly onFocusRoute = computed(() => isFocusRoute(this.currentUrl()));
-  protected readonly contextInspectorVisible = computed(() =>
-    contextInspectorVisibleOn(this.currentUrl()),
-  );
 
   private unsubscribe: (() => void) | null = null;
   private routerSubscription: Subscription | null = null;
