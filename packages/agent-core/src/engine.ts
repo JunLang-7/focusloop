@@ -54,6 +54,9 @@ import type {
   AgentMemoryScope,
   AgentMemorySourceCount,
   AgentMemorySummaryResult,
+  LearnerPreferenceListResult,
+  PreferenceDeleteResult,
+  AgentProposalProposedEvent,
 } from '@focusloop/shared-types';
 import {
   AGENT_MEMORY_SOURCES,
@@ -1798,6 +1801,47 @@ export class FocusLoopEngine {
         truncated,
       },
     };
+  }
+
+  /**
+   * This session's stored preferences, newest first (AG7.4).
+   *
+   * Same gate as the memory reads: the panel inspects the session that is running, and another
+   * session's rows are a refusal rather than a list that quietly came back empty.
+   */
+  listPreferences(sessionId: string): LearnerPreferenceListResult {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+    return { ok: true, preferences: this.store.listLearnerPreferences(sessionId) };
+  }
+
+  /**
+   * Deletes one preference (AG7.6): idempotent, session-checked, audited in the same transaction.
+   *
+   * Three outcomes, all of them non-throwing: the row is gone (`deleted: true`), the id was already
+   * gone (`deleted: false` — the second press of the same delete is a completed no-op, not an
+   * error), or the row belongs to another session (a refusal, per ADR 0001's session rule).
+   */
+  deletePreference(request: {
+    readonly id: string;
+    readonly sessionId: string;
+  }): PreferenceDeleteResult {
+    const refusal = this.memoryRefusal(request.sessionId);
+    if (refusal !== null) return refusal;
+
+    const stored = this.store.getLearnerPreference(request.id);
+    if (stored === null) return { ok: true, deleted: false };
+    if (stored.sessionId !== request.sessionId) {
+      return { ok: false, reason: 'wrong-session', messageKey: 'memory.refusal.wrong-session' };
+    }
+
+    const deleted = this.store.deleteLearnerPreference(
+      request.id,
+      request.sessionId,
+      this.clock(),
+      'user',
+    );
+    return { ok: true, deleted };
   }
 
   /**

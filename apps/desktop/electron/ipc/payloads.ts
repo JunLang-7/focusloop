@@ -44,6 +44,10 @@ export const payload = {
     sessionId: string,
     scope: AgentMemoryScope,
   ): { sessionId: string; scope: AgentMemoryScope } => ({ sessionId, scope }),
+  preferenceDelete: (id: string, sessionId: string): { id: string; sessionId: string } => ({
+    id,
+    sessionId,
+  }),
   startSession: (courseId: string): StartSessionRequest => ({ courseId }),
   endSession: (sessionId: string, reason: EndSessionRequest['reason']): EndSessionRequest => ({
     sessionId,

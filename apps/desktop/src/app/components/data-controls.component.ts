@@ -4,7 +4,8 @@ import { AppStateService } from '../core/app-state.service';
 import { I18nService, type MessageKey } from '../core/i18n/i18n.service';
 import { focusableWithin, nextIndex } from '../core/focus-trap';
 import { formatClock } from '../core/format';
-import { memoryRows } from '../core/memory-view';
+import type { PreferenceDeleteResult } from '@focusloop/shared-types';
+import { memoryRows, preferenceRowView } from '../core/memory-view';
 
 /** What the panel says after an attempt: an outcome the learner reads, not a decoration. */
 interface DataNotice {
@@ -116,6 +117,36 @@ interface DataNotice {
                   {{ t('app.data.memory.clear') }}
                 </button>
               </div>
+            }
+            @if (preferenceRows().length > 0) {
+              <!--
+                One line per stored preference: what it says, whether it is confirmed, and the
+                evidence it rests on — the learner reads their own preference back before deciding
+                to forget it, which is the whole point of storing it readably (AG7.4).
+              -->
+              <ul class="data__memory-rows" data-testid="memory-preferences">
+                @for (pref of preferenceRows(); track pref.id) {
+                  <li data-testid="memory-preference-row" [attr.data-scope]="pref.scope">
+                    <span>{{ t(pref.scopeKey) }}</span>
+                    <span class="muted small">{{ pref.valueText }}</span>
+                    <span class="muted small">{{
+                      pref.confirmedAt === null
+                        ? t('app.data.preference.unconfirmed')
+                        : clock(pref.confirmedAt)
+                    }}</span>
+                    <span class="muted small">{{ t(pref.evidenceKey, pref.evidenceParams) }}</span>
+                    <button
+                      type="button"
+                      class="btn btn--small"
+                      data-testid="memory-preference-forget"
+                      [disabled]="working()"
+                      (click)="forgetPreference(pref.id)"
+                    >
+                      {{ t('app.data.preference.forget') }}
+                    </button>
+                  </li>
+                }
+              </ul>
             }
             @if (result.summary.cleared; as audit) {
               <p class="muted small" data-testid="memory-audit">
@@ -241,6 +272,14 @@ export class DataControlsComponent implements OnDestroy {
     return result !== null && result.ok ? memoryRows(result.summary) : [];
   });
   protected readonly clearingMemory = signal(false);
+  /** Stored preferences (AG7.4) — rows only when there are any; an empty list renders nothing. */
+  protected readonly preferenceRows = computed(() => {
+    const result = this.state.preferences();
+    if (result === null || !result.ok) return [];
+    return result.preferences.map((preference) =>
+      preferenceRowView(preference, (iso) => this.clock(iso)),
+    );
+  });
 
   private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
   private readonly clearPanel = viewChild<ElementRef<HTMLElement>>('clearPanel');
@@ -336,6 +375,26 @@ export class DataControlsComponent implements OnDestroy {
       cleared === null
         ? { key: 'app.data.memory.clearFailed', kind: 'error' }
         : { key: 'app.data.memory.clearedNotice', kind: 'ok' },
+    );
+  }
+
+  /**
+   * Forgets one preference: the row goes, the count drops, and the live region says which of the
+   * three things happened — it worked, there was nothing to forget, or it belonged to another
+   * session (the refusal, rendered as the reason it names).
+   */
+  protected async forgetPreference(id: string): Promise<void> {
+    this.working.set(true);
+    const result: PreferenceDeleteResult | null = await this.state.forgetPreference(id);
+    this.working.set(false);
+    if (result === null) return;
+    this.notice.set(
+      result.ok
+        ? result.deleted
+          ? { key: 'app.data.preference.deleted', kind: 'ok' }
+          : // A completed no-op: nothing was forgotten because nothing was there.
+            null
+        : { key: result.messageKey, kind: 'error' },
     );
   }
 

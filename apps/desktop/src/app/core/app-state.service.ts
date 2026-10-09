@@ -36,6 +36,8 @@ import type {
   SessionSnapshot,
   ThemePreference,
   AgentMemorySummaryResult,
+  LearnerPreferenceListResult,
+  PreferenceDeleteResult,
 } from '@focusloop/shared-types';
 
 import type { FocusNoticeFold } from './focus-notice';
@@ -80,6 +82,7 @@ export class AppStateService {
      */
     effect(() => {
       void this.loadMemorySummary();
+      void this.loadPreferences();
     });
   }
 
@@ -119,6 +122,8 @@ export class AppStateService {
    * `null` before the first read — distinct from a refusal, which is an answer.
    */
   readonly memorySummary = signal<AgentMemorySummaryResult | null>(null);
+  /** Stored preferences for this session (AG7.4), read the same way as the summary. */
+  readonly preferences = signal<LearnerPreferenceListResult | null>(null);
   /**
    * What the agent would be given about the current moment, and what it would not (AG1).
    *
@@ -656,6 +661,32 @@ export class AppStateService {
    * the engine's `no-session` refusal is the answer the panel shows, and inventing the refusal here
    * would put the wording in two places.
    */
+  /** Reads this session's preferences; the no-session answer is composed locally, as above. */
+  async loadPreferences(): Promise<void> {
+    const sessionId = this.snapshot()?.session.id;
+    if (sessionId === undefined || sessionId === '') {
+      this.preferences.set({
+        ok: false,
+        reason: 'no-session',
+        messageKey: 'memory.refusal.no-session',
+      });
+      return;
+    }
+    this.preferences.set(await this.api.listPreferences(sessionId));
+  }
+
+  /**
+   * Forgets one preference and re-reads both views it moves: the list loses the row and the memory
+   * summary's preference count drops with it — the same write→delete→query the engine spec pins.
+   */
+  async forgetPreference(id: string): Promise<PreferenceDeleteResult | null> {
+    const sessionId = this.snapshot()?.session.id;
+    if (sessionId === undefined || sessionId === '') return null;
+    const result = await this.api.deletePreference({ id, sessionId });
+    await Promise.all([this.loadPreferences(), this.loadMemorySummary()]);
+    return result;
+  }
+
   async loadMemorySummary(): Promise<void> {
     const sessionId = this.snapshot()?.session.id;
     if (sessionId === undefined || sessionId === '') {

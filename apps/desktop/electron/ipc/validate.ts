@@ -181,6 +181,18 @@ export function parseCourseId(channel: string, value: unknown): string {
   return asString(channel, asRecord(channel, value), 'courseId');
 }
 
+/** Deleting one preference: an opaque id plus the session that claims it (AG7.6). */
+export function parsePreferenceDelete(
+  channel: string,
+  value: unknown,
+): { id: string; sessionId: string } {
+  const record = asRecord(channel, value);
+  return {
+    id: asString(channel, record, 'id'),
+    sessionId: asString(channel, record, 'sessionId'),
+  };
+}
+
 /** A memory-list read: the session and one of the three closed scopes (AG7.5). */
 export function parseMemoryList(
   channel: string,

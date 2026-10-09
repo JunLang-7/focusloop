@@ -6,7 +6,12 @@
  * a learner actually sees (counts of zero are information, but nine rows of zeros is not a list),
  * and that a refusal arrives as the key it already carries.
  */
-import type { AgentMemoryRefusal, AgentMemorySummary } from '@focusloop/shared-types';
+import type {
+  AgentMemoryRefusal,
+  AgentMemorySummary,
+  LearnerPreference,
+  LearnerPreferenceScope,
+} from '@focusloop/shared-types';
 import { MEMORY_SCOPE_FOR_SOURCE } from '@focusloop/shared-types';
 import type { MessageKey } from './i18n/messages.en';
 
@@ -77,6 +82,57 @@ export function memoryRows(summary: AgentMemorySummary): readonly MemoryRowView[
     });
   }
   return rows;
+}
+
+/** A stored preference's scope, in the learner's words (AG7.4's closed vocabulary). */
+export const PREFERENCE_SCOPE_KEYS = {
+  'task-size': 'app.data.preference.scope.task-size',
+  explanation: 'app.data.preference.scope.explanation',
+  intervention: 'app.data.preference.scope.intervention',
+  resume: 'app.data.preference.scope.resume',
+} as const satisfies Record<string, MessageKey>;
+
+/** One preference as the panel's list shows it: value as bounded text, evidence as its window. */
+export interface PreferenceRowView {
+  readonly id: string;
+  readonly scope: LearnerPreferenceScope;
+  readonly scopeKey: MessageKey;
+  /** The value rendered, bounded — the row is a line, not the preference's whole document. */
+  readonly valueText: string;
+  readonly evidenceKey: MessageKey;
+  readonly evidenceParams: Readonly<Record<string, string>>;
+  /** `null` until AG6.7 confirmed it — the panel says so rather than showing a blank. */
+  readonly confirmedAt: string | null;
+}
+
+export const MAX_PREFERENCE_VALUE_CHARS = 140;
+
+export function preferenceRowView(
+  preference: LearnerPreference,
+  clock: (iso: string | null) => string,
+): PreferenceRowView {
+  let valueText: string;
+  try {
+    valueText = JSON.stringify(preference.value) ?? String(preference.value);
+  } catch {
+    valueText = '[unprintable]';
+  }
+  if (valueText.length > MAX_PREFERENCE_VALUE_CHARS) {
+    valueText = `${valueText.slice(0, MAX_PREFERENCE_VALUE_CHARS - 1)}…`;
+  }
+  return {
+    id: preference.id,
+    scope: preference.scope,
+    scopeKey: PREFERENCE_SCOPE_KEYS[preference.scope],
+    valueText,
+    evidenceKey: 'app.data.preference.evidence',
+    evidenceParams: {
+      samples: String(preference.evidence.sampleSize),
+      from: clock(preference.evidence.windowStart),
+      to: clock(preference.evidence.windowEnd),
+    },
+    confirmedAt: preference.confirmedAt,
+  };
 }
 
 /** A refusal as the key it already carries — the domain's wording, not the panel's guess. */
