@@ -29,6 +29,7 @@ import {
   type StartSessionRequest,
   type TutorAskRequest,
   type AgentMemoryScope,
+  type AgentMemoryWindow,
   AGENT_MEMORY_SCOPES,
 } from '@focusloop/shared-types';
 
@@ -197,14 +198,38 @@ export function parsePreferenceDelete(
 export function parseMemoryList(
   channel: string,
   value: unknown,
-): { sessionId: string; scope: AgentMemoryScope } {
+): { sessionId: string; scope: AgentMemoryScope; window: AgentMemoryWindow } {
   const record = asRecord(channel, value);
   const sessionId = asString(channel, record, 'sessionId');
   const scope = asString(channel, record, 'scope');
   if (!(AGENT_MEMORY_SCOPES as readonly string[]).includes(scope)) {
     fail(channel, `unsupported memory scope "${scope}"`);
   }
-  return { sessionId, scope: scope as AgentMemoryScope };
+
+  // The window is checked at the boundary so the engine never has to guess: a bound that names no
+  // moment, or a page size that is not a positive integer, never crosses it.
+  const since = record['since'];
+  const until = record['until'];
+  if (since !== undefined && (typeof since !== 'string' || !Number.isFinite(Date.parse(since)))) {
+    fail(channel, '"since" must be an ISO-8601 timestamp');
+  }
+  if (until !== undefined && (typeof until !== 'string' || !Number.isFinite(Date.parse(until)))) {
+    fail(channel, '"until" must be an ISO-8601 timestamp');
+  }
+  const limit = record['limit'];
+  if (limit !== undefined && (!Number.isInteger(limit) || (limit as number) < 1)) {
+    fail(channel, '"limit" must be a positive integer');
+  }
+
+  return {
+    sessionId,
+    scope: scope as AgentMemoryScope,
+    window: {
+      ...(since === undefined ? {} : { since: since as string }),
+      ...(until === undefined ? {} : { until: until as string }),
+      ...(limit === undefined ? {} : { limit: limit as number }),
+    },
+  };
 }
 
 export function parseSetLocale(channel: string, value: unknown): SetLocaleRequest {

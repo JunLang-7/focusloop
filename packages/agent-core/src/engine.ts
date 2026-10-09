@@ -56,10 +56,14 @@ import type {
   AgentMemorySummaryResult,
   LearnerPreferenceListResult,
   PreferenceDeleteResult,
+  AgentMemoryWindow,
+  EpisodicCleanupResult,
 } from '@focusloop/shared-types';
 import {
   AGENT_MEMORY_SOURCES,
+  AGENT_MEMORY_RETENTION_MS,
   MEMORY_LIST_LIMIT,
+  MEMORY_QUERY_MAX,
   TASK_REWRITE_ACTIONS,
   TUTOR_LIMITS,
   findMaterialForCourse,
@@ -1771,9 +1775,24 @@ export class FocusLoopEngine {
    * keeps turns without times, so it is a presence rather than a timeline); `preference` is empty
    * until #214 builds its store.
    */
-  listMemory(sessionId: string, scope: AgentMemoryScope): AgentMemoryListResult {
+  listMemory(
+    sessionId: string,
+    scope: AgentMemoryScope,
+    window: AgentMemoryWindow = {},
+  ): AgentMemoryListResult {
     const refusal = this.memoryRefusal(sessionId);
     if (refusal !== null) return refusal;
+
+    // A window is a claim about time, so it is validated here rather than passed down to compare
+    // strings that never named a moment: an unparseable bound is a RangeError, at the API's edge.
+    for (const bound of [window.since, window.until]) {
+      if (bound !== undefined && !Number.isFinite(Date.parse(bound))) {
+        throw new RangeError('memory window bounds must be ISO-8601 timestamps');
+      }
+    }
+    if (window.limit !== undefined && (!Number.isInteger(window.limit) || window.limit < 1)) {
+      throw new RangeError('memory window limit must be a positive integer');
+    }
 
     if (scope === 'preference') {
       return { ok: true, list: { scope, items: [], truncated: false } };
@@ -1787,13 +1806,19 @@ export class FocusLoopEngine {
       return { ok: true, list: { scope, items, truncated: false } };
     }
 
-    const rows = this.store.listEpisodicMemory(sessionId, MEMORY_LIST_LIMIT + 1);
-    const truncated = rows.length > MEMORY_LIST_LIMIT;
+    // The ceiling a caller cannot talk past: the named constant, never their number.
+    const cap = Math.min(window.limit ?? MEMORY_LIST_LIMIT, MEMORY_QUERY_MAX);
+    const rows = this.store.listEpisodicMemory(sessionId, {
+      limit: cap + 1,
+      ...(window.since === undefined ? {} : { since: window.since }),
+      ...(window.until === undefined ? {} : { until: window.until }),
+    });
+    const truncated = rows.length > cap;
     return {
       ok: true,
       list: {
         scope,
-        items: rows.slice(0, MEMORY_LIST_LIMIT).map((row) => ({
+        items: rows.slice(0, cap).map((row) => ({
           source: row.source as AgentMemoryItem['source'],
           at: row.at,
         })),
@@ -1841,6 +1866,28 @@ export class FocusLoopEngine {
       'user',
     );
     return { ok: true, deleted };
+  }
+
+  /**
+   * Draws the retention line and removes what is past it, across sessions (AG7.3).
+   *
+   * The cutoff is `AGENT_MEMORY_RETENTION_MS` measured from this engine's own clock, so a test
+   * controls it with the clock it already controls. The running session is excluded by id — an
+   * old-dated row of the *current* session survives too, because "spared" means excluded rather
+   * than "young enough": whatever the learner is in the middle of is not a thing a maintenance
+   * pass may reach into. Idempotent by construction: a run that removes nothing writes no audit
+   * row, so rerunning reports zeroes and leaves the audit alone.
+   */
+  cleanupOldEpisodicMemory(options: { readonly actor?: string } = {}): EpisodicCleanupResult {
+    const cutoffAt = new Date(Date.parse(this.clock()) - AGENT_MEMORY_RETENTION_MS).toISOString();
+    const active = this.store.getActiveSession();
+    return this.store.cleanupEpisodicMemory({
+      auditId: this.idFactory(),
+      cutoffAt,
+      clearedAt: this.clock(),
+      actor: options.actor ?? 'user',
+      excludeSessionId: active === null ? '' : active.session.id,
+    });
   }
 
   /**

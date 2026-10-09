@@ -3,7 +3,13 @@ import type { Course } from './course';
 import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
 import type { AgentProposalProposedEvent, LearningEvent, SessionEndReason } from './events';
-import type { AgentMemoryListResult, AgentMemoryScope, AgentMemorySummaryResult } from './memory';
+import type {
+  AgentMemoryListResult,
+  AgentMemoryScope,
+  AgentMemorySummaryResult,
+  AgentMemoryWindow,
+  EpisodicCleanupResult,
+} from './memory';
 import type { LearnerPreferenceListResult, PreferenceDeleteResult } from './learner-preference';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { RescueView } from './rescue';
@@ -57,6 +63,7 @@ export const IPC_CHANNELS = {
   memoryClear: 'focusloop:agent:memory-clear',
   preferencesList: 'focusloop:agent:preferences-list',
   preferenceDelete: 'focusloop:agent:preference-delete',
+  memoryCleanup: 'focusloop:agent:memory-cleanup',
   proposeStructuralChange: 'focusloop:agent:propose',
   confirmProposal: 'focusloop:agent:confirm-proposal',
   executeProposal: 'focusloop:agent:execute-proposal',
@@ -401,7 +408,18 @@ export interface FocusLoopApi {
    */
   getMemorySummary(sessionId: string): Promise<AgentMemorySummaryResult>;
   /** One scope's items, newest first and bounded — source and time, never content (AG7.5). */
-  listMemory(sessionId: string, scope: AgentMemoryScope): Promise<AgentMemoryListResult>;
+  listMemory(
+    sessionId: string,
+    scope: AgentMemoryScope,
+    window?: AgentMemoryWindow,
+  ): Promise<AgentMemoryListResult>;
+  /**
+   * Draws the retention line and removes what is past it, across sessions (AG7.3).
+   *
+   * The running session is spared by construction, a run that removes nothing writes no audit row,
+   * and course tables are never in reach. Read-only for the renderer: it reports what happened.
+   */
+  cleanupOldEpisodicMemory(): Promise<EpisodicCleanupResult>;
   /** Clears session memory through the tested engine path (ADR 0001); null when the session is not. */
   clearAgentMemory(sessionId: string): Promise<{ clearedAt: string; actor: string } | null>;
   /** This session's stored preferences, newest first; refused like the memory reads (AG7.4). */

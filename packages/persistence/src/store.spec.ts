@@ -752,6 +752,134 @@ describe('FocusLoopStore', () => {
     });
   });
 
+  describe('episodic memory by time window (AG7.3)', () => {
+    function event(
+      id: string,
+      sessionId: string,
+      at: string,
+    ): Parameters<FocusLoopStore['appendEvent']>[0] {
+      return {
+        id,
+        sessionId,
+        at,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 't1' },
+      };
+    }
+
+    it('filters a windowed list by since/until and honours the caller’s limit', () => {
+      for (let index = 1; index <= 5; index += 1) {
+        store.appendEvent(event(`e-w${index}`, 'session-1', `2026-01-0${index}T00:00:00.000Z`));
+      }
+
+      const since = store.listEpisodicMemory('session-1', {
+        limit: 10,
+        since: '2026-01-03T00:00:00.000Z',
+      });
+      expect(since.map((row) => row.at)).toEqual([
+        '2026-01-05T00:00:00.000Z',
+        '2026-01-04T00:00:00.000Z',
+        '2026-01-03T00:00:00.000Z',
+      ]);
+
+      const until = store.listEpisodicMemory('session-1', {
+        limit: 10,
+        until: '2026-01-02T00:00:00.000Z',
+      });
+      expect(until.map((row) => row.at)).toEqual([
+        '2026-01-02T00:00:00.000Z',
+        '2026-01-01T00:00:00.000Z',
+      ]);
+
+      // The limit is a bound, not a page size the caller can talk its way past.
+      const limited = store.listEpisodicMemory('session-1', { limit: 2 });
+      expect(limited).toHaveLength(2);
+      expect(limited[0]!.at).toBe('2026-01-05T00:00:00.000Z');
+    });
+
+    it('cleans rows past the cutoff, spares the excluded session entirely, and audits opaquely', () => {
+      store.appendEvent(event('e-old-a', 'session-a', '2025-06-01T00:00:00.000Z'));
+      store.appendEvent(event('e-old-b', 'session-b', '2025-06-01T00:00:00.000Z'));
+      store.appendEvent(event('e-new-a', 'session-a', '2026-06-01T00:00:00.000Z'));
+
+      const result = store.cleanupEpisodicMemory({
+        auditId: 'cleanup-1',
+        cutoffAt: '2026-01-01T00:00:00.000Z',
+        clearedAt: '2026-06-15T00:00:00.000Z',
+        actor: 'user',
+        excludeSessionId: 'session-b',
+      });
+
+      // Old rows of the cleaned session go; new rows and the excluded session's rows do not.
+      expect(store.listEvents('session-a').map((row) => row.id)).toEqual(['e-new-a']);
+      expect(store.listEvents('session-b').map((row) => row.id)).toEqual(['e-old-b']);
+      expect(result.clearedCount).toBe(1);
+      expect(result.sessionIds).toEqual(['session-a']);
+
+      // The audit answers when, how much, and which opaque ids — and nothing else.
+      const audits = store.listEpisodicCleanups();
+      expect(audits).toHaveLength(1);
+      expect(audits[0]).toMatchObject({ id: 'cleanup-1', actor: 'user', clearedCount: 1 });
+      const raw = db
+        .prepare(
+          'SELECT id, cutoff_at, cleared_at, actor, session_ids, cleared_count FROM episodic_memory_cleanups;',
+        )
+        .all() as Record<string, unknown>[];
+      expect(Object.keys(raw[0]!).sort()).toEqual([
+        'actor',
+        'cleared_at',
+        'cleared_count',
+        'cutoff_at',
+        'id',
+        'session_ids',
+      ]);
+      expect(raw[0]!['session_ids']).toBe('["session-a"]');
+
+      // Idempotent: a second run removes what is already gone and records nothing new.
+      const again = store.cleanupEpisodicMemory({
+        auditId: 'cleanup-2',
+        cutoffAt: '2026-01-01T00:00:00.000Z',
+        clearedAt: '2026-06-15T00:00:01.000Z',
+        actor: 'user',
+        excludeSessionId: 'session-b',
+      });
+      expect(again.clearedCount).toBe(0);
+      expect(again.sessionIds).toEqual([]);
+      expect(store.listEpisodicCleanups()).toHaveLength(1);
+    });
+
+    it('never writes a course or catalog table', () => {
+      store.saveCourse(courseFixture(), { source: 'imported' });
+      store.saveSession({
+        session: {
+          id: 'session-a',
+          courseId: 'course-1',
+          startedAt: '2025-01-01T00:00:00.000Z',
+          state: 'FOCUSED',
+          currentTaskId: 't1',
+          completedTaskIds: [],
+          updatedAt: '2025-01-01T00:00:00.000Z',
+        },
+        engineState: createInitialState('2025-01-01T00:00:00.000Z'),
+      });
+      store.appendEvent(event('e-old', 'session-a', '2025-06-01T00:00:00.000Z'));
+
+      store.cleanupEpisodicMemory({
+        auditId: 'cleanup-x',
+        cutoffAt: '2026-01-01T00:00:00.000Z',
+        clearedAt: '2026-06-15T00:00:00.000Z',
+        actor: 'user',
+        excludeSessionId: '',
+      });
+
+      // The session row and the course survive their own memory being cleaned (ADR 0001's line).
+      expect(store.getSession('session-a')).not.toBeNull();
+      expect(store.getCourse('course-1')).not.toBeNull();
+      expect(store.listEvents('session-a')).toEqual([]);
+    });
+  });
+
   describe('agent memory counts (AG7.5)', () => {
     it('counts and dates each episodic source for one session, and never another session', () => {
       store.appendEvent({

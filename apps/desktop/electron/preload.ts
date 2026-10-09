@@ -2,6 +2,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 import {
   IPC_CHANNELS,
   type AgentMemoryScope,
+  type AgentMemoryWindow,
   type DispatchEventResponse,
   type FocusLoopApi,
   type LearningEvent,
@@ -81,8 +82,9 @@ const api: FocusLoopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.listToolCalls, payload.sessionId(sessionId)),
   getMemorySummary: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.memorySummary, payload.sessionId(sessionId)),
-  listMemory: (sessionId: string, scope: AgentMemoryScope) =>
-    ipcRenderer.invoke(IPC_CHANNELS.memoryList, payload.memoryList(sessionId, scope)),
+  listMemory: (sessionId: string, scope: AgentMemoryScope, window?: AgentMemoryWindow) =>
+    ipcRenderer.invoke(IPC_CHANNELS.memoryList, payload.memoryList(sessionId, scope, window)),
+  cleanupOldEpisodicMemory: () => ipcRenderer.invoke(IPC_CHANNELS.memoryCleanup, payload.none()),
   clearAgentMemory: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.memoryClear, payload.sessionId(sessionId)),
   listPreferences: (sessionId: string) =>
