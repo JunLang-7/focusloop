@@ -21,6 +21,7 @@ import type {
   AgentMemorySourceCount,
   LearnerPreference,
   LearnerPreferenceScope,
+  EpisodicCleanupResult,
   ResumeCardTiming,
   ToolCall,
   ToolCallRecord,
@@ -726,20 +727,31 @@ export class FocusLoopStore {
   }
 
   /**
-   * Newest-first episodic items for one session — source and timestamp, nothing else (AG7.5).
+   * Newest-first episodic items for one session — source and timestamp, nothing else (AG7.5/AG7.3).
    *
    * The same six tables as the counts, the same reason: what the panel offers to clear is what this
-   * lists. `limit + 1` lets the caller tell "exactly this many" from "this many and more".
+   * lists. `since`/`until` bound the window the caller asked for; callers pass `limit + 1` to tell
+   * "exactly this many" from "this many and more". Timestamps compare as strings because they are
+   * ISO-8601 UTC — lexicographic order is chronological order, the same property every other read
+   * of these columns already leans on. An absent bound is SQL's `NULL`, and `NULL >= x` is unknown
+   * rather than true — which reads as "no bound on that side", not as "everything is out".
    */
-  listEpisodicMemory(sessionId: string, limit: number): readonly { source: string; at: string }[] {
+  listEpisodicMemory(
+    sessionId: string,
+    options: { readonly limit: number; readonly since?: string; readonly until?: string },
+  ): readonly { source: string; at: string }[] {
+    const { limit, since, until } = options;
     const rows = this.db
       .prepare(
-        `SELECT 'learning_events' AS source, at AS at FROM learning_events WHERE session_id = ?
-         UNION ALL SELECT 'checkpoints', created_at FROM checkpoints WHERE session_id = ?
-         UNION ALL SELECT 'interventions', at FROM interventions WHERE session_id = ?
-         UNION ALL SELECT 'outcomes', at FROM outcomes WHERE session_id = ?
-         UNION ALL SELECT 'resume_cards', shown_at FROM resume_cards WHERE session_id = ?
-         UNION ALL SELECT 'agent_proposals', proposed_at FROM agent_proposals WHERE session_id = ?
+        `SELECT source, at FROM (
+           SELECT 'learning_events' AS source, at AS at FROM learning_events WHERE session_id = ?
+           UNION ALL SELECT 'checkpoints', created_at FROM checkpoints WHERE session_id = ?
+           UNION ALL SELECT 'interventions', at FROM interventions WHERE session_id = ?
+           UNION ALL SELECT 'outcomes', at FROM outcomes WHERE session_id = ?
+           UNION ALL SELECT 'resume_cards', shown_at FROM resume_cards WHERE session_id = ?
+           UNION ALL SELECT 'agent_proposals', proposed_at FROM agent_proposals WHERE session_id = ?
+         )
+         WHERE (? IS NULL OR at >= ?) AND (? IS NULL OR at <= ?)
          ORDER BY at DESC LIMIT ?;`,
       )
       .all(
@@ -749,6 +761,10 @@ export class FocusLoopStore {
         sessionId,
         sessionId,
         sessionId,
+        since ?? null,
+        since ?? null,
+        until ?? null,
+        until ?? null,
         limit,
       ) as readonly SqlRow[];
     return rows.map((row) => ({
@@ -853,6 +869,87 @@ export class FocusLoopStore {
     return run();
   }
 
+  /**
+   * Removes episodic rows past a cutoff, across sessions, sparing one — the running one (AG7.3).
+   *
+   * One transaction: the affected sessions are read first (the audit names them), the six tables
+   * are cut, and an audit row is written **only if something was removed** — a cleanup that deleted
+   * nothing did not happen, which is what makes a second run a no-op rather than a growing pile of
+   * empty reports. Course tables and session catalog rows are never in the statements' reach.
+   */
+  cleanupEpisodicMemory(options: {
+    readonly auditId: string;
+    readonly cutoffAt: string;
+    readonly clearedAt: string;
+    readonly actor: string;
+    readonly excludeSessionId: string;
+  }): EpisodicCleanupResult {
+    const { auditId, cutoffAt, clearedAt, actor, excludeSessionId } = options;
+    const run = this.db.transaction((): EpisodicCleanupResult => {
+      const affected = this.db
+        .prepare(
+          `SELECT DISTINCT session_id FROM (
+             SELECT session_id FROM learning_events WHERE at < ? AND session_id <> ?
+             UNION ALL
+             SELECT session_id FROM checkpoints WHERE created_at < ? AND session_id <> ?
+             UNION ALL
+             SELECT session_id FROM interventions WHERE at < ? AND session_id <> ?
+             UNION ALL
+             SELECT session_id FROM outcomes WHERE at < ? AND session_id <> ?
+             UNION ALL
+             SELECT session_id FROM resume_cards WHERE shown_at < ? AND session_id <> ?
+             UNION ALL
+             SELECT session_id FROM agent_proposals WHERE proposed_at < ? AND session_id <> ?
+           );`,
+        )
+        .all(
+          cutoffAt,
+          excludeSessionId,
+          cutoffAt,
+          excludeSessionId,
+          cutoffAt,
+          excludeSessionId,
+          cutoffAt,
+          excludeSessionId,
+          cutoffAt,
+          excludeSessionId,
+          cutoffAt,
+          excludeSessionId,
+        ) as readonly SqlRow[];
+      const sessionIds = affected.map((row) => readText(row, 'cleanup', 'session_id'));
+      if (sessionIds.length === 0) {
+        return { cutoffAt, clearedCount: 0, sessionIds: [] };
+      }
+
+      let clearedCount = 0;
+      const statements: readonly (readonly [string, string])[] = [
+        ['learning_events', 'at'],
+        ['checkpoints', 'created_at'],
+        ['interventions', 'at'],
+        ['outcomes', 'at'],
+        ['resume_cards', 'shown_at'],
+        ['agent_proposals', 'proposed_at'],
+      ];
+      for (const [table, column] of statements) {
+        const deleted = this.db
+          .prepare(`DELETE FROM ${table} WHERE ${column} < ? AND session_id <> ?;`)
+          .run(cutoffAt, excludeSessionId);
+        clearedCount += Number(deleted.changes);
+      }
+
+      this.db
+        .prepare(
+          `INSERT INTO episodic_memory_cleanups
+             (id, cutoff_at, cleared_at, actor, session_ids, cleared_count)
+           VALUES (?, ?, ?, ?, ?, ?);`,
+        )
+        .run(auditId, cutoffAt, clearedAt, actor, JSON.stringify(sessionIds), clearedCount);
+
+      return { cutoffAt, clearedCount, sessionIds };
+    });
+    return run();
+  }
+
   /** The opaque deletion audit: ids, times, actor — never the preference that was removed. */
   listPreferenceDeletions(
     sessionId: string,
@@ -866,6 +963,31 @@ export class FocusLoopStore {
       preferenceId: readText(row, 'learner_preference_deletions', 'preference_id'),
       deletedAt: readText(row, 'learner_preference_deletions', 'deleted_at'),
       actor: readText(row, 'learner_preference_deletions', 'actor'),
+    }));
+  }
+
+  /** The windowed-cleanup audit, newest first: when the line was drawn, what it removed. */
+  listEpisodicCleanups(): readonly {
+    id: string;
+    cutoffAt: string;
+    clearedAt: string;
+    actor: string;
+    sessionIds: readonly string[];
+    clearedCount: number;
+  }[] {
+    const rows = this.db
+      .prepare('SELECT * FROM episodic_memory_cleanups ORDER BY cleared_at DESC, id DESC;')
+      .all() as readonly SqlRow[];
+    return rows.map((row) => ({
+      id: readText(row, 'episodic_memory_cleanups', 'id'),
+      cutoffAt: readText(row, 'episodic_memory_cleanups', 'cutoff_at'),
+      clearedAt: readText(row, 'episodic_memory_cleanups', 'cleared_at'),
+      actor: readText(row, 'episodic_memory_cleanups', 'actor'),
+      sessionIds: parseJson<readonly string[]>(
+        readText(row, 'episodic_memory_cleanups', 'session_ids'),
+        [],
+      ),
+      clearedCount: readInt(row, 'episodic_memory_cleanups', 'cleared_count'),
     }));
   }
 

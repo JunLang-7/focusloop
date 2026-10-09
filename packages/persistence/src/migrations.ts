@@ -337,6 +337,24 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    // Numbered 0009 across the AG8/AG7 line: 0007 is the tool-calls migration (#217) and 0008 the
+    // learner-preference store (#214). Migration ids must be unique, not contiguous, so the gap is
+    // deliberate rather than a renumbering race between three branches.
+    id: '0009-episodic-cleanups',
+    sql: `
+      -- AG7.3's audit: a windowed cleanup happened — when the line was drawn, what it removed, and
+      -- which opaque session ids it touched. Ids and counts and times, never content (ADR 0001).
+      CREATE TABLE IF NOT EXISTS episodic_memory_cleanups (
+        id TEXT PRIMARY KEY,
+        cutoff_at TEXT NOT NULL,
+        cleared_at TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        session_ids TEXT NOT NULL,
+        cleared_count INTEGER NOT NULL
+      );
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

@@ -78,6 +78,42 @@ export interface AgentMemoryList {
 /** Newest-first listing bound. The panel shows counts; this answers "what is in there". */
 export const MEMORY_LIST_LIMIT = 50;
 
+/**
+ * The ceiling on a *windowed* read — paging asks for a slice, not the log.
+ *
+ * Fifty for the panel's default listing; two hundred for a caller who brings their own window is
+ * still a screenful of rows rather than a file. Anything larger is answered by `truncated` plus
+ * another page (`until`), never by growing this.
+ */
+export const MEMORY_QUERY_MAX = 200;
+
+/**
+ * How long episodic memory is kept before a windowed cleanup may remove it (AG7.3).
+ *
+ * Ninety days: thirteen weeks past the default insight view (a week), so `all` keeps a quarter of
+ * history to read. The cleanup is what makes "all" honest — it means *all that is kept*, and the
+ * rows past this line are gone rather than hidden behind a filter.
+ */
+export const AGENT_MEMORY_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+/** A windowed read: either bound optional, the page size bounded by `MEMORY_QUERY_MAX`. */
+export interface AgentMemoryWindow {
+  /** ISO-8601 inclusive lower bound. */
+  readonly since?: string;
+  /** ISO-8601 inclusive upper bound — the paging key: pass the last row's `at`. */
+  readonly until?: string;
+  readonly limit?: number;
+}
+
+/** What one cleanup run removed: when the line was drawn, how much, and which opaque sessions. */
+export interface EpisodicCleanupResult {
+  /** Rows strictly older than this were removed; anything at or after it is retained. */
+  readonly cutoffAt: string;
+  readonly clearedCount: number;
+  /** Opaque session ids this run touched — never their content (ADR 0001). */
+  readonly sessionIds: readonly string[];
+}
+
 /** Why a memory read was refused — the same closed-plus-translatable shape as every refusal. */
 export type AgentMemoryRefusalReason = 'wrong-session' | 'no-session';
 

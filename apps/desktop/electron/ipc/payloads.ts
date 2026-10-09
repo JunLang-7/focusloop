@@ -20,6 +20,7 @@ import type {
   ThemePreference,
   TutorAskRequest,
   AgentMemoryScope,
+  AgentMemoryWindow,
 } from '@focusloop/shared-types';
 
 /**
@@ -43,7 +44,12 @@ export const payload = {
   memoryList: (
     sessionId: string,
     scope: AgentMemoryScope,
-  ): { sessionId: string; scope: AgentMemoryScope } => ({ sessionId, scope }),
+    window: AgentMemoryWindow = {},
+  ): { sessionId: string; scope: AgentMemoryScope } & AgentMemoryWindow => ({
+    sessionId,
+    scope,
+    ...window,
+  }),
   preferenceDelete: (id: string, sessionId: string): { id: string; sessionId: string } => ({
     id,
     sessionId,

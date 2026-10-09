@@ -320,6 +320,11 @@ export function createHandlers(service: FocusLoopService) {
       handle: (request) => engine.deletePreference(request),
     }),
     defineHandler({
+      channel: IPC_CHANNELS.memoryCleanup,
+      parse: parseNoArgs,
+      handle: () => engine.cleanupOldEpisodicMemory({ actor: 'user' }),
+    }),
+    defineHandler({
       channel: IPC_CHANNELS.proposeStructuralChange,
       parse: parseProposeStructuralChange,
       handle: (request, invokeEvent) => {
