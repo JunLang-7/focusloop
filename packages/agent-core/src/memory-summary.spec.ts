@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createTestEngine, type TestEngine } from './test-helpers';
+import { createProviderSelection } from '@focusloop/llm-provider';
 import { DEMO_COURSE_ID } from './demo-course';
 
 function withSession(): { ctx: TestEngine; sessionId: string } {
@@ -124,6 +125,58 @@ describe('the agent-memory summary (AG7.5)', () => {
       expect(result.summary.cleared?.actor).toBe('user');
       // The audit is opaque: two fields, both of them ADR 0001's own.
       expect(Object.keys(result.summary.cleared ?? {}).sort()).toEqual(['actor', 'clearedAt']);
+    } finally {
+      ctx.close();
+    }
+  });
+});
+
+describe('the working scope (AG7.5)', () => {
+  /*
+   * Transcript turns and the last prompt are working memory the panel counts — and unlike the
+   * episodic tables they only exist after a *successful* ask, so this is the one test that needs a
+   * provider that answers. The list distinguishes them the way the type does: a transcript item
+   * carries no time (turns are kept, not timestamped), the outbound prompt carries the time it was
+   * actually sent.
+   */
+  it('names what working memory holds: the transcript’s turns and the last prompt sent', async () => {
+    const ctx = createTestEngine({
+      providers: createProviderSelection({
+        id: 'scripted',
+        model: 'scripted-1',
+        offline: false,
+        complete: async () => ({
+          text: '[hint]\nA rotation restructures three nodes.',
+          providerId: 'scripted',
+          model: 'scripted-1',
+          latencyMs: 1,
+        }),
+      }),
+    });
+    try {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const answer = await ctx.engine.askTutor({
+        sessionId: session.id,
+        mode: 'HINT',
+        question: 'why does the colour change?',
+      });
+      expect(answer.outcome.status).toBe('answered');
+
+      const summary = ctx.engine.getMemorySummary(session.id);
+      expect(summary.ok).toBe(true);
+      if (!summary.ok) return;
+      const transcript = summary.summary.sources.find((row) => row.source === 'transcript');
+      expect(transcript?.count).toBeGreaterThan(0);
+      const outbound = summary.summary.sources.find((row) => row.source === 'outbound');
+      expect(outbound?.count).toBe(1);
+      expect(outbound?.latestAt).not.toBeNull();
+
+      const list = ctx.engine.listMemory(session.id, 'working');
+      expect(list.ok).toBe(true);
+      if (!list.ok) return;
+      expect(list.list.items.map((item) => item.source)).toEqual(['transcript', 'outbound']);
+      expect(list.list.items.find((item) => item.source === 'transcript')?.at).toBeNull();
+      expect(list.list.items.find((item) => item.source === 'outbound')?.at).not.toBeNull();
     } finally {
       ctx.close();
     }
