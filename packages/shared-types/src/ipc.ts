@@ -3,6 +3,7 @@ import type { Course } from './course';
 import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
 import type { AgentProposalProposedEvent, LearningEvent, SessionEndReason } from './events';
+import type { AgentMemoryListResult, AgentMemoryScope, AgentMemorySummaryResult } from './memory';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { RescueView } from './rescue';
 import type { InsightsRequest, InsightsSummary } from './insights';
@@ -50,6 +51,9 @@ export const IPC_CHANNELS = {
   getAgentContext: 'focusloop:agent:context',
   getOutboundRequest: 'focusloop:agent:outbound-request',
   listToolCalls: 'focusloop:agent:tool-calls',
+  memorySummary: 'focusloop:agent:memory-summary',
+  memoryList: 'focusloop:agent:memory-list',
+  memoryClear: 'focusloop:agent:memory-clear',
   proposeStructuralChange: 'focusloop:agent:propose',
   confirmProposal: 'focusloop:agent:confirm-proposal',
   executeProposal: 'focusloop:agent:execute-proposal',
@@ -386,6 +390,17 @@ export interface FocusLoopApi {
    * run, confirm or decline anything — that is what the tool contract's own channels are for.
    */
   listToolCalls(sessionId: string): Promise<readonly ToolCallRecord[]>;
+  /**
+   * What agent memory exists for a session, per source (AG7.5): count, newest time, opaque clear.
+   *
+   * Metadata only — the result is the panel's whole input, and the no-content scan in the engine's
+   * spec is what keeps it that way. Refused for another session and when nothing is running.
+   */
+  getMemorySummary(sessionId: string): Promise<AgentMemorySummaryResult>;
+  /** One scope's items, newest first and bounded — source and time, never content (AG7.5). */
+  listMemory(sessionId: string, scope: AgentMemoryScope): Promise<AgentMemoryListResult>;
+  /** Clears session memory through the tested engine path (ADR 0001); null when the session is not. */
+  clearAgentMemory(sessionId: string): Promise<{ clearedAt: string; actor: string } | null>;
 
   /**
    * Builds a structural proposal bound to the session's current state.

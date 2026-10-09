@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   IPC_CHANNELS,
+  AGENT_MEMORY_SCOPES,
   INSIGHT_RANGES,
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
@@ -16,6 +17,7 @@ import {
   parseExecuteProposal,
   parseImportMaterial,
   parseInsightsRequest,
+  parseMemoryList,
   parseNoArgs,
   parseProposeStructuralChange,
   parseResolveIntervention,
@@ -77,9 +79,19 @@ describe('the preload and the main process agree on every payload', () => {
       IPC_CHANNELS.listOutcomes,
       IPC_CHANNELS.getOutboundRequest,
       IPC_CHANNELS.listToolCalls,
+      IPC_CHANNELS.memorySummary,
+      IPC_CHANNELS.memoryClear,
     ];
     for (const channel of channels) {
       expect(parseSessionId(channel, payload.sessionId('session-1'))).toBe('session-1');
+    }
+  });
+
+  it('the memory-list channel accepts what the preload sends, for every scope', () => {
+    for (const scope of AGENT_MEMORY_SCOPES) {
+      expect(
+        parseMemoryList(IPC_CHANNELS.memoryList, payload.memoryList('session-1', scope)),
+      ).toEqual({ sessionId: 'session-1', scope });
     }
   });
 

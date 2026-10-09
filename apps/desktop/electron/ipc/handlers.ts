@@ -27,6 +27,7 @@ import {
   parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
+  parseMemoryList,
 } from './validate';
 
 interface Handler<TPayload, TResult> {
@@ -291,6 +292,21 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.listToolCalls,
       parse: parseSessionId,
       handle: (sessionId) => engine.listToolCalls(sessionId),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.memorySummary,
+      parse: parseSessionId,
+      handle: (sessionId) => engine.getMemorySummary(sessionId),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.memoryList,
+      parse: parseMemoryList,
+      handle: ({ sessionId, scope }) => engine.listMemory(sessionId, scope),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.memoryClear,
+      parse: parseSessionId,
+      handle: (sessionId) => engine.clearAgentMemory(sessionId, { actor: 'user' }),
     }),
     defineHandler({
       channel: IPC_CHANNELS.proposeStructuralChange,

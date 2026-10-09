@@ -1,8 +1,10 @@
-import { Component, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import type { ElementRef, OnDestroy } from '@angular/core';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService, type MessageKey } from '../core/i18n/i18n.service';
 import { focusableWithin, nextIndex } from '../core/focus-trap';
+import { formatClock } from '../core/format';
+import { memoryRows } from '../core/memory-view';
 
 /** What the panel says after an attempt: an outcome the learner reads, not a decoration. */
 interface DataNotice {
@@ -78,7 +80,91 @@ interface DataNotice {
           <span class="data__line">{{ t('app.data.unavailable') }}</span>
         }
       </p>
+
+      <!--
+        What the agent remembers, and the way to clear it (AG7.5) — the same two-press shape as the
+        deletion above it: the dialog says what will be lost rather than asking whether you are sure.
+        The rows are metadata only: source, scope, time, impact — never the content itself (ADR 0001).
+      -->
+      @if (memory(); as result) {
+        <div class="data__memory" data-testid="memory-section">
+          <p class="eyebrow">{{ t('app.data.memory.title') }}</p>
+          @if (result.ok) {
+            @if (rows().length === 0) {
+              <p class="muted small" data-testid="memory-empty">
+                {{ t('app.data.memory.empty') }}
+              </p>
+            } @else {
+              <ul class="data__memory-rows" data-testid="memory-rows">
+                @for (row of rows(); track row.source) {
+                  <li data-testid="memory-row" [attr.data-source]="row.source">
+                    <span>{{ t(row.labelKey) }}</span>
+                    <span class="muted small">{{ t(row.scopeKey) }}</span>
+                    <span class="muted small">{{ row.count }}</span>
+                    <span class="muted small">{{ clock(row.latestAt) }}</span>
+                    <span class="muted small">{{ t(row.impactKey) }}</span>
+                  </li>
+                }
+              </ul>
+              <div class="locale__options">
+                <button
+                  type="button"
+                  class="btn btn--small btn--danger"
+                  data-testid="memory-clear"
+                  (click)="askClearMemory()"
+                >
+                  {{ t('app.data.memory.clear') }}
+                </button>
+              </div>
+            }
+            @if (result.summary.cleared; as audit) {
+              <p class="muted small" data-testid="memory-audit">
+                {{
+                  t('app.data.memory.cleared', { at: clock(audit.clearedAt), actor: audit.actor })
+                }}
+              </p>
+            }
+          } @else {
+            <p class="muted small" data-testid="memory-refusal">{{ t(result.messageKey) }}</p>
+          }
+        </div>
+      }
     </div>
+
+    @if (clearingMemory()) {
+      <div
+        class="overlay"
+        role="dialog"
+        aria-modal="true"
+        [attr.aria-label]="t('app.data.memory.confirm.title')"
+        (keydown)="onClearKeydown($event)"
+      >
+        <div class="confirm" #clearPanel tabindex="-1" data-testid="memory-confirm-dialog">
+          <h2>{{ t('app.data.memory.confirm.title') }}</h2>
+          <p class="confirm__warning">{{ t('app.data.memory.confirm.lose') }}</p>
+          <footer class="confirm__actions">
+            <button
+              type="button"
+              class="btn"
+              data-testid="memory-cancel"
+              [disabled]="working()"
+              (click)="cancelClearMemory()"
+            >
+              {{ t('app.data.confirm.cancel') }}
+            </button>
+            <button
+              type="button"
+              class="btn btn--danger"
+              data-testid="memory-confirm"
+              [disabled]="working()"
+              (click)="confirmClearMemory()"
+            >
+              {{ t('app.data.memory.confirm.action') }}
+            </button>
+          </footer>
+        </div>
+      </div>
+    }
 
     @if (confirming()) {
       <div
@@ -147,8 +233,17 @@ export class DataControlsComponent implements OnDestroy {
   protected readonly needsRestart = signal(false);
   protected readonly confirming = signal(false);
   protected readonly working = signal(false);
+  /** The whole memory read: `null` until it lands, then an answer or a refusal. */
+  protected readonly memory = this.state.memorySummary;
+  /** What exists — zero counts are information, but nine rows of zeros is not a list. */
+  protected readonly rows = computed(() => {
+    const result = this.memory();
+    return result !== null && result.ok ? memoryRows(result.summary) : [];
+  });
+  protected readonly clearingMemory = signal(false);
 
   private readonly panel = viewChild<ElementRef<HTMLElement>>('panel');
+  private readonly clearPanel = viewChild<ElementRef<HTMLElement>>('clearPanel');
 
   /** The button that opened the dialog, so cancelling puts the learner back on it. */
   private returnFocusTo: HTMLElement | null = null;
@@ -164,15 +259,17 @@ export class DataControlsComponent implements OnDestroy {
    * focus in leaves a keyboard user on the page behind the overlay, unable to reach either button.
    */
   private readonly manageFocus = effect(() => {
-    const panel = this.panel()?.nativeElement;
+    const clearing = this.clearingMemory();
+    const panel = (clearing ? this.clearPanel() : this.panel())?.nativeElement;
+    const open = this.confirming() || clearing;
 
-    if (this.confirming() && panel !== undefined) {
+    if (open && panel !== undefined) {
       this.returnFocusTo ??= document.activeElement as HTMLElement | null;
       panel.focus();
       return;
     }
 
-    if (!this.confirming() && this.returnFocusTo !== null) {
+    if (!open && this.returnFocusTo !== null) {
       this.returnFocusTo.focus();
       this.returnFocusTo = null;
     }
@@ -211,6 +308,59 @@ export class DataControlsComponent implements OnDestroy {
 
   protected cancel(): void {
     this.confirming.set(false);
+  }
+
+  protected clock(iso: string | null): string {
+    return iso === null ? '—' : formatClock(iso);
+  }
+
+  protected askClearMemory(): void {
+    this.clearingMemory.set(true);
+  }
+
+  protected cancelClearMemory(): void {
+    if (!this.working()) this.clearingMemory.set(false);
+  }
+
+  /**
+   * The clear goes through the tested engine path, and the outcome is reported in the same live
+   * region a deletion uses — a null means the session was gone before the press landed, which is
+   * "nothing was cleared" rather than a success the learner should have to guess at.
+   */
+  protected async confirmClearMemory(): Promise<void> {
+    this.working.set(true);
+    const cleared = await this.state.clearSessionMemory();
+    this.working.set(false);
+    this.clearingMemory.set(false);
+    this.notice.set(
+      cleared === null
+        ? { key: 'app.data.memory.clearFailed', kind: 'error' }
+        : { key: 'app.data.memory.clearedNotice', kind: 'ok' },
+    );
+  }
+
+  /** Escape cancels and Tab stays inside the memory dialog — the same contract as the one above. */
+  protected onClearKeydown(event: KeyboardEvent): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      this.cancelClearMemory();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+
+    const panel = this.clearPanel()?.nativeElement;
+    if (panel === undefined) return;
+
+    const items = focusableWithin(panel);
+    const target = nextIndex(
+      items.indexOf(document.activeElement as HTMLElement),
+      items.length,
+      event.shiftKey,
+    );
+    if (target === -1) return;
+
+    event.preventDefault();
+    items[target]?.focus();
   }
 
   protected async confirm(): Promise<void> {

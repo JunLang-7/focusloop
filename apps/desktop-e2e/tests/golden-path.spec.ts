@@ -213,7 +213,15 @@ async function pinThroughPeek(): Promise<void> {
   const sidebar = window.locator('.sidebar');
   await fab.hover();
   await expect(sidebar).toBeVisible();
-  await sidebar.click();
+  /*
+   * Pressed at the brand, not at the panel's centre. The whole sidebar is the pin target
+   * (`pinIfPeeking`), and its centre is not inert: the column is laid out differently while it
+   * peeks, so for a frame or two the point that the centre lands on is the language row — and a
+   * press there changes the interface language instead of pinning anything, which leaves every
+   * later English role query looking for a link that is now called 首页. The brand block is the
+   * same inert text in both layouts, so the press means one thing either way.
+   */
+  await sidebar.click({ position: { x: 116, y: 30 } });
   await expect(fab).toBeHidden();
   await expect(sidebar).toBeVisible();
 
@@ -1927,6 +1935,38 @@ test('the learner can find their data and delete all of it, without a restart', 
    * the suite. What the button can be held to from here is that it exists next to the path it acts on.
    */
   await expect(window.getByTestId('data-open-folder')).toBeEnabled();
+
+  /*
+   * The agent-memory section (AG7.5). A session is started when none is running, because the rows
+   * are this session's memory and an empty refusal would assert nothing about them: with a session,
+   * the row list shows what exists as metadata — source, scope, time, impact — and never content
+   * (the engine spec scans for that; this test checks the screen reads it).
+   *
+   * The clear dialog is opened and cancelled, **not** confirmed: the history the deletion steps
+   * below read back is exactly what a clear would erase, and a test that cleared it first would be
+   * measuring its own wipe. The real clear is the engine spec's, through the tested path.
+   */
+  const memorySessionRunning = await window.evaluate(
+    async () => (await globalThis.focusloop.getCurrentSession()) !== null,
+  );
+  if (!memorySessionRunning) {
+    await clickSidebarLink('Home');
+    await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  }
+  await expect(window.getByTestId('memory-section')).toBeVisible();
+  await expect(window.getByTestId('memory-rows')).toBeVisible();
+  // A fresh session has exactly one memory row: the event it started with.
+  await expect(window.getByTestId('memory-row').first()).toContainText('Learning events');
+
+  await window.getByTestId('memory-clear').click();
+  const memoryDialog = window.getByTestId('memory-confirm-dialog');
+  await expect(memoryDialog).toBeVisible();
+  // The dialog says what will be lost — and what is not lost, which is the ADR's own line.
+  await expect(memoryDialog).toContainText('course, tasks or results');
+  await expect(memoryDialog).toBeFocused();
+  await window.keyboard.press('Escape');
+  await expect(memoryDialog).toBeHidden();
+  await expect(window.getByTestId('memory-clear')).toBeFocused();
 
   /*
    * 1. A deletion that cannot happen is reported rather than performed.
