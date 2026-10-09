@@ -302,6 +302,27 @@ describe('the four read tools over the engine', () => {
     }
   });
 
+  it('exposes its attempts to the inspector, with the events a read never writes (#210)', () => {
+    const ctx = createTestEngine();
+    try {
+      const { session } = ctx.engine.startSession('course-red-black-trees');
+      ctx.engine.executeToolCall({ sessionId: session.id, tool: 'readCurrentTask', args: {} });
+      ctx.engine.executeToolCall({ sessionId: session.id, tool: 'dropTable', args: {} });
+
+      const rows = ctx.engine.listToolCalls(session.id);
+      expect(rows).toHaveLength(2);
+      // Reads write no event and refusals write no change: null is the honest answer for both,
+      // and the resolved-event path is the store's join, pinned in persistence against a real
+      // executed proposal.
+      expect(rows.every((row) => row.eventId === null)).toBe(true);
+      expect(rows.find((row) => row.tool === 'dropTable')?.error).toBe('unknown-tool');
+      expect(rows.find((row) => row.tool === 'readCurrentTask')?.status).toBe('ok');
+      expect(ctx.engine.listToolCalls('other-session')).toEqual([]);
+    } finally {
+      ctx.close();
+    }
+  });
+
   it('writes no store state on the read path beyond its own audit row', () => {
     const db = openDatabase(':memory:');
     const plain = new FocusLoopStore(db);

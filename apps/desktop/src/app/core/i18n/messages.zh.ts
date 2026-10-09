@@ -357,6 +357,11 @@ export const zh: Record<MessageKey, string> = {
   'agent.inspector.outbound.none': '尚未向模型发送请求。',
   'agent.inspector.outbound.privacy':
     '仅开发模式。以下是实际发送的提示词，包含学习者原文——不落库、不写日志。',
+  // 工具审计标签页（AG8.8）：agent 请求做什么，以及结果如何。
+  'agent.inspector.tab.tools': '工具调用',
+  'agent.inspector.tools.empty': '本会话还没有工具调用。',
+  'agent.inspector.tools.ran': '已执行',
+  'agent.inspector.tools.applied': '已生效',
   'agent.inspector.outbound.system': '系统提示（实际发送）',
   'agent.inspector.outbound.prompt': '提示词（实际发送）',
   'agent.inspector.outbound.chars': '已发送字符数',

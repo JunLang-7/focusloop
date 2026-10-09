@@ -2,9 +2,10 @@ import { Component, computed, inject, signal } from '@angular/core';
 import type { AgentContext, AgentContextReport } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { developerModeEnabled } from '../core/developer-mode';
+import { toolCallRowView } from '../core/tool-call-view';
 import { I18nService } from '../core/i18n/i18n.service';
 
-type InspectorTab = 'context' | 'outbound';
+type InspectorTab = 'context' | 'outbound' | 'tools';
 
 /**
  * Developer-mode inspector: two views, not one.
@@ -13,6 +14,8 @@ type InspectorTab = 'context' | 'outbound';
  *   omissions and truncation lengths.
  * - **Outbound** — what was *actually sent* to the provider on the last ask:
  *   the assembled system + prompt strings and their total size.
+ * - **Tools** — what the agent asked to do, and what became of it (AG8.8): every attempt,
+ *   refusals included, resolved to the event it produced in one query.
  *
  * The two differ on purpose (the Tutor clips the AG1 context again before
  * assembling). This component displays what the main process built and derives
@@ -58,6 +61,17 @@ type InspectorTab = 'context' | 'outbound';
             (click)="tab.set('outbound')"
           >
             {{ t('agent.inspector.tab.outbound') }}
+          </button>
+          <button
+            type="button"
+            class="btn btn--small"
+            role="tab"
+            data-testid="inspector-tab-tools"
+            [attr.aria-selected]="tab() === 'tools'"
+            [class.is-active]="tab() === 'tools'"
+            (click)="tab.set('tools')"
+          >
+            {{ t('agent.inspector.tab.tools') }}
           </button>
         </div>
 
@@ -108,7 +122,7 @@ type InspectorTab = 'context' | 'outbound';
               {{ t('agent.inspector.none') }}
             </p>
           }
-        } @else {
+        } @else if (tab() === 'outbound') {
           <p class="muted small agent-context__privacy" data-testid="outbound-privacy">
             {{ t('agent.inspector.outbound.privacy') }}
           </p>
@@ -130,6 +144,26 @@ type InspectorTab = 'context' | 'outbound';
             <p class="muted small" data-testid="outbound-empty">
               {{ t('agent.inspector.outbound.none') }}
             </p>
+          }
+        } @else {
+          <!-- The audit itself: what was attempted, and what became of it. -->
+          @if (toolCallViews().length === 0) {
+            <p class="muted small" data-testid="tool-calls-empty">
+              {{ t('agent.inspector.tools.empty') }}
+            </p>
+          } @else {
+            <ul class="agent-context__omissions" data-testid="tool-call-rows">
+              @for (row of toolCallViews(); track row.id) {
+                <li data-testid="tool-call-row">
+                  <strong>{{ row.tool }}</strong>
+                  <span>{{ t(row.stateKey) }}</span>
+                  @if (row.detail.length > 0) {
+                    <span class="muted small">{{ row.detail }}</span>
+                  }
+                  <span class="muted small">{{ row.at }}</span>
+                </li>
+              }
+            </ul>
           }
         }
       </details>
@@ -157,6 +191,14 @@ export class AgentContextPanelComponent {
   );
 
   protected readonly outbound = this.state.outboundRequest;
+
+  /**
+   * The audit rows, already interpreted by the pure view — the component renders, it does not decide
+   * what a refusal means.
+   */
+  protected readonly toolCallViews = computed(() =>
+    this.state.toolCalls().map((record) => ({ id: record.id, ...toolCallRowView(record) })),
+  );
 
   protected taskLine(context: AgentContext): string {
     const { title, step, totalSteps, estimatedMinutes } = context.task;

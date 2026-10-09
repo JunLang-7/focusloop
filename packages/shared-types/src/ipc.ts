@@ -13,6 +13,7 @@ import type { LearningSession, SessionProgress } from './session';
 import type { LearningState } from './state';
 import type { TutorAnswer, TutorAskRequest } from './tutor';
 import type { OutboundRequest } from './outbound';
+import type { ToolCallRecord } from './tool';
 import type {
   AgentProposal,
   AgentProposalKind,
@@ -48,6 +49,7 @@ export const IPC_CHANNELS = {
   getInsights: 'focusloop:insights:get',
   getAgentContext: 'focusloop:agent:context',
   getOutboundRequest: 'focusloop:agent:outbound-request',
+  listToolCalls: 'focusloop:agent:tool-calls',
   proposeStructuralChange: 'focusloop:agent:propose',
   confirmProposal: 'focusloop:agent:confirm-proposal',
   executeProposal: 'focusloop:agent:execute-proposal',
@@ -377,6 +379,13 @@ export interface FocusLoopApi {
    * nothing has been sent yet for the session.
    */
   getOutboundRequest(sessionId: string): Promise<OutboundRequest | null>;
+  /**
+   * This session's tool-call attempts, newest first, each resolved to the event it produced (AG8.8).
+   *
+   * Read-only audit surface: it lists what was attempted and what became of it. Calling it cannot
+   * run, confirm or decline anything — that is what the tool contract's own channels are for.
+   */
+  listToolCalls(sessionId: string): Promise<readonly ToolCallRecord[]>;
 
   /**
    * Builds a structural proposal bound to the session's current state.
