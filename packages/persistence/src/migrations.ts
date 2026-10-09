@@ -337,6 +337,7 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+];
 
 export function migrate(db: SqlDatabase): readonly string[] {
   db.exec(

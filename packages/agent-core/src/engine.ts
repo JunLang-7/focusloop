@@ -56,7 +56,6 @@ import type {
   AgentMemorySummaryResult,
   LearnerPreferenceListResult,
   PreferenceDeleteResult,
-  AgentProposalProposedEvent,
 } from '@focusloop/shared-types';
 import {
   AGENT_MEMORY_SOURCES,
