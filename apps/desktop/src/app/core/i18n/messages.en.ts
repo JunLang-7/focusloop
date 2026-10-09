@@ -395,6 +395,11 @@ const en = {
   'agent.inspector.outbound.none': 'No request has been sent yet.',
   'agent.inspector.outbound.privacy':
     'Development only. This is the prompt as sent — it includes learner text. It is never stored and never logged.',
+  // The tool-audit tab (AG8.8): what the agent asked to do, and what became of it.
+  'agent.inspector.tab.tools': 'Tool calls',
+  'agent.inspector.tools.empty': 'No tool calls this session.',
+  'agent.inspector.tools.ran': 'Ran',
+  'agent.inspector.tools.applied': 'Applied',
   'agent.inspector.outbound.system': 'System prompt (as sent)',
   'agent.inspector.outbound.prompt': 'Prompt (as sent)',
   'agent.inspector.outbound.chars': 'Characters sent',

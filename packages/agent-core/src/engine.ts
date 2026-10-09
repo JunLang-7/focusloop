@@ -37,6 +37,7 @@ import type {
   SimulatorCommand,
   StartSessionResponse,
   ThemePreference,
+  ToolCallRecord,
   ToolCallRequest,
   ToolCallResult,
   TutorAnswer,
@@ -813,6 +814,16 @@ export class FocusLoopEngine {
   }
 
   /** Last outbound request for this session, or null if nothing has been sent. */
+  /**
+   * This session's tool calls, resolved to their events — the inspector's read surface (AG8.8).
+   *
+   * A passthrough on purpose: the store's join is the query that must not become a per-row round
+   * trip, and there is nothing to derive between it and the caller.
+   */
+  listToolCalls(sessionId: string): readonly ToolCallRecord[] {
+    return this.store.listToolCalls(sessionId);
+  }
+
   getOutboundRequest(sessionId: string): OutboundRequest | null {
     return this.outboundBySession.get(sessionId) ?? null;
   }

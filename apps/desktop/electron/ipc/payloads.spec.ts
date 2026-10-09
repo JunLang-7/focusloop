@@ -76,6 +76,7 @@ describe('the preload and the main process agree on every payload', () => {
       IPC_CHANNELS.getResumeCard,
       IPC_CHANNELS.listOutcomes,
       IPC_CHANNELS.getOutboundRequest,
+      IPC_CHANNELS.listToolCalls,
     ];
     for (const channel of channels) {
       expect(parseSessionId(channel, payload.sessionId('session-1'))).toBe('session-1');

@@ -28,6 +28,7 @@ import type {
   ResumeCardView,
   RescueView,
   AgentContextReport,
+  ToolCallRecord,
   OutboundRequest,
   TutorAnswer,
   TutorMode,
@@ -97,6 +98,8 @@ export class AppStateService {
   readonly lastError = signal<string | null>(null);
   readonly busy = signal(false);
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
+  /** The tool-audit rows the inspector's third tab lists (AG8.8), newest first. */
+  readonly toolCalls = signal<readonly ToolCallRecord[]>([]);
   /**
    * What the agent would be given about the current moment, and what it would not (AG1).
    *
@@ -687,6 +690,7 @@ export class AppStateService {
       this.resumeCard.set(await this.api.getResumeCard(snapshot.session.id));
       this.rescue.set(await this.api.getPendingRescue(snapshot.session.id));
       this.recentEvents.set(await this.api.listEvents(snapshot.session.id));
+      this.toolCalls.set(await this.api.listToolCalls(snapshot.session.id));
     } else {
       /*
        * Everything derived from the session goes when the session does. The card is the
@@ -696,6 +700,7 @@ export class AppStateService {
       this.resumeCard.set(null);
       this.rescue.set(null);
       this.recentEvents.set([]);
+      this.toolCalls.set([]);
     }
     await this.refreshToday();
   }

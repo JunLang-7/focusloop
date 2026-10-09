@@ -1775,6 +1775,12 @@ test('the tutor asks the main process, and says so when no model is connected', 
   await window.getByTestId('inspector-tab-outbound').click();
   await expect(window.getByTestId('outbound-privacy')).toBeVisible();
   await expect(window.getByTestId('outbound-empty')).toContainText('No request has been sent yet');
+  /*
+   * The third tab (AG8.8): the audit exists before the calls do — nothing in a packaged build can
+   * execute a tool yet, so the honest screen is the empty state, not a table waiting forever.
+   */
+  await window.getByTestId('inspector-tab-tools').click();
+  await expect(window.getByTestId('tool-calls-empty')).toBeVisible();
   await window.getByTestId('inspector-tab-context').click();
   await expect(window.getByTestId('agent-context-state')).toBeVisible();
   await window.getByTestId('agent-context-toggle').click();

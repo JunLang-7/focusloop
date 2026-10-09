@@ -288,6 +288,11 @@ export function createHandlers(service: FocusLoopService) {
       handle: (sessionId) => engine.getOutboundRequest(sessionId),
     }),
     defineHandler({
+      channel: IPC_CHANNELS.listToolCalls,
+      parse: parseSessionId,
+      handle: (sessionId) => engine.listToolCalls(sessionId),
+    }),
+    defineHandler({
       channel: IPC_CHANNELS.proposeStructuralChange,
       parse: parseProposeStructuralChange,
       handle: (request, invokeEvent) => {

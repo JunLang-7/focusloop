@@ -100,6 +100,71 @@ export type ToolCallResult = ToolCallOk | ToolRefusal;
  */
 export const MAX_TOOL_ARGS_CHARACTERS = 4096;
 
+/** Strings longer than this are not kept verbatim in the audit — ids are short, prose is not. */
+export const TOOL_ARGS_KEEP_CHARS = 64;
+
+/** Redaction stops descending here; a call nested deeper than this is answered as redacted. */
+export const TOOL_REDACT_DEPTH = 4;
+
+/**
+ * What the audit keeps of a call's arguments (AG8.8).
+ *
+ * The rule from ADR 0001's discipline: the row answers *what was attempted*, which is the keys and
+ * the short identifiers — not a second copy of the learner's content. Anything longer than
+ * `TOOL_ARGS_KEEP_CHARS` becomes a length marker, at any depth, and the walk is total: circular
+ * input degrades to redacted values rather than an exception inside an audit write.
+ */
+/** What one step of the walk can produce: JSON only, because a tool-call row stores JSON. */
+type RedactedValue =
+  | string
+  | number
+  | boolean
+  | null
+  | { readonly [key: string]: RedactedValue }
+  | readonly RedactedValue[];
+
+export function redactToolArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const seen = new WeakSet<object>();
+  const visit = (value: unknown, depth: number): RedactedValue => {
+    if (typeof value === 'string') {
+      return value.length > TOOL_ARGS_KEEP_CHARS ? `[redacted ${value.length} chars]` : value;
+    }
+    if (value === null) return null;
+    if (typeof value === 'number' || typeof value === 'boolean') return value;
+    // undefined, symbols, functions, bigint: never JSON, so never verbatim in the audit.
+    if (typeof value !== 'object') return '[redacted]';
+    if (depth >= TOOL_REDACT_DEPTH || seen.has(value)) return '[redacted]';
+    seen.add(value);
+    if (Array.isArray(value)) return value.map((item) => visit(item, depth + 1));
+    const out: Record<string, RedactedValue> = {};
+    for (const key of Object.keys(value)) {
+      out[key] = visit((value as Record<string, unknown>)[key], depth + 1);
+    }
+    return out;
+  };
+
+  try {
+    const result = visit(args, 0);
+    if (typeof result === 'object' && result !== null && !Array.isArray(result)) {
+      return result as Record<string, unknown>;
+    }
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * A stored call as the inspector reads it: the row plus the domain event it resolved to, if any.
+ *
+ * `eventId` is `null` for every read — a read writes no event, which is the read path's proof —
+ * and for every refusal, where `error` says what happened instead. For a call confirmed through
+ * the envelope it is `agent_proposals.event_id`, resolved in the same query that fetches the row.
+ */
+export interface ToolCallRecord extends ToolCall {
+  readonly eventId: string | null;
+}
+
 /** The refusal reason to its message key, typed both ways so neither list can drift. */
 export const TOOL_REFUSAL_MESSAGE_KEYS: Readonly<Record<ToolRefusalReason, ToolMessageKey>> = {
   'unknown-tool': 'tool.refusal.unknown-tool',

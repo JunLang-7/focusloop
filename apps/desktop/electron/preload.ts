@@ -76,6 +76,8 @@ const api: FocusLoopApi = {
   getAgentContext: () => ipcRenderer.invoke(IPC_CHANNELS.getAgentContext, payload.none()),
   getOutboundRequest: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.getOutboundRequest, payload.sessionId(sessionId)),
+  listToolCalls: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listToolCalls, payload.sessionId(sessionId)),
   proposeStructuralChange: (request) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.proposeStructuralChange,

@@ -905,6 +905,87 @@ describe('FocusLoopStore', () => {
       expect(store.listToolCalls('session-1')).toHaveLength(3);
     });
 
+    it('redacts args on the way onto the disk, not on the way out of it', () => {
+      const prose = 'Dear diary, today the learner wrote something only they should read. '.repeat(
+        3,
+      );
+      store.insertToolCall(toolCall({ id: 'tc-redact', args: { note: prose, taskId: 'rbt-t1' } }));
+
+      // Read the column raw: what is *stored* is what ADR 0001's discipline is about.
+      const raw = (
+        db.prepare('SELECT args FROM tool_calls WHERE id = ?;').get('tc-redact') as {
+          args: string;
+        }
+      ).args;
+      expect(raw).not.toContain('Dear diary');
+      expect(raw).toContain('rbt-t1');
+      expect(raw).toContain('[redacted');
+      // And the row the inspector reads says the same thing the disk does.
+      expect(store.listToolCalls('session-1').find((row) => row.id === 'tc-redact')?.args).toEqual({
+        note: expect.stringMatching(/^\[redacted \d+ chars\]$/),
+        taskId: 'rbt-t1',
+      });
+    });
+
+    it('resolves a confirmed call to the event its proposal wrote, in one query', () => {
+      // The envelope's own lifecycle: proposal → confirmed → executed, event id recorded on the row.
+      store.insertAgentProposal({
+        id: 'p-link',
+        sessionId: 'session-1',
+        kind: 'structural-write',
+        payload: { op: 'demo' },
+        proposedAt: T,
+        expiresAt: '2026-09-25T12:05:00.000Z',
+        proposalHash: 'hash-1',
+        stateFingerprint: 'fp-1',
+        idempotencyKey: 'k-link',
+        createdBy: 'test-tool',
+      });
+      store.markAgentProposalConfirmed('p-link', T);
+      store.markAgentProposalExecuted('p-link', 'evt-9', T);
+
+      store.insertToolCall(toolCall({ id: 'tc-link', status: 'ok', confirmation: 'p-link' }));
+      store.insertToolCall(
+        toolCall({ id: 'tc-refused', tool: 'dropTable', status: 'refused', error: 'unknown-tool' }),
+      );
+      store.insertToolCall(toolCall({ id: 'tc-read' }));
+
+      const rows = store.listToolCalls('session-1');
+      expect(rows.find((row) => row.id === 'tc-link')?.eventId).toBe('evt-9');
+      // A refusal links nowhere and says why instead; a read links nowhere because it wrote nothing.
+      expect(rows.find((row) => row.id === 'tc-refused')?.eventId).toBeNull();
+      expect(rows.find((row) => row.id === 'tc-refused')?.error).toBe('unknown-tool');
+      expect(rows.find((row) => row.id === 'tc-read')?.eventId).toBeNull();
+    });
+
+    it('lists a session in one query — no per-row round trip for the inspector', () => {
+      store.insertToolCall(toolCall({ id: 'tc-q1' }));
+      store.insertToolCall(toolCall({ id: 'tc-q2' }));
+      store.insertToolCall(toolCall({ id: 'tc-q3', sessionId: 'session-2' }));
+
+      let prepares = 0;
+      const counting = new Proxy(db, {
+        get(target, property, receiver) {
+          const value = Reflect.get(target, property, receiver);
+          if (property === 'prepare' && typeof value === 'function') {
+            return (...args: unknown[]) => {
+              prepares += 1;
+              return (value as (...inner: unknown[]) => unknown).apply(target, args);
+            };
+          }
+          return typeof value === 'function'
+            ? (...args: unknown[]) =>
+                (value as (...inner: unknown[]) => unknown).apply(target, args)
+            : value;
+        },
+      }) as SqlDatabase;
+      const audited = new FocusLoopStore(counting);
+
+      const rows = audited.listToolCalls('session-1');
+      expect(rows).toHaveLength(2);
+      expect(prepares).toBe(1);
+    });
+
     it('keeps sessions apart and lists newest first', () => {
       store.insertToolCall(toolCall({ id: 'tc-1', at: '2026-01-01T00:01:00.000Z' }));
       store.insertToolCall(toolCall({ id: 'tc-2', at: '2026-01-01T00:02:00.000Z' }));

@@ -20,7 +20,9 @@ import type {
   Quiz,
   ResumeCardTiming,
   ToolCall,
+  ToolCallRecord,
 } from '@focusloop/shared-types';
+import { redactToolArgs } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 import { TOOL_REFUSAL_REASONS } from '@focusloop/shared-types';
 import { migrate } from './migrations';
@@ -701,6 +703,9 @@ export class FocusLoopStore {
    * key fail the insert, and an audit whose job is to hold every attempt — including the hostile
    * ones — must not be abortable by the call it is recording. A write tool that needs "run once"
    * gets it from the proposal envelope, not from this table.
+   *
+   * Args are redacted **here**, not on read: the discipline that matters is what is on the disk,
+   * so learner prose never reaches the table and there is no raw copy to leak from a future query.
    */
   insertToolCall(call: ToolCall): boolean {
     const exists = this.db.prepare('SELECT 1 FROM tool_calls WHERE id = ?;').get(call.id);
@@ -715,7 +720,7 @@ export class FocusLoopStore {
         call.id,
         call.sessionId,
         call.tool,
-        JSON.stringify(call.args),
+        JSON.stringify(redactToolArgs(call.args)),
         call.status,
         call.confirmation,
         call.error,
@@ -725,10 +730,21 @@ export class FocusLoopStore {
     return result.changes > 0;
   }
 
-  /** A session's attempts, newest first. The inspector's read surface (AG8.8 refines it). */
-  listToolCalls(sessionId: string): readonly ToolCall[] {
+  /**
+   * A session's attempts, newest first, each resolved to the domain event it produced — in **one**
+   * query (AG8.8): the join to `agent_proposals.event_id` is what keeps the inspector from a
+   * per-row round trip. A read or a refusal joins nothing and carries `eventId: null`, which is the
+   * honest answer: reads write no events and refusals write no change.
+   */
+  listToolCalls(sessionId: string): readonly ToolCallRecord[] {
     const rows = this.db
-      .prepare('SELECT * FROM tool_calls WHERE session_id = ? ORDER BY at DESC, id DESC;')
+      .prepare(
+        `SELECT t.*, p.event_id AS proposal_event_id
+           FROM tool_calls t
+           LEFT JOIN agent_proposals p ON p.id = t.confirmation
+          WHERE t.session_id = ?
+          ORDER BY t.at DESC, t.id DESC;`,
+      )
       .all(sessionId) as readonly SqlRow[];
     return rows.map((row) => ({
       id: readText(row, 'tool_calls', 'id'),
@@ -740,6 +756,7 @@ export class FocusLoopStore {
       error: readRefusalReason(row),
       at: readText(row, 'tool_calls', 'at'),
       idempotencyKey: readNullableText(row, 'tool_calls', 'idempotency_key'),
+      eventId: readNullableText(row, 'tool_calls', 'proposal_event_id'),
     }));
   }
 
