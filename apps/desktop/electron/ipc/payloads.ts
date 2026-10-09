@@ -53,9 +53,11 @@ export const payload = {
   simulatorCommand: (
     command: SimulatorCommand['command'],
     sessionId: string,
+    durationMs?: number,
   ): SimulatorCommand => ({
     command,
     sessionId,
+    ...(durationMs === undefined ? {} : { durationMs }),
   }),
   setLocale: (locale: Locale): SetLocaleRequest => ({ locale }),
   setTheme: (theme: ThemePreference): SetThemeRequest => ({ theme }),

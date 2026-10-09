@@ -282,9 +282,20 @@ export function parseSimulatorCommand(channel: string, value: unknown): Simulato
   const record = asRecord(channel, value);
   const command = asString(channel, record, 'command');
   if (!SIMULATOR_COMMANDS.has(command)) fail(channel, `unknown simulator command "${command}"`);
+
+  const durationMs = record['durationMs'];
+  if (durationMs !== undefined && durationMs !== null) {
+    // A duration the app would read as "not a number" falls back to the medium tier, which is a
+    // wrong answer rather than a crash — so it is rejected here instead of being trusted.
+    if (typeof durationMs !== 'number' || !Number.isFinite(durationMs) || durationMs < 0) {
+      fail(channel, '"durationMs" must be a non-negative number when present');
+    }
+  }
+
   return {
     command: command as SimulatorCommand['command'],
     sessionId: asString(channel, record, 'sessionId'),
+    ...(durationMs === undefined || durationMs === null ? {} : { durationMs }),
   };
 }
 

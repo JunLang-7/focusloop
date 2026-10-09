@@ -268,6 +268,30 @@ describe('parseSimulatorCommand', () => {
   it('rejects an unknown command', () => {
     expectFailure(() => parseSimulatorCommand(CHANNEL, { command: 'exec', sessionId: 's1' }));
   });
+
+  it('keeps an optional absence duration', () => {
+    expect(
+      parseSimulatorCommand(CHANNEL, { command: 'return', sessionId: 's1', durationMs: 60_000 }),
+    ).toEqual({
+      command: 'return',
+      sessionId: 's1',
+      durationMs: 60_000,
+    });
+    expect(parseSimulatorCommand(CHANNEL, { command: 'return', sessionId: 's1' })).toEqual({
+      command: 'return',
+      sessionId: 's1',
+    });
+  });
+
+  it.each([
+    ['a negative duration', -1],
+    ['a non-finite duration', Number.POSITIVE_INFINITY],
+    ['a duration that is not a number', '60000'],
+  ])('rejects %s', (_name, durationMs) => {
+    expectFailure(() =>
+      parseSimulatorCommand(CHANNEL, { command: 'return', sessionId: 's1', durationMs }),
+    );
+  });
 });
 
 describe('parseSessionId', () => {

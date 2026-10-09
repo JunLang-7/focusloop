@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { ProviderError, createProviderSelection } from '@focusloop/llm-provider';
 import {
+  DEFAULT_RESUME_POLICY_CONFIG,
   TUTOR_LIMITS,
   type AIProvider,
   type CompletionRequest,
@@ -1165,6 +1166,49 @@ describe('FocusLoopEngine', () => {
       expect(response.checkpoint).not.toBeNull();
       expect(response.resumeCard?.card.title.key).toBe('resume.title.task');
       expect(response.resumeCard?.card.completed).toEqual(['Recall the ordering invariant']);
+    });
+
+    /*
+     * The simulator's own interruption is 30 seconds, which lands in the short tier — so before this
+     * the long card could only be reached by waiting a day (#192). A test that needs a different gap
+     * now says how long it was away, and nothing about the default changes.
+     */
+    it('keeps the demo interruption at 30 seconds when no duration is given', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      ctx.engine.simulate({ command: 'distraction', sessionId: session.id });
+      const response = ctx.engine.simulate({ command: 'return', sessionId: session.id });
+
+      expect(response.resumeCard?.card.variant).toBe('short');
+      expect(response.resumeCard?.card.refresher).toBeNull();
+    });
+
+    it('reports a chosen absence against the policy boundary (#192)', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      ctx.engine.simulate({ command: 'distraction', sessionId: session.id });
+      const response = ctx.engine.simulate({
+        command: 'return',
+        sessionId: session.id,
+        // The boundary itself, not a number this test made up: being at it is the long tier.
+        durationMs: DEFAULT_RESUME_POLICY_CONFIG.longThresholdMs,
+      });
+
+      expect(response.resumeCard?.card.variant).toBe('long');
+      expect(response.resumeCard?.card.refresher).toEqual({
+        key: 'resume.refresher.long',
+        params: { seconds: '30' },
+      });
     });
 
     it('marks the interruption on a time tick without any event', () => {
