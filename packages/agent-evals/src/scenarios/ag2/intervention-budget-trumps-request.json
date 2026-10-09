@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-intervention-budget-trumps-request",
+  "capability": "AG2",
+  "kind": "adversarial",
+  "description": "The session budget outranks even a said reason: a spent budget answers nothing, so asking repeatedly cannot buy interruptions.",
+  "input": {
+    "state": "FOCUSED",
+    "stuckReason": "cannot-start",
+    "shownCount": 3,
+    "maxInterventionsPerSession": 3,
+    "sinceLastMs": 60000
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "action",
+      "value": "NO_ACTION"
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "reason.budget"
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "action",
+      "value": "MICRO_START"
+    },
+    {
+      "type": "absent",
+      "path": "answersRequestId"
+    }
+  ]
+}

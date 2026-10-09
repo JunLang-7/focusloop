@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-privacy-oversized-order-dropped-adversarial",
+  "capability": "AG1",
+  "kind": "adversarial",
+  "description": "An order list past the per-event item bound drops the whole event: the ids past the bound never reach the projection.",
+  "input": {
+    "case": "privacy-oversized-order"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "context.recentEvents",
+      "value": []
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "value": "ORDER_SENTINEL_LAST"
+    }
+  ]
+}

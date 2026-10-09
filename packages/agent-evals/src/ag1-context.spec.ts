@@ -13,6 +13,8 @@ import boundsScenario from './scenarios/ag1/material-event-bounds-edge.json';
 import crossCourseScenario from './scenarios/ag1/cross-course-isolation-adversarial.json';
 import hostileScenario from './scenarios/ag1/hostile-event-payload-adversarial.json';
 import sensitiveScenario from './scenarios/ag1/sensitive-content-adversarial.json';
+import materialBoundScenario from './scenarios/ag1/privacy-material-beyond-bound-adversarial.json';
+import orderBoundScenario from './scenarios/ag1/privacy-oversized-order-dropped-adversarial.json';
 import { allScenariosPassed, parseScenario, runScenarios, type JsonValue } from './index';
 
 const scenarios = [
@@ -22,6 +24,8 @@ const scenarios = [
   crossCourseScenario,
   hostileScenario,
   sensitiveScenario,
+  materialBoundScenario,
+  orderBoundScenario,
 ].map(parseScenario);
 
 describe('AG1 deterministic privacy scenarios', () => {
@@ -77,6 +81,26 @@ function executeAg1Fixture(input: JsonValue): JsonValue {
             formValue: 'FORM_SENTINEL',
             clipboard: 'CLIPBOARD_SENTINEL',
             pageTitle: 'PAGE_TITLE_SENTINEL',
+          },
+          0,
+        ),
+      ];
+      break;
+    case 'privacy-material-bound':
+      // The sentinel sits past the material bound: the excerpt is a prefix, so it must be *absent*,
+      // not merely short — which is the privacy claim the length assertion alone does not make.
+      source.material = material('x'.repeat(1200) + 'MATERIAL_BEYOND_BOUND_SENTINEL');
+      break;
+    case 'privacy-oversized-order':
+      // A list past the per-event item bound rejects the whole event rather than truncating it, so
+      // the ids past the bound — a sentinel among them — never reach the projection at all.
+      source.events = [
+        event(
+          'TASKS_REORDERED',
+          {
+            order: Array.from({ length: 40 }, (_unused, index) =>
+              index === 39 ? 'ORDER_SENTINEL_LAST' : `t${index}`,
+            ),
           },
           0,
         ),

@@ -563,20 +563,22 @@ failure }`、`ProviderHealth`。
 8. **依赖**：共享 provider 契约；AG10 一致性测试。
 9. **怎么验证**：待实现；需要 conformance suite（成功/超时/401/限流/坏 JSON → fallback）。
 
-#### F10 AG10 Evaluation & Guardrails — 分支完成
+#### F10 AG10 Evaluation & Guardrails — 已合并
 
 1. **定位**：把「这次改得好不好」变成可重放、可在 CI 阻断合并的证据。
 2. **用户怎么用**：无感（开发者与 CI 使用）。
 3. **何时发生**：开发/CI 时运行固定场景。
 4. **永不做什么**：不从生产应用上报评测数据；场景不得含真实用户数据。
-5. **数据与边界**（分支 `0f19c9f`）：`packages/agent-evals`——版本化场景、受限路径解析、确定性 runner、结果与隐私
-   断言；AG1 ×6、AG2 ×18、AG5 ×9 个 JSON 场景。
-6. **状态与证据**：**分支完成** — `0f19c9f`，**无 PR**；`main` 上只有工程测试与 CI 门禁。
-7. **已知限制**：未合并；仍是 deterministic、同步、JSON-only runner，不含真实模型评测、provider 或
-   工具安全套件。**遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、
+5. **数据与边界**（`main`）：`packages/agent-evals`——版本化场景、受限路径解析、确定性 runner、结果与隐私
+   断言。JSON 场景按能力分目录，共 **30** 个：AG1 ×8（含隐私类 3）、AG2 ×9（含 grounding 类 3、干预恰当性类 3）、
+   AG3 ×3（follow-up）、AG5 ×9、AG9 ×1；每类 ≥3 个场景，覆盖正常 / 边界 / 失败或越权。
+6. **状态与证据**：**已合并** — runner 与 AG1 投影场景 `656bb70`（#118）、AG9 provider-failure `dc6b0de`（#165）、
+   rewrite/grounding cases `3bbcdae`（#186）；follow-up、干预恰当性、grounding、隐私四类场景补齐（#211）。
+7. **已知限制**：仍是 deterministic、同步、JSON-only runner，不含真实模型评测；工具安全套件（AG10.6）等 AG8 的
+   工具契约落地。**遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、
    分析或崩溃上报（见 `docs/privacy.md` 决策节与 #115）。选项 (B) 已否决，除非先改隐私文档。
 8. **依赖**：横切全阶段。
-9. **怎么验证**：`pnpm test`（`agent-evals` 项目，分支上）+ 仓库级 required checks。
+9. **怎么验证**：`pnpm test`（`agent-evals` 项目）+ 仓库级 required checks；场景数 = 各能力目录的 JSON 文件数。
 
 ### G. 工程与质量护栏（精简）
 

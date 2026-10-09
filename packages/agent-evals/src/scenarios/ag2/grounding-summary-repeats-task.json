@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-grounding-summary-repeats-task",
+  "capability": "AG2",
+  "kind": "adversarial",
+  "description": "A summary that merely repeats the task title is not quotable: the HINT falls back to a key point instead.",
+  "input": {
+    "action": "HINT",
+    "concept": {
+      "summary": "Read rotations"
+    }
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "source",
+      "value": "concept-key-point"
+    },
+    {
+      "type": "equals",
+      "path": "text",
+      "value": "in-order traversal is sorted"
+    },
+    {
+      "type": "equals",
+      "path": "grounded",
+      "value": true
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "value": "Read rotations"
+    }
+  ]
+}
