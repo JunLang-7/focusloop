@@ -2062,3 +2062,102 @@ test('the ambient layer is off until the learner asks for it, and the store answ
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
+
+/*
+ * The confirmation screen (#209): a structural proposal is something the learner sees and agrees to,
+ * not something that happens to them. The proposal arrives on the event push — the one channel the
+ * renderer already listens on — and the dialog shows the very object the confirmation is bound to:
+ * the level, who asked, and what will change.
+ */
+test('a proposed change is confirmed on screen and lands in the log', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  // The log the learner reads lives on the Dashboard route, so that is where the ask must appear.
+  await clickSidebarLink('Dashboard');
+
+  const proposed = await window.evaluate(async () => {
+    const snapshot = await globalThis.focusloop.getCurrentSession();
+    return globalThis.focusloop.proposeStructuralChange({
+      sessionId: snapshot!.session.id,
+      kind: 'structural-write',
+      payload: { op: 'demo', taskId: 'rbt-t1' },
+      createdBy: 'e2e',
+      idempotencyKey: 'e2e-confirm-1',
+    });
+  });
+  expect(proposed.proposal).not.toBeNull();
+  expect(proposed.event).not.toBeNull();
+
+  const dialog = window.getByTestId('proposal-confirm-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(window.getByTestId('proposal-level')).toHaveText('Needs your confirmation');
+  await expect(window.getByTestId('proposal-why')).toHaveText('e2e');
+  await expect(window.getByTestId('proposal-change')).toContainText('op: demo');
+  await expect(window.getByTestId('proposal-change')).toContainText('taskId: rbt-t1');
+  await expect(window.getByTestId('proposal-refusal')).toHaveCount(0);
+
+  // The asking itself reaches the log before anything is confirmed.
+  await expect(
+    window.locator('[data-testid="timeline-row"] strong[title="AGENT_PROPOSAL_PROPOSED"]'),
+  ).toBeVisible();
+
+  await window.getByTestId('proposal-confirm').click();
+  await expect(dialog).toBeHidden();
+
+  // And the applying does too — refreshed by the renderer's own action, not by luck.
+  await expect(
+    window.locator('[data-testid="timeline-row"] strong[title="AGENT_PROPOSAL_EXECUTED"]'),
+  ).toBeVisible();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
+  await clickSidebarLink('Focus Session');
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
+
+/*
+ * Expiry is not a silent failure (#209): a proposal the learner did not confirm in time refuses
+ * with the reason it names, on the screen that asked. `ttlMs` is the request's own field — the test
+ * declares a short one rather than the app pretending time passed.
+ */
+test('a proposal that expires while it is on screen says so, with the reason', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  // On the Dashboard route, so "no applied row exists" is a claim about the visible log.
+  await clickSidebarLink('Dashboard');
+
+  await window.evaluate(async () => {
+    const snapshot = await globalThis.focusloop.getCurrentSession();
+    await globalThis.focusloop.proposeStructuralChange({
+      sessionId: snapshot!.session.id,
+      kind: 'structural-write',
+      payload: { op: 'demo' },
+      createdBy: 'e2e',
+      idempotencyKey: 'e2e-expiry-1',
+      ttlMs: 1200,
+    });
+  });
+
+  const dialog = window.getByTestId('proposal-confirm-dialog');
+  await expect(dialog).toBeVisible();
+
+  await window.waitForTimeout(1500);
+  await window.getByTestId('proposal-confirm').click();
+
+  await expect(window.getByTestId('proposal-refusal')).toHaveText(
+    'This change offer has expired. Ask for it again.',
+  );
+  // Still on screen with its reason: a refusal the dialog swallowed would be the silent failure.
+  await expect(dialog).toBeVisible();
+
+  // Decline closes it and changes nothing — no applied event, no second row in the log.
+  await window.getByTestId('proposal-dismiss').click();
+  await expect(dialog).toBeHidden();
+  await expect(
+    window.locator('[data-testid="timeline-row"] strong[title="AGENT_PROPOSAL_EXECUTED"]'),
+  ).toHaveCount(0);
+
+  await clickSidebarLink('Focus Session');
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});

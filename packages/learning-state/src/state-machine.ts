@@ -302,6 +302,10 @@ export function reduceState(
       // Audit fact only: a confirmed structural proposal ran. It is not a
       // learning-state transition, so the state machine ignores it.
       return stay({ lastEventAt: event.at });
+    case 'AGENT_PROPOSAL_PROPOSED':
+      // Audit fact only: something was *asked*, and asking changes nothing about where the
+      // learner is. The confirmation, when it comes, arrives as its own event.
+      return stay({ lastEventAt: event.at });
 
     /*
      * The learner's ordering of the remaining tasks (#23). `stay`, not `apply`: they are in the same

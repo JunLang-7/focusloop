@@ -2,7 +2,7 @@ import type { AgentContextReport } from './agent-context';
 import type { Course } from './course';
 import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
-import type { LearningEvent, SessionEndReason } from './events';
+import type { AgentProposalProposedEvent, LearningEvent, SessionEndReason } from './events';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { RescueView } from './rescue';
 import type { InsightsRequest, InsightsSummary } from './insights';
@@ -196,6 +196,17 @@ export interface SimulatorAvailability {
   readonly reason: string;
 }
 
+/**
+ * A proposal left for the learner, plus the event that announces it.
+ *
+ * Both null together: a session that does not exist cannot be proposed against, and there is then
+ * nothing to announce.
+ */
+export interface ProposeStructuralChangeResponse {
+  readonly proposal: AgentProposal | null;
+  readonly event: AgentProposalProposedEvent | null;
+}
+
 export interface ProposeStructuralChangeRequest {
   readonly sessionId: string;
   readonly kind: AgentProposalKind;
@@ -370,8 +381,14 @@ export interface FocusLoopApi {
   /**
    * Builds a structural proposal bound to the session's current state.
    * The learner must `confirmProposal` before `executeProposal` will run it.
+   *
+   * Returns the proposal **and** its `AGENT_PROPOSAL_PROPOSED` event: the event is what the push
+   * carries to the renderer, and returning it rather than making the handler reconstruct it keeps
+   * one writer of the id, the timestamp and the payload (#209).
    */
-  proposeStructuralChange(request: ProposeStructuralChangeRequest): Promise<AgentProposal | null>;
+  proposeStructuralChange(
+    request: ProposeStructuralChangeRequest,
+  ): Promise<ProposeStructuralChangeResponse>;
   confirmProposal(request: ConfirmProposalRequest): Promise<ProposalConfirmResult>;
   executeProposal(request: ExecuteProposalRequest): Promise<ProposalExecuteResult>;
 
