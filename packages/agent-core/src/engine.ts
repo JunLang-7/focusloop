@@ -1052,7 +1052,10 @@ export class FocusLoopEngine {
    * carries no refresher rather than a demand it cannot support.
    */
   private refresherIdea(sessionId: string): string | null {
-    const grounding = buildRescueGrounding('HINT', this.contextFor(this.requireSession(sessionId)).context);
+    const grounding = buildRescueGrounding(
+      'HINT',
+      this.contextFor(this.requireSession(sessionId)).context,
+    );
     return grounding?.text ?? null;
   }
 
