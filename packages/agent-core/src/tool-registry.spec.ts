@@ -173,6 +173,67 @@ describe('the tool registry contract (AG8.1)', () => {
     if (!result.ok) expect(result.reason).toBe('internal');
   });
 
+  it('refuses an envelope that never named a session, and a non-object request', () => {
+    const registry = readRegistry();
+    const noSession = { tool: 'readCurrentTask', args: {} } as unknown as ToolCallRequest;
+    const missing = registry.execute(noSession, DEPS);
+    expect(missing.ok).toBe(false);
+    if (!missing.ok) expect(missing.reason).toBe('bad-schema');
+
+    const nullish = null as unknown as ToolCallRequest;
+    const nullResult = registry.execute(nullish, DEPS);
+    expect(nullResult.ok).toBe(false);
+    if (!nullResult.ok) expect(nullResult.reason).toBe('bad-schema');
+  });
+
+  it('refuses a non-string idempotency key', () => {
+    const forged = {
+      sessionId: 's1',
+      tool: 'readCurrentTask',
+      args: {},
+      idempotencyKey: 42,
+    } as unknown as ToolCallRequest;
+    const result = readRegistry().execute(forged, DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('bad-schema');
+  });
+
+  it('refuses circular args without throwing, and records them as no args', () => {
+    const args: Record<string, unknown> = {};
+    args['self'] = args;
+    const result = readRegistry().execute({ sessionId: 's1', tool: 'readCurrentTask', args }, DEPS);
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.reason).toBe('bad-schema');
+      expect(result.call.args).toEqual({});
+    }
+  });
+
+  it('registers the four reads and lists its closed vocabulary', () => {
+    expect([...readRegistry().names()].sort()).toEqual([
+      'readCheckpoint',
+      'readConcept',
+      'readCurrentTask',
+      'readMaterial',
+    ]);
+  });
+
+  it('refuses to register the same tool twice', () => {
+    const registry = new ToolRegistry();
+    const registration = {
+      tool: {
+        name: 'readThing',
+        version: 1,
+        inputSchema: { type: 'object', properties: {}, required: [] },
+        permission: 'safe-read',
+        idempotency: 'natural',
+      } as const,
+      handler: () => null,
+    };
+    registry.register(registration);
+    expect(() => registry.register(registration)).toThrow(/already registered/);
+  });
+
   it('refuses registration of a name outside the closed vocabulary', () => {
     const registry = new ToolRegistry();
     expect(() =>

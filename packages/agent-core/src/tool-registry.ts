@@ -94,12 +94,14 @@ export class ToolRegistry {
      * refusal never throws, so a hostile call cannot take the attempt record down with it.
      */
     const rawArgs = isPlainObject(raw['args']) ? raw['args'] : {};
-    let rowArgs: Record<string, unknown> = {};
+    let serialized: string | null = null;
     try {
-      if (JSON.stringify(rawArgs).length <= MAX_TOOL_ARGS_CHARACTERS) rowArgs = rawArgs;
+      serialized = JSON.stringify(rawArgs);
     } catch {
-      rowArgs = {};
+      serialized = null;
     }
+    const bounded = serialized !== null && serialized.length <= MAX_TOOL_ARGS_CHARACTERS;
+    const rowArgs: Record<string, unknown> = bounded ? rawArgs : {};
 
     const call = (status: ToolCall['status'], error: ToolRefusalReason | null): ToolCall => ({
       id: deps.id(),
@@ -144,11 +146,9 @@ export class ToolRegistry {
     // same validator the runtime uses for model output, so `permission` cannot ride in on args.
     const problems = validateRuntimeSchema(rawArgs, registration.tool.inputSchema);
     if (problems.length > 0) return refuse('bad-schema');
-    try {
-      if (JSON.stringify(rawArgs).length > MAX_TOOL_ARGS_CHARACTERS) return refuse('bad-schema');
-    } catch {
-      return refuse('bad-schema');
-    }
+    // The same serialization the audit row uses: circular (unserializable) and oversized both
+    // land here, once, instead of being re-checked against a payload that cannot change.
+    if (!bounded) return refuse('bad-schema');
 
     // 5. The session: the call must name the session that is running, and there must be one.
     if (deps.currentSessionId === null || deps.currentSessionId !== sessionId) {
