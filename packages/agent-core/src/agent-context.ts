@@ -405,7 +405,9 @@ function projectEvent(event: unknown): AgentContextEvent | null {
       return reason === null ? null : { ...common, type, payload: { reason } };
     }
     case 'AGENT_PROPOSAL_EXECUTED':
-      // Audit fact for the log; the agent does not need proposal ids or keys.
+    case 'AGENT_PROPOSAL_PROPOSED':
+      // Audit fact for the log; the agent does not need proposal ids, keys or payloads — a
+      // proposal it is about to act on arrives with the action, not with the context.
       return { ...common, type, payload: {} };
     case 'TASKS_REORDERED': {
       const order = taskIdList(payload['order']);
@@ -444,6 +446,7 @@ function isLearningEventType(value: unknown): value is LearningEvent['type'] {
     value === 'RESUME_DISMISSED' ||
     value === 'SESSION_ENDED' ||
     value === 'AGENT_PROPOSAL_EXECUTED' ||
+    value === 'AGENT_PROPOSAL_PROPOSED' ||
     value === 'TASKS_REORDERED'
   );
 }
