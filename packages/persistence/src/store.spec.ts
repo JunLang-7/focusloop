@@ -881,6 +881,30 @@ describe('FocusLoopStore', () => {
       expect(store.listToolCalls('session-1')).toHaveLength(1);
     });
 
+    /*
+     * A repeated key is two attempts, not an error state.
+     *
+     * The key is caller-chosen, so enforcing uniqueness in the table would let the call being
+     * audited decide whether its own audit row lands — and the registry's promise is the opposite:
+     * a hostile call cannot take the attempt record down with it. Both rows are kept, and the second
+     * insert returns true because it really did write.
+     */
+    it('records a second attempt that repeats a key, instead of failing on it', () => {
+      expect(store.insertToolCall(toolCall({ id: 'tc-a', idempotencyKey: 'k1' }))).toBe(true);
+      expect(store.insertToolCall(toolCall({ id: 'tc-b', idempotencyKey: 'k1' }))).toBe(true);
+
+      const rows = store.listToolCalls('session-1');
+      expect(rows).toHaveLength(2);
+      expect(rows.map((row) => row.idempotencyKey)).toEqual(['k1', 'k1']);
+      // And a keyed refusal is recorded just as plainly as a keyed success.
+      expect(
+        store.insertToolCall(
+          toolCall({ id: 'tc-c', idempotencyKey: 'k1', status: 'refused', error: 'unknown-tool' }),
+        ),
+      ).toBe(true);
+      expect(store.listToolCalls('session-1')).toHaveLength(3);
+    });
+
     it('keeps sessions apart and lists newest first', () => {
       store.insertToolCall(toolCall({ id: 'tc-1', at: '2026-01-01T00:01:00.000Z' }));
       store.insertToolCall(toolCall({ id: 'tc-2', at: '2026-01-01T00:02:00.000Z' }));

@@ -459,6 +459,16 @@ describe('FocusLoopEngine', () => {
           .listEvents(session.id)
           .filter((event) => event.type === 'AGENT_PROPOSAL_EXECUTED'),
       ).toHaveLength(1);
+      /*
+       * The rescue's own rewrite is *not* announced as pending (#209): the tap on Accept was the
+       * confirmation, so there is nothing for a dialog to wait for — pushing one would offer the
+       * learner a change that has already happened.
+       */
+      expect(
+        ctx.engine
+          .listEvents(session.id)
+          .filter((event) => event.type === 'AGENT_PROPOSAL_PROPOSED'),
+      ).toHaveLength(0);
     });
 
     it('changes the task once when the learner accepts the same rescue twice', () => {
@@ -1205,9 +1215,13 @@ describe('FocusLoopEngine', () => {
       });
 
       expect(response.resumeCard?.card.variant).toBe('long');
+      // The idea is c-bst's own summary — buildRescueGrounding('HINT', …)'s selection, not a sentence
+      // this test wrote: rbt-t1's concept, quoted because it is quotable (#193, decision C).
       expect(response.resumeCard?.card.refresher).toEqual({
         key: 'resume.refresher.long',
-        params: { seconds: '30' },
+        params: {
+          idea: 'A BST keeps every left descendant smaller and every right descendant larger.',
+        },
       });
     });
 
@@ -2196,9 +2210,33 @@ describe('FocusLoopEngine', () => {
   });
 
   describe('structural proposal envelope', () => {
+    it('announces a proposal left for the learner, with the proposal in its payload (#209)', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      const proposed = ctx.engine.proposeStructuralChange({
+        sessionId: session.id,
+        kind: 'structural-write',
+        payload: { op: 'demo' },
+        createdBy: 'engine-test',
+        idempotencyKey: 'engine-key-proposed',
+      });
+
+      expect(proposed.proposal).not.toBeNull();
+      expect(proposed.event).not.toBeNull();
+      expect(proposed.event!.type).toBe('AGENT_PROPOSAL_PROPOSED');
+      expect(proposed.event!.payload.proposal.id).toBe(proposed.proposal!.id);
+      expect(proposed.event!.sessionId).toBe(session.id);
+
+      // The event is stored, not only pushed: the log is where the asking is kept.
+      const stored = ctx.engine
+        .listEvents(session.id)
+        .find((event) => event.type === 'AGENT_PROPOSAL_PROPOSED');
+      expect(stored?.id).toBe(proposed.event!.id);
+      expect(stored?.payload).toEqual({ proposal: proposed.proposal });
+    });
+
     it('propose → confirm → execute is the only structural write path', () => {
       const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
-      const proposal = ctx.engine.proposeStructuralChange({
+      const { proposal } = ctx.engine.proposeStructuralChange({
         sessionId: session.id,
         kind: 'structural-write',
         payload: { op: 'demo' },

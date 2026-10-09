@@ -29,6 +29,7 @@ import { contextInspectorVisibleOn } from './core/inspector-visibility';
 import { isFocusRoute } from './core/focus-notice';
 import { ResumeCardComponent } from './components/resume-card.component';
 import { DataControlsComponent } from './components/data-controls.component';
+import { ProposalConfirmComponent } from './components/proposal-confirm.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
 import { AgentContextPanelComponent } from './components/agent-context-panel.component';
 import { SimulatorBarComponent } from './components/simulator-bar.component';
@@ -63,6 +64,7 @@ const PEEK_CLOSE_DELAY_MS = 150;
     AgentContextPanelComponent,
     SimulatorBarComponent,
     DataControlsComponent,
+    ProposalConfirmComponent,
   ],
   template: `
     <div
@@ -255,6 +257,11 @@ const PEEK_CLOSE_DELAY_MS = 150;
       <fl-agent-panel />
       <fl-resume-card />
     }
+    <!--
+      A proposal can be raised while the learner is anywhere, and a confirmation they cannot reach
+      is not a confirmation — so this sits outside the focus-route block the resume card is in.
+    -->
+    <fl-proposal-confirm />
     <!--
       The inspector is a fixed overlay, and the dashboard is where it does harm: it sits across the
       "today" card in the sidebar and the totals that screen exists to show. Kept on every other route,

@@ -302,6 +302,7 @@ export const zh: Record<MessageKey, string> = {
   'event.type.RESUME_DISMISSED': '你选择了暂不继续',
   'event.type.SESSION_ENDED': '会话结束',
   'event.type.AGENT_PROPOSAL_EXECUTED': '应用了一项建议的变更',
+  'event.type.AGENT_PROPOSAL_PROPOSED': '提议了变更',
   'event.type.TASKS_REORDERED': '你更改了顺序',
 
   'event.source.user': '你',
@@ -394,7 +395,7 @@ export const zh: Record<MessageKey, string> = {
   'resume.context.plain': '你当时正在处理「{concept}」。目标是：{goal}',
   'resume.context.moment': '你刚刚还在处理「{concept}」。目标是：{goal}',
   'resume.context.away': '你当时正在处理「{concept}」，中间离开了 {duration}。目标是：{goal}',
-  'resume.refresher.long': '先用 {seconds} 秒回忆关键概念，再继续。',
+  'resume.refresher.long': '这一步背后的关键概念：{idea}',
   // Deterministic AG2 rescue steps
   'rescue.microStart.first': '打开任务，先做眼前最容易看见的一步。',
   'rescue.simplify.identify': '说清楚这项任务只要求哪一个结果。',
@@ -475,6 +476,13 @@ export const zh: Record<MessageKey, string> = {
   'proposal.refusal.already-refused': '这项变更已经拒绝过了。',
   'proposal.refusal.not-confirmed': '请先确认，变更才能执行。',
   'proposal.refusal.forged-id': '变更标识无效。',
+  // 确认对话框（#209）。等级标签按 ADR 0003 的矩阵随 kind 走。
+  'proposal.level.structural-write': '需要你确认',
+  'proposal.confirm.title': '确认这项变更',
+  'proposal.confirm.change': '将要发生的改变',
+  'proposal.confirm.why': '发起方',
+  'proposal.confirm.apply': '确认',
+  'proposal.confirm.dismiss': '暂不',
   // 工具调用拒绝（AG8.1）。拒绝永远是一个学习者读得懂的理由。
   'tool.refusal.unknown-tool': '没有这个操作，什么也没有执行。',
   'tool.refusal.bad-schema': '这次操作没有被理解，什么也没有执行。',

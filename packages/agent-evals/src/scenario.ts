@@ -10,12 +10,17 @@ export interface JsonObject {
 export const SCENARIO_SCHEMA_VERSION = 1 as const;
 export const AG1_CAPABILITY = 'AG1' as const;
 export const AG2_CAPABILITY = 'AG2' as const;
+export const AG3_CAPABILITY = 'AG3' as const;
 export const AG5_CAPABILITY = 'AG5' as const;
 export const AG9_CAPABILITY = 'AG9' as const;
 
 /** Capabilities intentionally supported by the deterministic scenario format. */
 export type EvalCapability =
-  typeof AG1_CAPABILITY | typeof AG2_CAPABILITY | typeof AG5_CAPABILITY | typeof AG9_CAPABILITY;
+  | typeof AG1_CAPABILITY
+  | typeof AG2_CAPABILITY
+  | typeof AG3_CAPABILITY
+  | typeof AG5_CAPABILITY
+  | typeof AG9_CAPABILITY;
 
 export type ScenarioKind = 'happy' | 'edge' | 'adversarial';
 
@@ -234,6 +239,7 @@ export function parseScenario(value: unknown): EvalScenario {
   if (
     value.capability !== AG1_CAPABILITY &&
     value.capability !== AG2_CAPABILITY &&
+    value.capability !== AG3_CAPABILITY &&
     value.capability !== AG5_CAPABILITY &&
     value.capability !== AG9_CAPABILITY
   ) {

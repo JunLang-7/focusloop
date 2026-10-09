@@ -22,6 +22,7 @@ import type {
   ToolCall,
 } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
+import { TOOL_REFUSAL_REASONS } from '@focusloop/shared-types';
 import { migrate } from './migrations';
 import { readFlag, readInt, readNullableInt, readNullableText, readText } from './row';
 import type { SqlDatabase, SqlRow } from './sqlite-database';
@@ -694,6 +695,12 @@ export class FocusLoopStore {
   /**
    * Inserts one tool-call attempt — success or refusal, the attempt is the record.
    * Returns false when the id already exists (hostile replay of the same insert).
+   *
+   * The id is the only key this de-duplicates on. `idempotencyKey` is caller-chosen and is
+   * *recorded* rather than enforced (see migration 0007): making it unique would let a repeated
+   * key fail the insert, and an audit whose job is to hold every attempt — including the hostile
+   * ones — must not be abortable by the call it is recording. A write tool that needs "run once"
+   * gets it from the proposal envelope, not from this table.
    */
   insertToolCall(call: ToolCall): boolean {
     const exists = this.db.prepare('SELECT 1 FROM tool_calls WHERE id = ?;').get(call.id);
@@ -730,7 +737,7 @@ export class FocusLoopStore {
       args: parseToolArgs(readText(row, 'tool_calls', 'args')),
       status: readText(row, 'tool_calls', 'status') === 'ok' ? 'ok' : 'refused',
       confirmation: readNullableText(row, 'tool_calls', 'confirmation'),
-      error: (readNullableText(row, 'tool_calls', 'error') ?? null) as ToolCall['error'],
+      error: readRefusalReason(row),
       at: readText(row, 'tool_calls', 'at'),
       idempotencyKey: readNullableText(row, 'tool_calls', 'idempotency_key'),
     }));
@@ -1010,4 +1017,18 @@ function parseToolArgs(text: string): Record<string, unknown> {
     // fall through to the empty record below
   }
   return {};
+}
+
+/**
+ * The refusal reason a row carries, checked against the closed list rather than cast.
+ *
+ * `status` is narrowed the same way beside it: a corrupted row should read as "no reason recorded"
+ * rather than hand the renderer a reason no message key maps to — which is the one way this column
+ * could show a learner an untranslatable string.
+ */
+function readRefusalReason(row: SqlRow): ToolCall['error'] {
+  const raw = readNullableText(row, 'tool_calls', 'error');
+  return raw !== null && (TOOL_REFUSAL_REASONS as readonly string[]).includes(raw)
+    ? (raw as ToolCall['error'])
+    : null;
 }

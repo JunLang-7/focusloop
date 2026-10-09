@@ -4,6 +4,7 @@ import type {
   AgentContextReport,
   AgentProposal,
   AgentProposalKind,
+  AgentProposalProposedEvent,
   ConfirmProposalRequest,
   Course,
   DashboardSummary,
@@ -36,6 +37,8 @@ import type {
   SimulatorCommand,
   StartSessionResponse,
   ThemePreference,
+  ToolCallRequest,
+  ToolCallResult,
   TutorAnswer,
   TutorAskRequest,
   TutorContextReport,
@@ -43,8 +46,7 @@ import type {
   TutorReply,
   TutorUnavailableReason,
   TaskRewrite,
-  ToolCallRequest,
-  ToolCallResult,
+  ProposeStructuralChangeResponse,
 } from '@focusloop/shared-types';
 import {
   TASK_REWRITE_ACTIONS,
@@ -1069,9 +1071,26 @@ export class FocusLoopEngine {
         recentEvents: this.store.listEvents(session.id),
         now: checkpoint.createdAt,
         currentStepText: this.servedStepText(course),
+        refresherIdea: this.refresherIdea(session.id),
       }),
       timing,
     };
+  }
+
+  /**
+   * The idea a long card names instead of asking the learner to recall one (#193, decision C).
+   *
+   * The selection is `buildRescueGrounding('HINT', …)`'s own — concept summary, else first key
+   * point, with the guard that rejects text merely repeating the task — taken from the same
+   * AgentContext a HINT quotes, never generated. `null` when nothing is quotable: the card then
+   * carries no refresher rather than a demand it cannot support.
+   */
+  private refresherIdea(sessionId: string): string | null {
+    const grounding = buildRescueGrounding(
+      'HINT',
+      this.contextFor(this.requireSession(sessionId)).context,
+    );
+    return grounding?.text ?? null;
   }
 
   /**
@@ -1427,7 +1446,7 @@ export class FocusLoopEngine {
     if (this.store.getAgentProposalByIdempotencyKey(key) !== null) return;
     const built = buildTaskRewrite(action, this.contextFor(record).context);
     if (built.status !== 'suggested') return;
-    const proposal = this.proposeStructuralChange({
+    const proposal = this.createStructuralProposal({
       sessionId: record.session.id,
       kind: 'structural-write',
       // The intervention id is carried so the rewrite can be ended by the learner continuing the task,
@@ -1726,6 +1745,41 @@ export class FocusLoopEngine {
    * The learner (or a later tool) must confirm it before it can execute.
    */
   proposeStructuralChange(input: {
+    sessionId: string;
+    kind: AgentProposalKind;
+    payload: Record<string, unknown>;
+    createdBy: string;
+    idempotencyKey: string;
+    ttlMs?: number;
+  }): ProposeStructuralChangeResponse {
+    const proposal = this.createStructuralProposal(input);
+    if (proposal === null) return { proposal: null, event: null };
+    /*
+     * The announcement is an event, not a message: the log is where the asking is kept (#23), and
+     * the renderer's one listening channel is the event push, so this is also how the confirmation
+     * dialog learns there is something to confirm. Appended, never reduced — like
+     * `AGENT_PROPOSAL_EXECUTED`, this is an audit fact, not a transition.
+     */
+    const event: AgentProposalProposedEvent = {
+      id: this.idFactory(),
+      sessionId: proposal.sessionId,
+      at: proposal.proposedAt,
+      type: 'AGENT_PROPOSAL_PROPOSED',
+      source: 'agent',
+      payload: { proposal },
+    };
+    this.store.appendEvent(event);
+    return { proposal, event };
+  }
+
+  /**
+   * Create without announcing — for the caller whose confirmation already happened (#209).
+   *
+   * The rescue's rewrite is proposed, confirmed and executed inside one accept: the tap was the
+   * confirmation, so announcing a pending proposal would offer the learner a change that is already
+   * done by the time the dialog could open.
+   */
+  private createStructuralProposal(input: {
     sessionId: string;
     kind: AgentProposalKind;
     payload: Record<string, unknown>;

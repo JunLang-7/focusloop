@@ -9,3 +9,11 @@ export * from './config';
 export * from './policy';
 export * from './outcomes';
 export * from './rescue';
+/**
+ * The fixtures the policy's own specs build their inputs from.
+ *
+ * Public on purpose, for the same reason `agent-core` ships `test-helpers`: a consumer that wants to
+ * ask the policy a question should not have to re-invent `engineWith` and get the state machine's
+ * default shape subtly wrong.
+ */
+export * from './fixtures';

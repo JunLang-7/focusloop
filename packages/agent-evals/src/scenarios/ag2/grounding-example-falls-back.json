@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-grounding-example-falls-back",
+  "capability": "AG2",
+  "kind": "edge",
+  "description": "With no material to quote, EXAMPLE falls back to the concept's LAST key point — not the first, which belongs to the HINT.",
+  "input": {
+    "action": "EXAMPLE"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "source",
+      "value": "concept-key-point"
+    },
+    {
+      "type": "equals",
+      "path": "text",
+      "value": "a rotation keeps the order"
+    },
+    {
+      "type": "equals",
+      "path": "grounded",
+      "value": true
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "value": "in-order traversal is sorted"
+    }
+  ]
+}

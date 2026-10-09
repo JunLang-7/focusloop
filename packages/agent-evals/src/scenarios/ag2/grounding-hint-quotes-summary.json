@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-grounding-hint-quotes-summary",
+  "capability": "AG2",
+  "kind": "happy",
+  "description": "A HINT quotes the concept's summary, and never the task's own words.",
+  "input": {
+    "action": "HINT"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "source",
+      "value": "concept-summary"
+    },
+    {
+      "type": "equals",
+      "path": "text",
+      "value": "A rotation restructures three nodes."
+    },
+    {
+      "type": "equals",
+      "path": "grounded",
+      "value": true
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "value": "Read rotations"
+    }
+  ]
+}

@@ -283,6 +283,12 @@ export const MIGRATIONS: readonly Migration[] = [
     id: '0007-tool-calls',
     sql: `
       -- AG8.1: one row per tool-call attempt, refusals included — AG8.8's raw material.
+      --
+      -- idempotency_key is recorded, not enforced. The attempt is the record, so a second call
+      -- carrying the same key is a second row rather than a constraint error: a UNIQUE here would
+      -- let a caller-chosen value abort the audit write for its own attempt, which is exactly what
+      -- the contract promises cannot happen. Where a key must mean "run once", that is the proposal
+      -- envelope's job (agent_proposals.idempotency_key is UNIQUE) and a write tool goes through it.
       CREATE TABLE IF NOT EXISTS tool_calls (
         id TEXT PRIMARY KEY,
         session_id TEXT NOT NULL,
@@ -291,7 +297,7 @@ export const MIGRATIONS: readonly Migration[] = [
         status TEXT NOT NULL,
         confirmation TEXT,
         error TEXT,
-        idempotency_key TEXT UNIQUE,
+        idempotency_key TEXT,
         at TEXT NOT NULL
       );
       CREATE INDEX IF NOT EXISTS idx_tool_calls_session
