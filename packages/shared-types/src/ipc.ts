@@ -384,6 +384,11 @@ export interface FocusLoopApi {
    */
   getOutboundRequest(sessionId: string): Promise<OutboundRequest | null>;
   /**
+   * This session's tool-call attempts, newest first, each resolved to the event it produced (AG8.8).
+   *
+   * Read-only audit surface: it lists what was attempted and what became of it. Calling it cannot
+   * run, confirm or decline anything — that is what the tool contract's own channels are for.
+   */
   listToolCalls(sessionId: string): Promise<readonly ToolCallRecord[]>;
   /**
    * What agent memory exists for a session, per source (AG7.5): count, newest time, opaque clear.
