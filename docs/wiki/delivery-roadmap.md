@@ -87,7 +87,7 @@ Home
 
 ### AG3 Contextual Tutor — 已合并（`107a30f`，PR #101）
 
-- 当前证据（分支 `d1e6b03`，PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101)，**未合并**）：六种 TutorMode 全部建模；当前步骤入口；主进程保存有界 transcript；结构化 parts 校验；格式失败可重试；回答与用户原话引用校验；材料 section grounding 与 source 展示；provider 失败有本地 fallback；大量边界测试。
+- 当前证据（`main` 的 `107a30f`，PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101)）：六种 TutorMode 全部建模；当前步骤入口；主进程保存有界 transcript；结构化 parts 校验；格式失败可重试；回答与用户原话引用校验；材料 section grounding 与 source 展示；provider 失败有本地 fallback（闭合码，渲染期查表）；大量边界测试。
 - 差距：真实 provider 下的质量基线与双语场景数据不足；当前“source”是所给 excerpt，不是细粒度引用定位；流式/取消属于 AG9 未完成；会话 transcript 未持久化且缺少用户可清除入口（需明确这是隐私选择还是缺口）。
 - 验收标准：六模式只产生允许的 parts；问题自动绑定当前 task；切换 task/session 不串答；follow-up 不越过上下文预算；无材料依据时不伪造来源；错误格式、provider failure、offline 均有可理解降级；中英文核心场景通过固定 eval。
 - 依赖：AG1、AG9；AG10 grounding/quality eval。
@@ -126,10 +126,10 @@ Home
 - 风险：小样本伪规律；把情境行为当人格；确认疲劳；反馈循环；跨课程偏好错误泛化。
 - 实施步骤：先写伦理/语言规范 → 定义统计特征和最小样本 → reflection proposal（只读）→ confirmation → preference store/UI → 效果对照 → weekly summary。
 
-### AG7 Memory — PR 已开（删除语义已按 ADR 0001 冻结，清除原语见 PR #129）
+### AG7 Memory — 已合并（删除语义见 ADR 0001；检查 UI / 偏好 / 时间窗清理见 #221、#222、#223）
 
-- 当前证据：当前 session/context 是 working-memory 等价物；events/checkpoints/interventions/outcomes 是 episodic 数据；SQLite local-first 且有迁移与 round-trip 测试。
-- 差距：没有明确 Memory scopes API；没有按目的/保留期查询与删除；没有 learner-preference schema/store/inspection；Tutor transcript 是进程内临时状态且生命周期未在产品层说明。
+- 当前证据（`main`）：当前 session/context 是 working-memory 等价物；events/checkpoints/interventions/outcomes 是 episodic 数据；SQLite local-first 且有迁移与 round-trip 测试。三类边界由 `AGENT_MEMORY_SCOPES` 与聚合读取固定（`5e3d764`，#221）；偏好有表、有单项删除与不透明审计（`cb2d33a`，#222）；episodic 有按时间窗的有界读取与跨 session 批量清理（`d40ba0a`，#223）。
+- 差距：`AgentContextOmission.detail` 仍是英文句子（§4.F3）；preference 的**产生**路径属于 AG6（尚无确认链路），当前 API 只负责存放、读回与删除；时间窗清理目前只由 IPC 暴露，产品里还没有触发点。
 - 验收标准：Working/Episodic/Preference 三类边界清晰；每类有 purpose、来源、保留期、读取者；偏好显式、可编辑、可单项删/全清；清除后上下文与反思不再引用；禁止存储诊断、智力、人格、心理健康推断；所有 query 有数量/时间窗上限。
 - **删除语义已冻结** — 见 [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110）：
   1. Working / Episodic / Preference 均为**物理删除**（Preference 待 AG6/AG7 实现时同规则）。
@@ -140,10 +140,10 @@ Home
 - 风险：删除不彻底（派生表/缓存）；scope creep；长期日志增长；同步功能未来破坏 local-first 假设。
 - 实施步骤：~~删除语义冻结（已完成，ADR 0001）~~ → Data Inventory → MemoryPolicy/Query contract → episodic bounded queries → preference migration/repository → inspection & delete UI → cache invalidation tests → privacy regression。
 
-### AG8 Tool & Action — 设计完成（`main` 上只有 domain commands，没有 Agent Tool 系统）
+### AG8 Tool & Action — 已合并一部分（contract / 读工具 / 权限矩阵 / 确认屏 / 审计在 `main`；写工具与模型工具调用未实现）
 
-- 当前证据：engine、IPC 已有 start/pause/resume/complete、事件分发等应用命令；输入验证和事件日志可复用。
-- 差距：没有统一 `AgentTool` contract/registry；没有 safe-read/reversible-write/structural-write 权限；没有 model tool-call 解析/验证；没有通用 proposal-confirm-execute；没有专用 tool audit record。
+- 当前证据（`main`）：engine、IPC 已有 start/pause/resume/complete、事件分发等应用命令；输入验证和事件日志可复用。`AgentTool` contract 与注册表、四个读工具在主进程校验（`e59ea9b`，#217）；安全读/可逆写/结构写三级权限冻结为 ADR 0003（`b624064`，#216）；每次尝试都有 `tool_calls` 审计行，参数落库前脱敏、事件一条查询回解（`d08790f`，#219）；结构写有确认屏（`b870e00`，#218）。
+- 差距：写工具（AG8.3–8.5）未实现；provider 侧还没有工具调用解析，所以 `executeToolCall` 目前没有模型入口；批量/计划级工具与撤销语义未定。
 - 验收标准：LLM 永不直接访问 store；每个 tool 有 typed input/output、权限、idempotency、precondition；safe reads 可自动执行，reversible writes 明示反馈，structural writes 必须逐次确认；确认绑定精确 proposal hash/版本且过期失效；执行产生 domain event 和 audit；未知/畸形/越权 tool call 被拒绝。
 - 依赖：AG9 structured output；现有 engine/IPC；AG10 tool safety harness。
 - 风险：prompt injection 越权；确认后状态已变化（TOCTOU）；重试导致重复写；把 IPC 方法直接暴露为模型工具造成攻击面过大。
