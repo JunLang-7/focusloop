@@ -4,6 +4,7 @@ import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
 import type { AgentProposalProposedEvent, LearningEvent, SessionEndReason } from './events';
 import type { AgentMemoryListResult, AgentMemoryScope, AgentMemorySummaryResult } from './memory';
+import type { LearnerPreferenceListResult, PreferenceDeleteResult } from './learner-preference';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { RescueView } from './rescue';
 import type { InsightsRequest, InsightsSummary } from './insights';
@@ -54,6 +55,8 @@ export const IPC_CHANNELS = {
   memorySummary: 'focusloop:agent:memory-summary',
   memoryList: 'focusloop:agent:memory-list',
   memoryClear: 'focusloop:agent:memory-clear',
+  preferencesList: 'focusloop:agent:preferences-list',
+  preferenceDelete: 'focusloop:agent:preference-delete',
   proposeStructuralChange: 'focusloop:agent:propose',
   confirmProposal: 'focusloop:agent:confirm-proposal',
   executeProposal: 'focusloop:agent:execute-proposal',
@@ -401,6 +404,16 @@ export interface FocusLoopApi {
   listMemory(sessionId: string, scope: AgentMemoryScope): Promise<AgentMemoryListResult>;
   /** Clears session memory through the tested engine path (ADR 0001); null when the session is not. */
   clearAgentMemory(sessionId: string): Promise<{ clearedAt: string; actor: string } | null>;
+  /** This session's stored preferences, newest first; refused like the memory reads (AG7.4). */
+  listPreferences(sessionId: string): Promise<LearnerPreferenceListResult>;
+  /**
+   * Deletes one preference (AG7.6). Idempotent — the second delete of an id is `deleted: false`,
+   * not an error — and another session's row is a refusal, never a row that quietly vanished.
+   */
+  deletePreference(request: {
+    readonly id: string;
+    readonly sessionId: string;
+  }): Promise<PreferenceDeleteResult>;
 
   /**
    * Builds a structural proposal bound to the session's current state.

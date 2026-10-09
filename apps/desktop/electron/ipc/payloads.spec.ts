@@ -19,6 +19,7 @@ import {
   parseInsightsRequest,
   parseMemoryList,
   parseNoArgs,
+  parsePreferenceDelete,
   parseProposeStructuralChange,
   parseResolveIntervention,
   parseResumeDecision,
@@ -81,10 +82,20 @@ describe('the preload and the main process agree on every payload', () => {
       IPC_CHANNELS.listToolCalls,
       IPC_CHANNELS.memorySummary,
       IPC_CHANNELS.memoryClear,
+      IPC_CHANNELS.preferencesList,
     ];
     for (const channel of channels) {
       expect(parseSessionId(channel, payload.sessionId('session-1'))).toBe('session-1');
     }
+  });
+
+  it('the preference-delete channel accepts what the preload sends', () => {
+    expect(
+      parsePreferenceDelete(
+        IPC_CHANNELS.preferenceDelete,
+        payload.preferenceDelete('p-1', 'session-1'),
+      ),
+    ).toEqual({ id: 'p-1', sessionId: 'session-1' });
   });
 
   it('the memory-list channel accepts what the preload sends, for every scope', () => {

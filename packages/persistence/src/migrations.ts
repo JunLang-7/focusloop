@@ -304,6 +304,39 @@ export const MIGRATIONS: readonly Migration[] = [
         ON tool_calls(session_id, at, id);
     `,
   },
+  {
+    // 0007 is reserved for the tool-calls migration (#217): ids must be unique, not contiguous.
+    id: '0008-learner-preferences',
+    sql: `
+      -- AG7.4: what the agent learned about how this learner likes to work, readable back by the
+      -- learner (value is JSON, source an identifier) and carrying the evidence it rests on (AG7.5/AG6).
+      CREATE TABLE IF NOT EXISTS learner_preferences (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        scope TEXT NOT NULL,
+        value TEXT NOT NULL,
+        evidence_window_start TEXT NOT NULL,
+        evidence_window_end TEXT NOT NULL,
+        evidence_sample_size INTEGER NOT NULL,
+        source TEXT NOT NULL,
+        confirmed_at TEXT,
+        expires_at TEXT,
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_learner_preferences_session
+        ON learner_preferences(session_id, created_at DESC, id);
+
+      -- AG7.6's audit (ADR 0001): ids and times and an actor — no scope, no value, no evidence,
+      -- because an audit that kept the preference would defeat deleting it.
+      CREATE TABLE IF NOT EXISTS learner_preference_deletions (
+        preference_id TEXT NOT NULL,
+        session_id TEXT NOT NULL,
+        deleted_at TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        PRIMARY KEY (preference_id, deleted_at)
+      );
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

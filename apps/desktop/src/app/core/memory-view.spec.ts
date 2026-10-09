@@ -6,9 +6,12 @@ import {
   MEMORY_REASON_KEYS,
   MEMORY_SCOPE_KEYS,
   MEMORY_SOURCE_KEYS,
+  PREFERENCE_SCOPE_KEYS,
   memoryRefusalKey,
   memoryRows,
+  preferenceRowView,
 } from './memory-view';
+import { LEARNER_PREFERENCE_SCOPES, type LearnerPreference } from '@focusloop/shared-types';
 
 function summary(counts: Record<string, number>): AgentMemorySummary {
   return {
@@ -76,5 +79,55 @@ describe('memory rows as the data panel shows them (AG7.5)', () => {
         messageKey: 'memory.refusal.no-session',
       }),
     ).toBe('memory.refusal.no-session');
+  });
+});
+
+function preference(overrides: Partial<LearnerPreference> = {}): LearnerPreference {
+  return {
+    id: 'pref-1',
+    sessionId: 's1',
+    scope: 'task-size',
+    value: { stepMinutes: 2 },
+    evidence: {
+      windowStart: '2026-01-01T00:00:00.000Z',
+      windowEnd: '2026-01-08T00:00:00.000Z',
+      sampleSize: 6,
+    },
+    source: 'ag6.task-size',
+    confirmedAt: '2026-01-08T00:05:00.000Z',
+    expiresAt: null,
+    createdAt: '2026-01-08T00:05:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('a stored preference as the panel shows it (AG7.4/7.6)', () => {
+  const clock = (iso: string | null): string => (iso === null ? '—' : iso.slice(11, 16));
+
+  it('names every scope in the closed vocabulary', () => {
+    for (const scope of LEARNER_PREFERENCE_SCOPES) {
+      expect(PREFERENCE_SCOPE_KEYS[scope]).toBe(`app.data.preference.scope.${scope}`);
+    }
+  });
+
+  it('shows the value as bounded text, the evidence as its window, and whether it is confirmed', () => {
+    const row = preferenceRowView(preference(), clock);
+    expect(row.scopeKey).toBe('app.data.preference.scope.task-size');
+    expect(row.valueText).toBe('{"stepMinutes":2}');
+    expect(row.evidenceParams).toEqual({
+      samples: '6',
+      from: '00:00',
+      to: '00:00',
+    });
+    expect(row.confirmedAt).not.toBeNull();
+  });
+
+  it('says plainly when nothing has confirmed it yet, and bounds a value that would grow the row', () => {
+    const unconfirmed = preferenceRowView(preference({ confirmedAt: null }), clock);
+    expect(unconfirmed.confirmedAt).toBeNull();
+
+    const long = preferenceRowView(preference({ value: { note: 'x'.repeat(500) } }), clock);
+    expect(long.valueText.length).toBeLessThanOrEqual(140);
+    expect(long.valueText.endsWith('…')).toBe(true);
   });
 });

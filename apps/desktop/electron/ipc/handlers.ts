@@ -28,6 +28,7 @@ import {
   parseSimulatorCommand,
   parseStartSession,
   parseMemoryList,
+  parsePreferenceDelete,
 } from './validate';
 
 interface Handler<TPayload, TResult> {
@@ -307,6 +308,16 @@ export function createHandlers(service: FocusLoopService) {
       channel: IPC_CHANNELS.memoryClear,
       parse: parseSessionId,
       handle: (sessionId) => engine.clearAgentMemory(sessionId, { actor: 'user' }),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.preferencesList,
+      parse: parseSessionId,
+      handle: (sessionId) => engine.listPreferences(sessionId),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.preferenceDelete,
+      parse: parsePreferenceDelete,
+      handle: (request) => engine.deletePreference(request),
     }),
     defineHandler({
       channel: IPC_CHANNELS.proposeStructuralChange,

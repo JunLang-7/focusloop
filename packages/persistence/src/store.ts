@@ -19,6 +19,8 @@ import type {
   MicroTaskKind,
   Quiz,
   AgentMemorySourceCount,
+  LearnerPreference,
+  LearnerPreferenceScope,
   ResumeCardTiming,
   ToolCall,
   ToolCallRecord,
@@ -699,18 +701,27 @@ export class FocusLoopStore {
       latestAt: readNullableText(row, 'memory', 'latest'),
     }));
 
-    // Assigned on both paths: the query answers, the catch answers for a table that is not there yet.
-    let preferences: number;
+    // Assigned on both paths: the query answers, and the catch answers for a store whose migrations
+    // have not run — absent stays a count of zero rather than taking the whole inspection down.
+    let preferenceCount: number;
+    let preferenceLatest: string | null;
     try {
       const row = this.db
-        .prepare('SELECT COUNT(*) AS total FROM learner_preferences WHERE session_id = ?;')
-        .get(sessionId) as { total: number } | undefined;
-      preferences = row?.total ?? 0;
+        .prepare(
+          'SELECT COUNT(*) AS total, MAX(created_at) AS latest FROM learner_preferences WHERE session_id = ?;',
+        )
+        .get(sessionId) as { total: number; latest: string | null } | undefined;
+      preferenceCount = row?.total ?? 0;
+      preferenceLatest = row?.latest ?? null;
     } catch {
-      // The table lands in #214; absent is a count of zero, not an error.
-      preferences = 0;
+      preferenceCount = 0;
+      preferenceLatest = null;
     }
-    counts.push({ source: 'learner_preferences', count: preferences, latestAt: null });
+    counts.push({
+      source: 'learner_preferences',
+      count: preferenceCount,
+      latestAt: preferenceLatest,
+    });
     return counts;
   }
 
@@ -743,6 +754,118 @@ export class FocusLoopStore {
     return rows.map((row) => ({
       source: readText(row, 'memory', 'source'),
       at: readText(row, 'memory', 'at'),
+    }));
+  }
+
+  // --------------------------------------------------------- learner preferences (AG7.4/7.6)
+
+  /**
+   * Stores one preference. Returns false when the id exists (one id, one row).
+   *
+   * Evidence is validated here rather than trusted from the type: an inference without a window and
+   * a sample is not representable in `shared-types`, and this is the same rule enforced for callers
+   * that arrive without the compiler — the schema cannot carry an unbacked claim (AG7.4).
+   */
+  insertLearnerPreference(preference: LearnerPreference): boolean {
+    const evidence = preference.evidence as unknown as Record<string, unknown> | undefined;
+    const start =
+      typeof evidence?.['windowStart'] === 'string'
+        ? Date.parse(evidence['windowStart'])
+        : Number.NaN;
+    const end =
+      typeof evidence?.['windowEnd'] === 'string' ? Date.parse(evidence['windowEnd']) : Number.NaN;
+    const sampleSize = evidence?.['sampleSize'];
+    const validWindow = Number.isFinite(start) && Number.isFinite(end) && end >= start;
+    const validSample =
+      typeof sampleSize === 'number' && Number.isInteger(sampleSize) && sampleSize > 0;
+    if (!validWindow || !validSample) {
+      throw new RangeError(
+        'LearnerPreference evidence must be a time window and a positive integer sample size',
+      );
+    }
+
+    const exists = this.db
+      .prepare('SELECT 1 FROM learner_preferences WHERE id = ?;')
+      .get(preference.id);
+    if (exists !== undefined) return false;
+    const result = this.db
+      .prepare(
+        `INSERT INTO learner_preferences
+           (id, session_id, scope, value, evidence_window_start, evidence_window_end,
+            evidence_sample_size, source, confirmed_at, expires_at, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      )
+      .run(
+        preference.id,
+        preference.sessionId,
+        preference.scope,
+        JSON.stringify(preference.value),
+        preference.evidence.windowStart,
+        preference.evidence.windowEnd,
+        preference.evidence.sampleSize,
+        preference.source,
+        preference.confirmedAt,
+        preference.expiresAt,
+        preference.createdAt,
+      );
+    return result.changes > 0;
+  }
+
+  /** A session's preferences, newest first — content the learner reads back, not opaque rows. */
+  listLearnerPreferences(sessionId: string): readonly LearnerPreference[] {
+    const rows = this.db
+      .prepare(
+        'SELECT * FROM learner_preferences WHERE session_id = ? ORDER BY created_at DESC, id DESC;',
+      )
+      .all(sessionId) as readonly SqlRow[];
+    return rows.map(mapLearnerPreference);
+  }
+
+  getLearnerPreference(id: string): LearnerPreference | null {
+    const row = this.db.prepare('SELECT * FROM learner_preferences WHERE id = ?;').get(id);
+    return row === undefined ? null : mapLearnerPreference(row as SqlRow);
+  }
+
+  /**
+   * Deletes one preference **for the session that owns it**, and writes the opaque audit in the
+   * same transaction. Returns false for another session's row (0 rows, no throw) and for an id that
+   * is already gone — both are completed no-ops, which is what makes the delete idempotent.
+   */
+  deleteLearnerPreference(
+    id: string,
+    sessionId: string,
+    deletedAt: string,
+    actor: string,
+  ): boolean {
+    const run = this.db.transaction(() => {
+      const deleted = this.db
+        .prepare('DELETE FROM learner_preferences WHERE id = ? AND session_id = ?;')
+        .run(id, sessionId);
+      if (deleted.changes === 0) return false;
+      this.db
+        .prepare(
+          `INSERT INTO learner_preference_deletions (preference_id, session_id, deleted_at, actor)
+           VALUES (?, ?, ?, ?);`,
+        )
+        .run(id, sessionId, deletedAt, actor);
+      return true;
+    });
+    return run();
+  }
+
+  /** The opaque deletion audit: ids, times, actor — never the preference that was removed. */
+  listPreferenceDeletions(
+    sessionId: string,
+  ): readonly { preferenceId: string; deletedAt: string; actor: string }[] {
+    const rows = this.db
+      .prepare(
+        'SELECT * FROM learner_preference_deletions WHERE session_id = ? ORDER BY deleted_at DESC;',
+      )
+      .all(sessionId) as readonly SqlRow[];
+    return rows.map((row) => ({
+      preferenceId: readText(row, 'learner_preference_deletions', 'preference_id'),
+      deletedAt: readText(row, 'learner_preference_deletions', 'deleted_at'),
+      actor: readText(row, 'learner_preference_deletions', 'actor'),
     }));
   }
 
@@ -974,6 +1097,24 @@ function mapEvent(row: SqlRow): LearningEvent {
     at: readText(row, 'learning_events', 'at'),
     payload: parseJson<Record<string, unknown>>(readText(row, 'learning_events', 'payload'), {}),
   } as LearningEvent;
+}
+
+function mapLearnerPreference(row: SqlRow): LearnerPreference {
+  return {
+    id: readText(row, 'learner_preferences', 'id'),
+    sessionId: readText(row, 'learner_preferences', 'session_id'),
+    scope: readText(row, 'learner_preferences', 'scope') as LearnerPreferenceScope,
+    value: parseJson<Record<string, unknown>>(readText(row, 'learner_preferences', 'value'), {}),
+    evidence: {
+      windowStart: readText(row, 'learner_preferences', 'evidence_window_start'),
+      windowEnd: readText(row, 'learner_preferences', 'evidence_window_end'),
+      sampleSize: readInt(row, 'learner_preferences', 'evidence_sample_size'),
+    },
+    source: readText(row, 'learner_preferences', 'source'),
+    confirmedAt: readNullableText(row, 'learner_preferences', 'confirmed_at'),
+    expiresAt: readNullableText(row, 'learner_preferences', 'expires_at'),
+    createdAt: readText(row, 'learner_preferences', 'created_at'),
+  };
 }
 
 function mapResumeTiming(row: SqlRow): ResumeCardTiming {

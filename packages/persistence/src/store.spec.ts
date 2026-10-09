@@ -658,6 +658,100 @@ describe('FocusLoopStore', () => {
     });
   });
 
+  describe('learner preferences (AG7.4/7.6)', () => {
+    const PREF = {
+      id: 'pref-1',
+      sessionId: 'session-1',
+      scope: 'task-size' as const,
+      value: { stepMinutes: 2 },
+      evidence: {
+        windowStart: '2026-01-01T00:00:00.000Z',
+        windowEnd: '2026-01-08T00:00:00.000Z',
+        sampleSize: 6,
+      },
+      source: 'ag6.task-size',
+      confirmedAt: '2026-01-08T00:05:00.000Z',
+      expiresAt: null,
+      createdAt: '2026-01-08T00:05:00.000Z',
+    };
+
+    it('stores what the learner can read back — scope, value, evidence, source', () => {
+      expect(store.insertLearnerPreference(PREF)).toBe(true);
+      expect(store.insertLearnerPreference(PREF)).toBe(false); // one id, one row
+
+      const rows = store.listLearnerPreferences('session-1');
+      expect(rows).toHaveLength(1);
+      expect(rows[0]).toEqual(PREF);
+      expect(store.listLearnerPreferences('session-2')).toEqual([]);
+    });
+
+    it('rejects a preference whose evidence is not a window and a sample', () => {
+      const evidenceless = {
+        ...PREF,
+        id: 'pref-bad',
+        evidence: undefined,
+      } as unknown as typeof PREF;
+      expect(() => store.insertLearnerPreference(evidenceless)).toThrow(RangeError);
+
+      const zeroSample = {
+        ...PREF,
+        id: 'pref-bad2',
+        evidence: { ...PREF.evidence, sampleSize: 0 },
+      };
+      expect(() => store.insertLearnerPreference(zeroSample)).toThrow(RangeError);
+
+      const backwards = {
+        ...PREF,
+        id: 'pref-bad3',
+        evidence: {
+          windowStart: '2026-01-08T00:00:00.000Z',
+          windowEnd: '2026-01-01T00:00:00.000Z',
+          sampleSize: 3,
+        },
+      };
+      expect(() => store.insertLearnerPreference(backwards)).toThrow(RangeError);
+    });
+
+    it('deletes only the row the session owns, and audits without content', () => {
+      store.insertLearnerPreference(PREF);
+      store.insertLearnerPreference({ ...PREF, id: 'pref-2', sessionId: 'session-2' });
+
+      // Another session's row is not deleted by this session's request: 0 rows, no throw.
+      expect(
+        store.deleteLearnerPreference('pref-2', 'session-1', '2026-01-09T00:00:00.000Z', 'user'),
+      ).toBe(false);
+      expect(store.listLearnerPreferences('session-2')).toHaveLength(1);
+
+      expect(
+        store.deleteLearnerPreference('pref-1', 'session-1', '2026-01-09T00:00:00.000Z', 'user'),
+      ).toBe(true);
+      // The second delete is a completed no-op, not an error.
+      expect(
+        store.deleteLearnerPreference('pref-1', 'session-1', '2026-01-09T00:00:01.000Z', 'user'),
+      ).toBe(false);
+      expect(store.listLearnerPreferences('session-1')).toEqual([]);
+
+      // The audit is opaque: ids and times and an actor — no scope, no value, no evidence.
+      const audits = store.listPreferenceDeletions('session-1');
+      expect(audits).toHaveLength(1);
+      expect(Object.keys(audits[0]!).sort()).toEqual(['actor', 'deletedAt', 'preferenceId']);
+      expect(audits[0]!.preferenceId).toBe('pref-1');
+      // And it is *in the database*, read raw rather than through the mapper's shape.
+      const raw = db
+        .prepare(
+          'SELECT session_id, preference_id, deleted_at, actor FROM learner_preference_deletions;',
+        )
+        .all() as Record<string, unknown>[];
+      expect(raw).toHaveLength(1);
+      expect(Object.keys(raw[0]!).sort()).toEqual([
+        'actor',
+        'deleted_at',
+        'preference_id',
+        'session_id',
+      ]);
+    });
+  });
+
   describe('agent memory counts (AG7.5)', () => {
     it('counts and dates each episodic source for one session, and never another session', () => {
       store.appendEvent({
