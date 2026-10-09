@@ -63,7 +63,7 @@
 
 ### 本切片范围
 
-- AG5：Short/Medium/Long 三档 Resume 策略与 30 秒长期离开回忆步骤。
+- AG5：Short/Medium/Long 三档 Resume 策略与长期离开后的关键想法提示（#193，取自上下文）。
 - AG5：接受恢复后 5 分钟 success evaluator 与 Dashboard 汇总。
 - AG10：直接驱动生产 continuity 纯函数的 AG5 deterministic scenarios。
 - 明确排除：Tutor/Rescue 卡点摘要、adaptive task、材料章节跳转、长期记忆、新 LLM 能力。
@@ -72,7 +72,7 @@
 
 - `ResumePolicyConfig` 集中管理 15 分钟、24 小时和 5 分钟成功窗口；边界等于阈值时进入更高档。
 - `ResumeCard` 返回 `variant/gapMs/refresher`；缺失或非法 gap 保守使用 Medium。
-- Short UI 不展开历史列表；Long UI 展示专用 30 秒快速回忆提示。
+- Short UI 不展开历史列表；Long UI 展示所在概念的关键想法（取自上下文，非生成）。
 - success 从 timing、checkpoint、events 和当前时间纯派生；pending 不进入成功率分母，dismissed/未选择不进入样本。
 - Store 提供按 Session 稳定排序的 Resume timing 读取；无需数据库迁移，重启后可重算。
 - Dashboard 展示成功率、已评估样本和 pending 数量。

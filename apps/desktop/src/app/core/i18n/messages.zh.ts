@@ -395,7 +395,7 @@ export const zh: Record<MessageKey, string> = {
   'resume.context.plain': '你当时正在处理「{concept}」。目标是：{goal}',
   'resume.context.moment': '你刚刚还在处理「{concept}」。目标是：{goal}',
   'resume.context.away': '你当时正在处理「{concept}」，中间离开了 {duration}。目标是：{goal}',
-  'resume.refresher.long': '先用 {seconds} 秒回忆关键概念，再继续。',
+  'resume.refresher.long': '这一步背后的关键概念：{idea}',
   // Deterministic AG2 rescue steps
   'rescue.microStart.first': '打开任务，先做眼前最容易看见的一步。',
   'rescue.simplify.identify': '说清楚这项任务只要求哪一个结果。',

@@ -110,9 +110,9 @@ Home
 ### AG5 Cognitive Resume — 已合并（`main` 只有统一卡；三档与指标在分支）
 
 - 当前证据（`main`）：checkpoint builder、幂等持久化、interruption detection、接受/拒绝、latency 均已存在。
-- 当前证据（分支 `0f19c9f`，**未合并**）：ResumeCard 按 15 分钟/24 小时边界分为 Short/Medium/Long，Long 提供 30 秒快速回忆；Dashboard 从 timing/checkpoint/events 重算 5 分钟“成功”，但**代码里这个指标仍叫 `succeeded` / `rate`，尚未改名**为 [重新参与指标](./resume-policy-and-success.md)，`progressed` / `stalledAgain` 连分支上也没有；AG10 用生产 continuity 纯函数覆盖固定场景。
+- 当前证据（分支 `0f19c9f`，**未合并**）：ResumeCard 按 15 分钟/24 小时边界分为 Short/Medium/Long，Long 展示概念关键想法（取自上下文，非生成）；Dashboard 从 timing/checkpoint/events 重算 5 分钟“成功”，但**代码里这个指标仍叫 `succeeded` / `rate`，尚未改名**为 [重新参与指标](./resume-policy-and-success.md)，`progressed` / `stalledAgain` 连分支上也没有；AG10 用生产 continuity 纯函数覆盖固定场景。
 - 差距：checkpoint 内容主要由任务进度推导，尚未捕获 Tutor/救援产生的“具体卡点”；adaptive task 状态无法恢复；恢复后尚不能直接定位 material section；真实用户阈值仍需产品数据校准。
-- 验收标准：按离开时长确定三档且边界可配置、确定性可测；卡点来自最新有效学习证据；同一 interruption 只生成一 checkpoint/card；adaptive 子步骤可恢复；记录 latency，并在恢复后的窗口内记录 success/failure；跨日返回提供 30 秒 refresher 而非直接开长任务。
+- 验收标准：按离开时长确定三档且边界可配置、确定性可测；卡点来自最新有效学习证据；同一 interruption 只生成一 checkpoint/card；adaptive 子步骤可恢复；记录 latency，并在恢复后的窗口内记录 success/failure；跨日返回提供概念关键想法 refresher（取自上下文）而非直接开长任务。
 - 依赖：AG2 outcome、AG4 adaptive state、AG7 episodic query、AG10 resume eval。
 - 风险：过时 checkpoint；时区/系统时钟异常；resume card 太长反而增加重启成本；长期卡点包含不必要敏感文本。
 - 实施步骤：已完成 gap bands → 三档纯策略 → refresher → success evaluator；后续为 checkpoint 纳入有界 Tutor/Rescue evidence → material 定位 → adaptive restore → 完整三档 E2E。
