@@ -1929,6 +1929,38 @@ test('the learner can find their data and delete all of it, without a restart', 
   await expect(window.getByTestId('data-open-folder')).toBeEnabled();
 
   /*
+   * The agent-memory section (AG7.5). A session is started when none is running, because the rows
+   * are this session's memory and an empty refusal would assert nothing about them: with a session,
+   * the row list shows what exists as metadata — source, scope, time, impact — and never content
+   * (the engine spec scans for that; this test checks the screen reads it).
+   *
+   * The clear dialog is opened and cancelled, **not** confirmed: the history the deletion steps
+   * below read back is exactly what a clear would erase, and a test that cleared it first would be
+   * measuring its own wipe. The real clear is the engine spec's, through the tested path.
+   */
+  const memorySessionRunning = await window.evaluate(
+    async () => (await globalThis.focusloop.getCurrentSession()) !== null,
+  );
+  if (!memorySessionRunning) {
+    await clickSidebarLink('Home');
+    await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  }
+  await expect(window.getByTestId('memory-section')).toBeVisible();
+  await expect(window.getByTestId('memory-rows')).toBeVisible();
+  // A fresh session has exactly one memory row: the event it started with.
+  await expect(window.getByTestId('memory-row').first()).toContainText('Learning events');
+
+  await window.getByTestId('memory-clear').click();
+  const memoryDialog = window.getByTestId('memory-confirm-dialog');
+  await expect(memoryDialog).toBeVisible();
+  // The dialog says what will be lost — and what is not lost, which is the ADR's own line.
+  await expect(memoryDialog).toContainText('course, tasks or results');
+  await expect(memoryDialog).toBeFocused();
+  await window.keyboard.press('Escape');
+  await expect(memoryDialog).toBeHidden();
+  await expect(window.getByTestId('memory-clear')).toBeFocused();
+
+  /*
    * 1. A deletion that cannot happen is reported rather than performed.
    *
    * Windows-only, because that is the only platform where deleting a file another program has open fails:

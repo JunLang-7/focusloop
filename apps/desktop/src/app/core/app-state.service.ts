@@ -1,4 +1,4 @@
-import { Injectable, signal, computed } from '@angular/core';
+import { Injectable, effect, signal, computed } from '@angular/core';
 import {
   DEFAULT_AMBIENT_SOUND,
   DEFAULT_INSIGHT_RANGE,
@@ -35,6 +35,7 @@ import type {
   RuntimeInfo,
   SessionSnapshot,
   ThemePreference,
+  AgentMemorySummaryResult,
 } from '@focusloop/shared-types';
 
 import type { FocusNoticeFold } from './focus-notice';
@@ -69,6 +70,19 @@ export function focusLoopApi(): FocusLoopApi {
 export class AppStateService {
   private readonly api = focusLoopApi();
 
+  constructor() {
+    /*
+     * One loader for every snapshot there has ever been: boot (`refresh` sets it directly), a start
+     * (the wrapper sets the signal itself), an end, and every event push through `reloadSnapshot`.
+     * Chasing those paths with individual calls is how the panel showed "no session" over a running
+     * one — the effect watches the signal they all write, and that is the whole contract. It reads
+     * `snapshot` through `loadMemorySummary` before the first await, so every change re-fires it.
+     */
+    effect(() => {
+      void this.loadMemorySummary();
+    });
+  }
+
   readonly runtime = signal<RuntimeInfo | null>(null);
   readonly courses = signal<readonly Course[]>([]);
   /**
@@ -100,6 +114,11 @@ export class AppStateService {
   readonly recentEvents = signal<readonly LearningEvent[]>([]);
   /** The tool-audit rows the inspector's third tab lists (AG8.8), newest first. */
   readonly toolCalls = signal<readonly ToolCallRecord[]>([]);
+  /**
+   * What the data panel shows of the agent's memory (AG7.5): the whole input, metadata only.
+   * `null` before the first read — distinct from a refusal, which is an answer.
+   */
+  readonly memorySummary = signal<AgentMemorySummaryResult | null>(null);
   /**
    * What the agent would be given about the current moment, and what it would not (AG1).
    *
@@ -630,6 +649,41 @@ export class AppStateService {
       this.lastError.set(error instanceof Error ? error.message : String(error));
       return null;
     }
+  }
+
+  /**
+   * Reads this session's memory summary. Asks the engine even when nothing is running (with no id):
+   * the engine's `no-session` refusal is the answer the panel shows, and inventing the refusal here
+   * would put the wording in two places.
+   */
+  async loadMemorySummary(): Promise<void> {
+    const sessionId = this.snapshot()?.session.id;
+    if (sessionId === undefined || sessionId === '') {
+      /*
+       * The boundary requires a non-empty id — a call with '' is a malformed request, not a session
+       * to inspect — so the no-session answer is composed here from the same shared key the engine
+       * returns: one constant, two honest callers, and no rejected promise left to swallow the load.
+       */
+      this.memorySummary.set({
+        ok: false,
+        reason: 'no-session',
+        messageKey: 'memory.refusal.no-session',
+      });
+      return;
+    }
+    this.memorySummary.set(await this.api.getMemorySummary(sessionId));
+  }
+
+  /**
+   * Clears session memory through the tested engine path (ADR 0001), then re-reads so the panel
+   * shows the zeros and the opaque audit rather than the counts that were there a moment ago.
+   */
+  async clearSessionMemory(): Promise<{ clearedAt: string; actor: string } | null> {
+    const sessionId = this.snapshot()?.session.id;
+    if (sessionId === undefined) return null;
+    const cleared = await this.api.clearAgentMemory(sessionId);
+    if (cleared !== null) await this.loadMemorySummary();
+    return cleared;
   }
 
   subscribeToEvents(): () => void {

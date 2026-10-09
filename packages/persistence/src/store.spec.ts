@@ -658,6 +658,74 @@ describe('FocusLoopStore', () => {
     });
   });
 
+  describe('agent memory counts (AG7.5)', () => {
+    it('counts and dates each episodic source for one session, and never another session', () => {
+      store.appendEvent({
+        id: 'e1',
+        sessionId: 'session-1',
+        at: '2026-01-01T00:01:00.000Z',
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 't1' },
+      });
+      store.appendEvent({
+        id: 'e2',
+        sessionId: 'session-2',
+        at: '2026-01-01T00:02:00.000Z',
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 't1' },
+      });
+      store.saveCheckpoint({
+        id: 'cp1',
+        sessionId: 'session-1',
+        conceptId: 'c1',
+        conceptTitle: 'Rotations',
+        goal: 'Read',
+        mastered: [],
+        unresolved: [],
+        currentTaskId: 't1',
+        currentTaskTitle: 'Read one',
+        courseStep: 1,
+        frictionState: 'FOCUSED',
+        nextBestAction: { key: 'action.practice.example', params: { title: 'Read one' } },
+        createdAt: '2026-01-01T00:03:00.000Z',
+      });
+
+      const counts = store.agentMemoryCounts('session-1');
+      const bySource = new Map(counts.map((row) => [row.source, row]));
+      expect(bySource.get('learning_events')).toEqual({
+        source: 'learning_events',
+        count: 1,
+        latestAt: '2026-01-01T00:01:00.000Z',
+      });
+      expect(bySource.get('checkpoints')?.count).toBe(1);
+      expect(bySource.get('checkpoints')?.latestAt).toBe('2026-01-01T00:03:00.000Z');
+      // Every episodic source is answered, including the ones this fixture never wrote, plus the
+      // preference row that exists as a count of zero until AG7.4 builds the table (#214).
+      for (const source of [
+        'interventions',
+        'outcomes',
+        'resume_cards',
+        'agent_proposals',
+        'learner_preferences',
+      ]) {
+        expect(bySource.get(source as 'interventions')?.count).toBe(0);
+      }
+      // session-2's event is not counted for session-1.
+      expect(bySource.get('learning_events')?.count).toBe(1);
+    });
+
+    it('survives the preference table not existing yet (#214)', () => {
+      const counts = store.agentMemoryCounts('session-1');
+      expect(counts.find((row) => row.source === 'learner_preferences')).toEqual({
+        source: 'learner_preferences',
+        count: 0,
+        latestAt: null,
+      });
+    });
+  });
+
   describe('agent memory clear', () => {
     const T = '2026-01-01T00:00:00.000Z';
 

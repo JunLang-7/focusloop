@@ -19,6 +19,7 @@ import type {
   StartSessionRequest,
   ThemePreference,
   TutorAskRequest,
+  AgentMemoryScope,
 } from '@focusloop/shared-types';
 
 /**
@@ -39,6 +40,10 @@ export const payload = {
   }),
   courseId: (courseId: string): { courseId: string } => ({ courseId }),
   sessionId: (sessionId: string): { sessionId: string } => ({ sessionId }),
+  memoryList: (
+    sessionId: string,
+    scope: AgentMemoryScope,
+  ): { sessionId: string; scope: AgentMemoryScope } => ({ sessionId, scope }),
   startSession: (courseId: string): StartSessionRequest => ({ courseId }),
   endSession: (sessionId: string, reason: EndSessionRequest['reason']): EndSessionRequest => ({
     sessionId,

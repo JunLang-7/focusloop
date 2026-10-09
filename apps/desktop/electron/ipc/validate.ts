@@ -28,6 +28,8 @@ import {
   type SimulatorCommand,
   type StartSessionRequest,
   type TutorAskRequest,
+  type AgentMemoryScope,
+  AGENT_MEMORY_SCOPES,
 } from '@focusloop/shared-types';
 
 /**
@@ -177,6 +179,20 @@ export function parseSessionId(channel: string, value: unknown): string {
 
 export function parseCourseId(channel: string, value: unknown): string {
   return asString(channel, asRecord(channel, value), 'courseId');
+}
+
+/** A memory-list read: the session and one of the three closed scopes (AG7.5). */
+export function parseMemoryList(
+  channel: string,
+  value: unknown,
+): { sessionId: string; scope: AgentMemoryScope } {
+  const record = asRecord(channel, value);
+  const sessionId = asString(channel, record, 'sessionId');
+  const scope = asString(channel, record, 'scope');
+  if (!(AGENT_MEMORY_SCOPES as readonly string[]).includes(scope)) {
+    fail(channel, `unsupported memory scope "${scope}"`);
+  }
+  return { sessionId, scope: scope as AgentMemoryScope };
 }
 
 export function parseSetLocale(channel: string, value: unknown): SetLocaleRequest {

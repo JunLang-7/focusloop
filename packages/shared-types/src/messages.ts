@@ -126,6 +126,14 @@ export const TOOL_MESSAGE_KEYS = [
 
 export type ToolMessageKey = (typeof TOOL_MESSAGE_KEYS)[number];
 
+/** Why a memory read was refused (AG7.5). Renderer owns the wording. */
+export const MEMORY_MESSAGE_KEYS = [
+  'memory.refusal.wrong-session',
+  'memory.refusal.no-session',
+] as const;
+
+export type MemoryMessageKey = (typeof MEMORY_MESSAGE_KEYS)[number];
+
 /** Every message the domain can emit. The renderer must translate all of them. */
 export type DomainMessageKey =
   | NextActionKey
@@ -134,7 +142,8 @@ export type DomainMessageKey =
   | InterventionReasonCode
   | TutorFallbackMessageKey
   | ProposalMessageKey
-  | ToolMessageKey;
+  | ToolMessageKey
+  | MemoryMessageKey;
 
 export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...NEXT_ACTION_KEYS,
@@ -145,6 +154,7 @@ export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...TUTOR_REJECTION_MESSAGE_KEYS,
   ...PROPOSAL_MESSAGE_KEYS,
   ...TOOL_MESSAGE_KEYS,
+  ...MEMORY_MESSAGE_KEYS,
 ];
 
 export function message(key: DomainMessageKey, params: MessageParams = {}): LocalizedMessage {

@@ -18,6 +18,7 @@ import type {
   MicroTask,
   MicroTaskKind,
   Quiz,
+  AgentMemorySourceCount,
   ResumeCardTiming,
   ToolCall,
   ToolCallRecord,
@@ -664,6 +665,85 @@ export class FocusLoopStore {
       this.db.prepare('DELETE FROM agent_proposals WHERE session_id = ?;').run(sessionId);
     });
     run();
+  }
+
+  /**
+   * Per-source counts and newest timestamps for one session's episodic memory (AG7.5).
+   *
+   * One UNION over exactly the tables `clearSessionEpisodic` deletes — the panel must count what a
+   * clear would remove, not a neighbouring set that happens to be queryable. The preference row is
+   * answered as zero until #214 builds its table: a missing table is "nothing remembered", and a
+   * failure there must not take the whole inspection down with it.
+   */
+  agentMemoryCounts(sessionId: string): readonly AgentMemorySourceCount[] {
+    const rows = this.db
+      .prepare(
+        `SELECT 'learning_events' AS source, COUNT(*) AS total, MAX(at) AS latest
+           FROM learning_events WHERE session_id = ?
+         UNION ALL
+           SELECT 'checkpoints', COUNT(*), MAX(created_at) FROM checkpoints WHERE session_id = ?
+         UNION ALL
+           SELECT 'interventions', COUNT(*), MAX(at) FROM interventions WHERE session_id = ?
+         UNION ALL
+           SELECT 'outcomes', COUNT(*), MAX(at) FROM outcomes WHERE session_id = ?
+         UNION ALL
+           SELECT 'resume_cards', COUNT(*), MAX(shown_at) FROM resume_cards WHERE session_id = ?
+         UNION ALL
+           SELECT 'agent_proposals', COUNT(*), MAX(proposed_at) FROM agent_proposals WHERE session_id = ?;`,
+      )
+      .all(sessionId, sessionId, sessionId, sessionId, sessionId, sessionId) as readonly SqlRow[];
+
+    const counts: AgentMemorySourceCount[] = rows.map((row) => ({
+      source: readText(row, 'memory', 'source') as AgentMemorySourceCount['source'],
+      count: readInt(row, 'memory', 'total'),
+      latestAt: readNullableText(row, 'memory', 'latest'),
+    }));
+
+    // Assigned on both paths: the query answers, the catch answers for a table that is not there yet.
+    let preferences: number;
+    try {
+      const row = this.db
+        .prepare('SELECT COUNT(*) AS total FROM learner_preferences WHERE session_id = ?;')
+        .get(sessionId) as { total: number } | undefined;
+      preferences = row?.total ?? 0;
+    } catch {
+      // The table lands in #214; absent is a count of zero, not an error.
+      preferences = 0;
+    }
+    counts.push({ source: 'learner_preferences', count: preferences, latestAt: null });
+    return counts;
+  }
+
+  /**
+   * Newest-first episodic items for one session — source and timestamp, nothing else (AG7.5).
+   *
+   * The same six tables as the counts, the same reason: what the panel offers to clear is what this
+   * lists. `limit + 1` lets the caller tell "exactly this many" from "this many and more".
+   */
+  listEpisodicMemory(sessionId: string, limit: number): readonly { source: string; at: string }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT 'learning_events' AS source, at AS at FROM learning_events WHERE session_id = ?
+         UNION ALL SELECT 'checkpoints', created_at FROM checkpoints WHERE session_id = ?
+         UNION ALL SELECT 'interventions', at FROM interventions WHERE session_id = ?
+         UNION ALL SELECT 'outcomes', at FROM outcomes WHERE session_id = ?
+         UNION ALL SELECT 'resume_cards', shown_at FROM resume_cards WHERE session_id = ?
+         UNION ALL SELECT 'agent_proposals', proposed_at FROM agent_proposals WHERE session_id = ?
+         ORDER BY at DESC LIMIT ?;`,
+      )
+      .all(
+        sessionId,
+        sessionId,
+        sessionId,
+        sessionId,
+        sessionId,
+        sessionId,
+        limit,
+      ) as readonly SqlRow[];
+    return rows.map((row) => ({
+      source: readText(row, 'memory', 'source'),
+      at: readText(row, 'memory', 'at'),
+    }));
   }
 
   /** Records an opaque clear (no content). Returns false if already recorded. */

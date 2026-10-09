@@ -48,8 +48,16 @@ import type {
   TutorUnavailableReason,
   TaskRewrite,
   ProposeStructuralChangeResponse,
+  AgentMemoryItem,
+  AgentMemoryListResult,
+  AgentMemoryRefusal,
+  AgentMemoryScope,
+  AgentMemorySourceCount,
+  AgentMemorySummaryResult,
 } from '@focusloop/shared-types';
 import {
+  AGENT_MEMORY_SOURCES,
+  MEMORY_LIST_LIMIT,
   TASK_REWRITE_ACTIONS,
   TUTOR_LIMITS,
   findMaterialForCourse,
@@ -1706,6 +1714,105 @@ export class FocusLoopEngine {
      */
     const row = this.store.getAgentMemoryClear(sessionId);
     return row === null ? { clearedAt, actor } : { clearedAt: row.clearedAt, actor: row.actor };
+  }
+
+  /**
+   * What agent memory exists for this session — nine sources, counts and newest times (AG7.5).
+   *
+   * Session-scoped on purpose: the read is refused for another session and when nothing is running,
+   * so the panel cannot show one learner's counts under another's visit, and "no session" is a
+   * sentence rather than an empty table that reads as "nothing remembered".
+   *
+   * Nothing here is stored — every number is derived from what a clear would delete, and the result
+   * carries metadata only, which is what makes the no-content scan in `memory-summary.spec` true by
+   * construction rather than by review.
+   */
+  getMemorySummary(sessionId: string): AgentMemorySummaryResult {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+
+    const counted = new Map(
+      this.store.agentMemoryCounts(sessionId).map((row) => [row.source, row]),
+    );
+    const sources: AgentMemorySourceCount[] = AGENT_MEMORY_SOURCES.map((source) => {
+      if (source === 'transcript') {
+        // Turns, not messages: the transcript keeps a bounded window of exchanges.
+        return { source, count: this.transcript.list(sessionId).length, latestAt: null };
+      }
+      if (source === 'outbound') {
+        // One is ever held per session — the newest — so the count is 0 or 1 and its time is real.
+        const request = this.outboundBySession.get(sessionId);
+        return {
+          source,
+          count: request === undefined ? 0 : 1,
+          latestAt: request?.at ?? null,
+        };
+      }
+      return counted.get(source) ?? { source, count: 0, latestAt: null };
+    });
+
+    const cleared = this.store.getAgentMemoryClear(sessionId);
+    return {
+      ok: true,
+      summary: {
+        sessionId,
+        sources,
+        cleared: cleared === null ? null : { clearedAt: cleared.clearedAt, actor: cleared.actor },
+      },
+    };
+  }
+
+  /**
+   * One scope's items, newest first and bounded (AG7.5): source and time, never content.
+   *
+   * `episodic` lists the rows a clear would delete; `working` names what exists (the transcript
+   * keeps turns without times, so it is a presence rather than a timeline); `preference` is empty
+   * until #214 builds its store.
+   */
+  listMemory(sessionId: string, scope: AgentMemoryScope): AgentMemoryListResult {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+
+    if (scope === 'preference') {
+      return { ok: true, list: { scope, items: [], truncated: false } };
+    }
+    if (scope === 'working') {
+      const items: AgentMemoryItem[] = [];
+      if (this.transcript.list(sessionId).length > 0)
+        items.push({ source: 'transcript', at: null });
+      const request = this.outboundBySession.get(sessionId);
+      if (request !== undefined) items.push({ source: 'outbound', at: request.at });
+      return { ok: true, list: { scope, items, truncated: false } };
+    }
+
+    const rows = this.store.listEpisodicMemory(sessionId, MEMORY_LIST_LIMIT + 1);
+    const truncated = rows.length > MEMORY_LIST_LIMIT;
+    return {
+      ok: true,
+      list: {
+        scope,
+        items: rows.slice(0, MEMORY_LIST_LIMIT).map((row) => ({
+          source: row.source as AgentMemoryItem['source'],
+          at: row.at,
+        })),
+        truncated,
+      },
+    };
+  }
+
+  /**
+   * The shared gate for both memory reads: a session must be running, and it must be this one.
+   * `null` means the read may proceed — anything else is the refusal to return verbatim.
+   */
+  private memoryRefusal(sessionId: string): AgentMemoryRefusal | null {
+    const active = this.store.getActiveSession();
+    if (active === null) {
+      return { ok: false, reason: 'no-session', messageKey: 'memory.refusal.no-session' };
+    }
+    if (active.session.id !== sessionId) {
+      return { ok: false, reason: 'wrong-session', messageKey: 'memory.refusal.wrong-session' };
+    }
+    return null;
   }
 
   /** Opaque audit for a cleared session, or null if it was never cleared. */
