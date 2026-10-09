@@ -1,3 +1,4 @@
+import type { AgentProposal } from './proposal';
 import type { LearningState } from './state';
 import type { StuckReason } from './stuck';
 
@@ -20,6 +21,15 @@ export const LEARNING_EVENT_TYPES = [
   'SESSION_ENDED',
   /** Audit trail for a confirmed structural proposal that actually ran. */
   'AGENT_PROPOSAL_EXECUTED',
+  /**
+   * A structural proposal exists and awaits the learner's confirmation (#209).
+   *
+   * The proposal rides in the payload because the one channel the renderer listens on is the event
+   * push: the confirmation dialog must show exactly what will change, from the same object the
+   * confirm call will be bound to. Deliberately not in `STATE_AFFECTING_EVENTS` — nothing about the
+   * learner's position changes because something was *asked*.
+   */
+  'AGENT_PROPOSAL_PROPOSED',
   /**
    * The learner put the remaining micro tasks in the order they intend to do them.
    *
@@ -90,6 +100,15 @@ export type AgentProposalExecutedEvent = LearningEventBase<
   { proposalId: string; kind: string; idempotencyKey: string }
 >;
 /**
+ * The proposal itself, whole: id, payload, hash, expiry — everything the dialog shows and the
+ * confirmation binds to. The only alternative was a read channel for pending proposals, and the
+ * renderer's event push already reaches every screen this can appear on (#209).
+ */
+export type AgentProposalProposedEvent = LearningEventBase<
+  'AGENT_PROPOSAL_PROPOSED',
+  { proposal: AgentProposal }
+>;
+/**
  * The whole intended order of the tasks the learner can still see, front to back.
  *
  * The complete list rather than one move, because the reducer cannot resolve a move on its own: it
@@ -123,6 +142,7 @@ export type LearningEvent =
   | ResumeDismissedEvent
   | SessionEndedEvent
   | AgentProposalExecutedEvent
+  | AgentProposalProposedEvent
   | TasksReorderedEvent;
 
 export type LearningEventOf<TType extends LearningEventType> = Extract<

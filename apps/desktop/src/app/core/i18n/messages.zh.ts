@@ -302,6 +302,7 @@ export const zh: Record<MessageKey, string> = {
   'event.type.RESUME_DISMISSED': '你选择了暂不继续',
   'event.type.SESSION_ENDED': '会话结束',
   'event.type.AGENT_PROPOSAL_EXECUTED': '应用了一项建议的变更',
+  'event.type.AGENT_PROPOSAL_PROPOSED': '提议了变更',
   'event.type.TASKS_REORDERED': '你更改了顺序',
 
   'event.source.user': '你',
@@ -475,5 +476,13 @@ export const zh: Record<MessageKey, string> = {
   'proposal.refusal.already-refused': '这项变更已经拒绝过了。',
   'proposal.refusal.not-confirmed': '请先确认，变更才能执行。',
   'proposal.refusal.forged-id': '变更标识无效。',
+  // 确认对话框（#209）。等级标签按 ADR 0003 的矩阵随 kind 走。
+  'proposal.level.structural-write': '需要你确认',
+  'proposal.confirm.title': '确认这项变更',
+  'proposal.confirm.change': '将要发生的改变',
+  'proposal.confirm.why': '发起方',
+  'proposal.confirm.apply': '确认',
+  'proposal.confirm.dismiss': '暂不',
+  // 工具调用拒绝（AG8.1）。拒绝永远是一个学习者读得懂的理由。
   'reason.none': '现在不需要任何建议。',
 };

@@ -600,6 +600,11 @@ describe('buildAgentContext', () => {
         input: { proposalId: 'p1', kind: 'structural-write', idempotencyKey: 'k1' },
         output: {},
       },
+      // The proposal itself stays out of the context: the agent sees that it asked, not its own args.
+      AGENT_PROPOSAL_PROPOSED: {
+        input: { proposal: { id: 'p1', kind: 'structural-write' } },
+        output: {},
+      },
       TASKS_REORDERED: { input: { order: ['t2', 't1'] }, output: { order: ['t2', 't1'] } },
     };
 

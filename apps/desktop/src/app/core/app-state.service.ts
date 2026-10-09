@@ -21,6 +21,9 @@ import type {
   LearningEvent,
   LearningState,
   Locale,
+  AgentProposal,
+  ProposalConfirmResult,
+  ProposalExecuteResult,
   MaterialDocument,
   ResumeCardView,
   RescueView,
@@ -80,6 +83,14 @@ export class AppStateService {
   readonly interventionId = signal<string | null>(null);
   readonly rescue = signal<RescueView | null>(null);
   readonly rescuePauseRequest = signal(0);
+  /**
+   * A structural proposal waiting for the learner (#209).
+   *
+   * Set from the event push — the proposal rides in the event's payload, because that push is the
+   * one channel the renderer already listens on and the dialog must show the very object the
+   * confirmation will be bound to.
+   */
+  readonly pendingProposal = signal<AgentProposal | null>(null);
   readonly rescueContinueRequest = signal(0);
   /** Presentation only: folding must never dismiss a rescue or a checkpoint. */
   readonly focusNoticeFold = signal<FocusNoticeFold>({ sessionId: null, folded: false });
@@ -619,9 +630,39 @@ export class AppStateService {
   }
 
   subscribeToEvents(): () => void {
-    return this.api.onEvent(() => {
+    return this.api.onEvent((event) => {
+      if (event.type === 'AGENT_PROPOSAL_PROPOSED') {
+        this.pendingProposal.set(event.payload.proposal);
+      }
       void this.reloadSnapshot();
     });
+  }
+
+  /** Confirm a pending proposal, bound to the hash the dialog showed (#209). */
+  async confirmProposal(proposal: AgentProposal): Promise<ProposalConfirmResult> {
+    return this.api.confirmProposal({
+      proposalId: proposal.id,
+      sessionId: proposal.sessionId,
+      expectedHash: proposal.proposalHash,
+    });
+  }
+
+  /** Execute what was confirmed. Nothing reaches this without a `confirmProposal` first. */
+  async executeProposal(proposal: AgentProposal): Promise<ProposalExecuteResult> {
+    return this.api.executeProposal({
+      proposalId: proposal.id,
+      sessionId: proposal.sessionId,
+      idempotencyKey: proposal.idempotencyKey,
+    });
+  }
+
+  /**
+   * The renderer's own action just wrote an event that nothing pushed (#209): executing a proposal
+   * appends `AGENT_PROPOSAL_EXECUTED` in the main process, and the event list the learner is
+   * looking at refreshes on pushes and on its own actions — this is one of those.
+   */
+  refreshAfterOwnAction(): void {
+    void this.reloadSnapshot();
   }
 
   private applyResponse(response: DispatchEventResponse | null): void {
