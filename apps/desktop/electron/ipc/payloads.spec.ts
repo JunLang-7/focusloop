@@ -57,6 +57,7 @@ describe('the preload and the main process agree on every payload', () => {
       IPC_CHANNELS.getAgentContext,
       IPC_CHANNELS.getDataInfo,
       IPC_CHANNELS.openDataFolder,
+      IPC_CHANNELS.memoryCleanup,
     ];
     for (const channel of channels) {
       expect(() => parseNoArgs(channel, payload.none())).not.toThrow();
@@ -98,11 +99,30 @@ describe('the preload and the main process agree on every payload', () => {
     ).toEqual({ id: 'p-1', sessionId: 'session-1' });
   });
 
-  it('the memory-list channel accepts what the preload sends, for every scope', () => {
+  it('the memory-list channel accepts what the preload sends, for every scope and window', () => {
     for (const scope of AGENT_MEMORY_SCOPES) {
       expect(
         parseMemoryList(IPC_CHANNELS.memoryList, payload.memoryList('session-1', scope)),
-      ).toEqual({ sessionId: 'session-1', scope });
+      ).toEqual({ sessionId: 'session-1', scope, window: {} });
+      // A bounded read (AG7.3) crosses the boundary only as a well-formed window.
+      expect(
+        parseMemoryList(
+          IPC_CHANNELS.memoryList,
+          payload.memoryList('session-1', scope, {
+            since: '2026-01-01T00:00:00.000Z',
+            until: '2026-02-01T00:00:00.000Z',
+            limit: 50,
+          }),
+        ),
+      ).toEqual({
+        sessionId: 'session-1',
+        scope,
+        window: {
+          since: '2026-01-01T00:00:00.000Z',
+          until: '2026-02-01T00:00:00.000Z',
+          limit: 50,
+        },
+      });
     }
   });
 
