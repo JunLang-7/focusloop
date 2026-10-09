@@ -340,6 +340,7 @@ const en = {
   'event.type.RESUME_DISMISSED': 'You turned the resume down',
   'event.type.SESSION_ENDED': 'Session ended',
   'event.type.AGENT_PROPOSAL_EXECUTED': 'A suggested change was applied',
+  'event.type.AGENT_PROPOSAL_PROPOSED': 'Change proposed',
   'event.type.TASKS_REORDERED': 'You changed the order',
 
   'event.source.user': 'you',
@@ -524,6 +525,13 @@ const en = {
   'proposal.refusal.already-refused': 'This change was already declined.',
   'proposal.refusal.not-confirmed': 'Confirm the change before it can run.',
   'proposal.refusal.forged-id': 'That change identifier is not valid.',
+  // The confirmation dialog (#209). The level label names ADR 0003's matrix via `kind`.
+  'proposal.level.structural-write': 'Needs your confirmation',
+  'proposal.confirm.title': 'Confirm this change',
+  'proposal.confirm.change': 'What will change',
+  'proposal.confirm.why': 'Requested by',
+  'proposal.confirm.apply': 'Confirm',
+  'proposal.confirm.dismiss': 'Not now',
 } as const;
 
 export default en;
