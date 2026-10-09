@@ -24,6 +24,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **The long resume names the key idea instead of asking for a recall (#193).** The long card's
+  refresher said "Take 30 seconds to recall the key idea before continuing" — a demand on a card
+  that showed no idea and let Continue through immediately. It now carries the concept's own idea,
+  selected by the same function that grounds a HINT (summary, else first key point, with the guard
+  that rejects text merely repeating the task), bounded like the step beside it, taken from the
+  context and never generated; when nothing is quotable the card carries no refresher rather than a
+  demand. The 30-second parameter is gone from both locales, and the epic's wording and the wiki's
+  AG5 entries now say what the code does.
 - **The long resume can be reached without waiting a day, and its result reaches the screen (#192).**
   The simulator's `return` takes an optional `durationMs`, so a test says how long it was away instead
   of waiting it out; the demo's own 30 seconds is unchanged when nothing is given. The new e2e reads

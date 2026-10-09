@@ -31,7 +31,10 @@ export interface ResumeCard {
   readonly variant: ResumeVariant;
   /** Measured interruption duration, or null when timestamps are unreliable. */
   readonly gapMs: number | null;
-  /** Long gaps offer a brief refresher before returning to the task. */
+  /**
+   * Long gaps name the concept's key idea before returning to the task — taken from the context,
+   * never generated (#193, decision C) — or carry none when nothing is quotable.
+   */
   readonly refresher: LocalizedMessage | null;
   readonly title: LocalizedMessage;
   readonly lastContext: LocalizedMessage;

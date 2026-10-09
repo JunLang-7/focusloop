@@ -1039,9 +1039,26 @@ export class FocusLoopEngine {
         recentEvents: this.store.listEvents(session.id),
         now: checkpoint.createdAt,
         currentStepText: this.servedStepText(course),
+        refresherIdea: this.refresherIdea(session.id),
       }),
       timing,
     };
+  }
+
+  /**
+   * The idea a long card names instead of asking the learner to recall one (#193, decision C).
+   *
+   * The selection is `buildRescueGrounding('HINT', …)`'s own — concept summary, else first key
+   * point, with the guard that rejects text merely repeating the task — taken from the same
+   * AgentContext a HINT quotes, never generated. `null` when nothing is quotable: the card then
+   * carries no refresher rather than a demand it cannot support.
+   */
+  private refresherIdea(sessionId: string): string | null {
+    const grounding = buildRescueGrounding(
+      'HINT',
+      this.contextFor(this.requireSession(sessionId)).context,
+    );
+    return grounding?.text ?? null;
   }
 
   /**
