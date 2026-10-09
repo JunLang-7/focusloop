@@ -94,10 +94,13 @@ export class ToolRegistry {
      * refusal never throws, so a hostile call cannot take the attempt record down with it.
      */
     const rawArgs = isPlainObject(raw['args']) ? raw['args'] : {};
-    let serialized: string | null = null;
+    let serialized: string | null;
     try {
       serialized = JSON.stringify(rawArgs);
     } catch {
+      // A payload that cannot be serialized (circular, BigInt) is a payload the audit cannot
+      // hold and the schema cannot have described: `null` reads as unbounded here and the
+      // bounds check below refuses the call.
       serialized = null;
     }
     const bounded = serialized !== null && serialized.length <= MAX_TOOL_ARGS_CHARACTERS;
