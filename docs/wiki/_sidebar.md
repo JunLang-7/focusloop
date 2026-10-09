@@ -12,6 +12,7 @@
 - [Resume 策略与指标](./resume-policy-and-success.md)
 - [ADR 0001 记忆删除语义](./adr/0001-agent-memory-deletion.md)
 - [ADR 0002 Runtime 取消与截止时间](./adr/0002-runtime-execution-boundary.md)
+- [ADR 0003 工具权限矩阵](./adr/0003-tool-permission-matrix.md)
 
 ---
 

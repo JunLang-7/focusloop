@@ -243,14 +243,15 @@ AG1/2/3/基础 AG5 的收口不必等关键路径，可并行交付并尽快形�
 
 ## 4. 当前应先交付的文档
 
-建议第一批只交付 6 份，先建立决策护栏再写实现 issue。**2026-09-22 进展**：第 1、2 项已交付，第 3–6 项仍未开始。
+建议第一批只交付 6 份，先建立决策护栏再写实现 issue。**2026-10-09 进展**：第 1、2、4 项已交付；第 3、5、6 项仍未开始。
 
 1. ~~`docs/wiki/index.md`：Wiki 导航、owner、状态定义、事实更新时间。~~ ✅ 已由 `docs/wiki/README.md`
    （导航 + 事实基线 + 七级状态定义）承担。
 2. ~~`docs/wiki/agent-capability-matrix.md`：把本文第 2 节拆成唯一能力台账，链接实现与测试。~~ ✅ 已由
    `docs/wiki/project-features.md` 承担（逐功能九点台账；本文第 2 节降级为方案描述）。
 3. `docs/wiki/adr/0001-agent-memory-scopes.md`：三层 memory、保留/删除/禁止数据。
-4. `docs/wiki/adr/0002-agent-tool-permissions.md`：权限、proposal hash、确认、幂等、audit。
+4. ~~`docs/wiki/adr/0002-agent-tool-permissions.md`：权限、proposal hash、确认、幂等、audit。~~ ✅ 已由
+   [`docs/wiki/adr/0003-tool-permission-matrix.md`](./adr/0003-tool-permission-matrix.md) 承担（三个权限级别 + 十四个工具的矩阵）。
 5. `docs/wiki/adr/0003-adaptive-task-lifecycle.md`：临时步骤与持久任务、position/progress/resume 语义。
 6. `docs/wiki/evaluation-scenarios.md`：scenario schema、指标、release gates；先录入 AG1/2/3/5 的 20–30 个固定场景。
 
