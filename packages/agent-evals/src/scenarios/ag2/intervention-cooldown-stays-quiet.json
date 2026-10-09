@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-intervention-cooldown-stays-quiet",
+  "capability": "AG2",
+  "kind": "edge",
+  "description": "Within the cooldown and no more urgent than what was just shown, the agent stays quiet.",
+  "input": {
+    "state": "CONFUSED",
+    "shownCount": 1,
+    "shownAction": "HINT",
+    "sinceLastMs": 20000
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "action",
+      "value": "NO_ACTION"
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "reason.cooldown"
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "action",
+      "value": "HINT"
+    }
+  ]
+}

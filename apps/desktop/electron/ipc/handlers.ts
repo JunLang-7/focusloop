@@ -290,7 +290,29 @@ export function createHandlers(service: FocusLoopService) {
     defineHandler({
       channel: IPC_CHANNELS.proposeStructuralChange,
       parse: parseProposeStructuralChange,
-      handle: (request) => engine.proposeStructuralChange(request),
+      handle: (request, invokeEvent) => {
+        const response = engine.proposeStructuralChange(request);
+        /*
+         * Pushed for the same reason the simulator's result is (#192): the renderer refreshes on
+         * its own actions and on pushed events, and a proposal created here is neither — without
+         * this push the confirmation dialog would never know there was anything to confirm. The
+         * surrounding response is the dispatch shape this channel carries; only `event` is read on
+         * the other side, and proposing itself changes no state, writes no checkpoint and offers
+         * no rescue — which is exactly what the other fields say.
+         */
+        if (response.event !== null) {
+          pushEventToRenderer(invokeEvent.sender, {
+            event: response.event,
+            state: engine.getCurrentSession()?.session.state ?? 'READY',
+            checkpoint: null,
+            resumeCard: null,
+            decision: null,
+            interventionId: null,
+            rescue: null,
+          });
+        }
+        return response;
+      },
     }),
     defineHandler({
       channel: IPC_CHANNELS.confirmProposal,

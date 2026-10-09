@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ag1-privacy-material-beyond-bound-adversarial",
+  "capability": "AG1",
+  "kind": "adversarial",
+  "description": "A sentinel past the material bound is absent from the excerpt, not merely shortened.",
+  "input": {
+    "case": "privacy-material-bound"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "context.material.truncated",
+      "value": true
+    },
+    {
+      "type": "max-length",
+      "path": "context.material.text",
+      "max": 1200
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "value": "MATERIAL_BEYOND_BOUND_SENTINEL"
+    }
+  ]
+}

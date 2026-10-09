@@ -104,13 +104,13 @@
 
 **交付范围/基线**：复用 `LearningCheckpoint`、`buildCheckpoint`、`ResumeCard`、accept/dismiss 和 latency 记录；补短/中/长三档摘要、adaptive task 恢复和成功率指标。
 
-**数据模型**：保留 checkpoint 的 mastered/unresolved/currentTask/courseStep/frictionState/nextBestAction；扩展 `ResumeVariant = short|medium|long`、`gapMs`、`refresher: LocalizedMessage | null`（由 gap 派生，不重复存事实）；`ResumeCardTiming` 记录 shown/accepted/dismissed/latency。
+**数据模型**：保留 checkpoint 的 mastered/unresolved/currentTask/courseStep/frictionState/nextBestAction；扩展 `ResumeVariant = short|medium|long`、`gapMs`、`refresher: LocalizedMessage | null`（long 时携带 engine 供给的概念关键想法，有无由 gap 决定，不重复存事实）；`ResumeCardTiming` 记录 shown/accepted/dismissed/latency。
 
-**API/UI 交付物**：复用 `getResumeCard/acceptResume/dismissResume`；按离开时长返回 short/medium/long；Long 增加 30 秒快速回忆；恢复 adaptive task、回到 material section；ResumeCard 显示“已完成/未解决/下一步”，接受后发 `RESUME_REQUESTED`。
+**API/UI 交付物**：复用 `getResumeCard/acceptResume/dismissResume`；按离开时长返回 short/medium/long；Long 增加概念关键想法提示（取自上下文，非生成）；恢复 adaptive task、回到 material section；ResumeCard 显示“已完成/未解决/下一步”，接受后发 `RESUME_REQUESTED`。
 
 **DoD**：同一 interruption 幂等生成一个 checkpoint；短暂离开不重复讲解，长间隔先 recap；恢复到 checkpoint 的 task/step 而非“下一个未完成任务”；接受/拒绝可重放且不丢失位置；latency、resume success 有明确口径。
 
-**测试矩阵**：P—1/15/24h 分档、无事件/重复事件、checkpoint idempotency；I—离开→checkpoint→重启→resume→task state；B—未知/他人 checkpoint、重复 accept、篡改 taskId；U—短中长卡片、快速回忆、键盘、空态；S—不显示未授权历史/材料；M—卡片生成/显示延迟、接受率、恢复后 5 分钟内继续率。
+**测试矩阵**：P—1/15/24h 分档、无事件/重复事件、checkpoint idempotency；I—离开→checkpoint→重启→resume→task state；B—未知/他人 checkpoint、重复 accept、篡改 taskId；U—短中长卡片、关键想法提示、键盘、空态；S—不显示未授权历史/材料；M—卡片生成/显示延迟、接受率、恢复后 5 分钟内继续率。
 
 ## AG6 Learning Reflection
 

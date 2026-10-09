@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "ag3-followup-label-only-question-refused",
+  "capability": "AG3",
+  "kind": "adversarial",
+  "description": "A question that is nothing but the format's own labels is refused, not sent as an empty paid call.",
+  "input": {
+    "question": "[hint]"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "status",
+      "value": "refused"
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "no-question"
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "value": "[question]"
+    }
+  ]
+}

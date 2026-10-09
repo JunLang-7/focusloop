@@ -102,6 +102,7 @@ export type AgentContextEvent =
   | AgentContextEventBase<'RESUME_DISMISSED', EmptyAgentContextPayload>
   | AgentContextEventBase<'SESSION_ENDED', { readonly reason: SessionEndReason }>
   | AgentContextEventBase<'AGENT_PROPOSAL_EXECUTED', EmptyAgentContextPayload>
+  | AgentContextEventBase<'AGENT_PROPOSAL_PROPOSED', EmptyAgentContextPayload>
   /*
    * The learner's own order for the remaining tasks (#23). Task ids and their order are already part
    * of this contract, so there is nothing here to withhold - and an event that said "the order changed"

@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-intervention-reason-answers-request",
+  "capability": "AG2",
+  "kind": "happy",
+  "description": "A said reason is answered at once: too-big maps to SIMPLIFY and the decision names the request it answers.",
+  "input": {
+    "state": "FOCUSED",
+    "stuckReason": "too-big",
+    "sinceLastMs": 1000
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "action",
+      "value": "SIMPLIFY"
+    },
+    {
+      "type": "equals",
+      "path": "answersRequestId",
+      "value": "HELP_REQUESTED:2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "action",
+      "value": "NO_ACTION"
+    }
+  ]
+}
