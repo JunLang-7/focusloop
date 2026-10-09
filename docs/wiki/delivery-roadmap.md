@@ -61,11 +61,11 @@ Home
 状态含义：本节标题现在使用 [功能清单 §1.1](./project-features.md) 的七级阶梯，以便与台账逐字对照。原先的
 “已形成 / 部分形成 / 未形成”只按“主链路是否存在”判断，不区分 `main` 与分支，正是本次要修掉的模糊。
 
-### AG1 Learning Context — 已合并（13 类事件投影 allowlist 仍在分支）
+### AG1 Learning Context — 已合并（13 类事件投影 allowlist 也已合并）
 
 - 当前证据（`main`）：`shared-types/agent-context.ts` 定义边界和 omission；`agent-core/agent-context.ts` 构建当前 session/concept/task/material/state/events/checkpoint；材料 1200 字符、事件 12 条；Electron IPC 暴露只读报告；桌面有 `fl-agent-context-panel`（`data-testid="agent-context-panel"`）面板；有单元、engine、IPC 测试。
-- 当前证据（分支 `0f19c9f`，未合并）：`AgentContextEvent` 的 13 类逐类型投影。
-- 差距：隐私规则尚未形成独立、可审计的字段级 allowlist 文档；缺少面向恶意/敏感事件 payload 的固定回归语料。
+- 当前证据（投影，已合并）：`AgentContextEvent` 的逐类型投影与穷举断言 `d938bb8` (#188)；评测层敏感 payload 场景 `packages/agent-evals/src/scenarios/ag1/`（含隐私类，#220）。
+- 差距：已闭合——字段级 allowlist 即 `AgentContextEvent` 联合与 `projectEvent`（穷举，新增类型不写投影是编译错误）；恶意/敏感 payload 的固定回归语料在 `agent-context.spec` 与 `scenarios/ag1/`。
 - **Inspector 不是“一个面板”，而是两个**（原表述自相矛盾，已修正）：
   - **Context Inspector**：Agent **可访问**的数据。对应 `agent:context` 报告、omission 与截断长度。
   - **Outbound Request Inspector**：这一次**实际发给 Provider** 的内容（已交付，见 #112）。
@@ -110,7 +110,7 @@ Home
 ### AG5 Cognitive Resume — 已合并（`main` 只有统一卡；三档与指标在分支）
 
 - 当前证据（`main`）：checkpoint builder、幂等持久化、interruption detection、接受/拒绝、latency 均已存在。
-- 当前证据（分支 `0f19c9f`，**未合并**）：ResumeCard 按 15 分钟/24 小时边界分为 Short/Medium/Long，Long 展示概念关键想法（取自上下文，非生成）；Dashboard 从 timing/checkpoint/events 重算 5 分钟“成功”，但**代码里这个指标仍叫 `succeeded` / `rate`，尚未改名**为 [重新参与指标](./resume-policy-and-success.md)，`progressed` / `stalledAgain` 连分支上也没有；AG10 用生产 continuity 纯函数覆盖固定场景。
+- 当前证据（`main`，已合并）：ResumeCard 按 15 分钟/24 小时边界分为 Short/Medium/Long（短档 e2e `9d2e55d` #196、长档 e2e `d9f1783` #203），Long 展示概念关键想法（取自上下文，非生成，`78555af` #206）；指标已按 [重新参与指标](./resume-policy-and-success.md) 分列为 `reengaged` / `progressed` / `stalledAgain`（`96ac295` #119），Dashboard 读 `resumeOutcomes`；AG10 用生产 continuity 纯函数覆盖固定场景（9 个 AG5 场景在 `main`）。
 - 差距：checkpoint 内容主要由任务进度推导，尚未捕获 Tutor/救援产生的“具体卡点”；adaptive task 状态无法恢复；恢复后尚不能直接定位 material section；真实用户阈值仍需产品数据校准。
 - 验收标准：按离开时长确定三档且边界可配置、确定性可测；卡点来自最新有效学习证据；同一 interruption 只生成一 checkpoint/card；adaptive 子步骤可恢复；记录 latency，并在恢复后的窗口内记录 success/failure；跨日返回提供概念关键想法 refresher（取自上下文）而非直接开长任务。
 - 依赖：AG2 outcome、AG4 adaptive state、AG7 episodic query、AG10 resume eval。
@@ -149,10 +149,10 @@ Home
 - 风险：prompt injection 越权；确认后状态已变化（TOCTOU）；重试导致重复写；把 IPC 方法直接暴露为模型工具造成攻击面过大。
 - 实施步骤：Tool ADR/权限矩阵 → read-only registry → proposal envelope → confirmation UI → reversible commands → structural commands → audit log → adversarial tests。
 
-### AG9 Model Runtime — 设计完成（`main` 上只有 `AIProvider` 抽象）
+### AG9 Model Runtime — 已合并（`AgentRuntime` 是唯一的门）
 
-- 当前证据：`AIProvider` 抽象、Mock/DeepSeek、provider selection 和 deterministic fallback；DeepSeek 有超时/错误归类；Tutor 层（分支 `d1e6b03`，PR [#101](https://github.com/nianpingy-cpu/focusloop/pull/101)，未合并）有结构化 reader、格式重试和字符预算。
-- 差距：尚无独立 AgentRuntime；structured output 能力不在 provider contract；无 streaming/abort；无通用 retry/backoff；fallback 是 primary→mock 而非可配置 provider chain；只有 Mock/DeepSeek；预算是字符而非 token/成本；skills 仍知道 completion 细节。
+- 当前证据：`AgentRuntime`（`llm-provider/src/runtime.ts`）——请求/信号拆分 #111、取消与总截止 #142→#147、预算 #143→#156、流式 #144→#161、重试与可配置回退 #145→#162、provider 一致性与 provider-failure 场景 `dc6b0de` (#165)；conformance 证据 `docs/ag9-conformance.md`，ADR [ADR 0002](./adr/0002-runtime-execution-boundary.md)；Tutor 的结构化 reader 已随 #101 合并。
+- 差距（已闭合）：structured output 在 `executeStructured` / `executeStructuredViaStream` 于边界校验；streaming、abort、retry/backoff、预算、fallback 链均已合并。**尚无 skill 调用结构化门**——conformance 文档如实记为 outstanding，是 AG8 工具调用要进的门。
 - 验收标准：统一 runtime 请求支持 schema、timeout、abort、stream events、retry policy、provider chain、预算；一次请求可追踪 provider/model/耗时/重试/降级但不记录敏感 prompt；超时或断网在 UX 时限内转 rule fallback；abort 后不得提交迟到结果；结构化结果在边界验证。
 - 依赖：shared provider contracts；AG10 runtime conformance tests。
 - 风险：多 provider 行为不一致；streaming 与 schema 校验冲突；重试放大成本；本地模型能力不足导致隐藏降级。
