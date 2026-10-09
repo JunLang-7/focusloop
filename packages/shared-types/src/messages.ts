@@ -115,6 +115,17 @@ export const PROPOSAL_MESSAGE_KEYS = [
 
 export type ProposalMessageKey = (typeof PROPOSAL_MESSAGE_KEYS)[number];
 
+/** Why a tool call could not run. Renderer owns the wording (AG8.1). */
+export const TOOL_MESSAGE_KEYS = [
+  'tool.refusal.unknown-tool',
+  'tool.refusal.bad-schema',
+  'tool.refusal.wrong-session',
+  'tool.refusal.permission',
+  'tool.refusal.internal',
+] as const;
+
+export type ToolMessageKey = (typeof TOOL_MESSAGE_KEYS)[number];
+
 /** Every message the domain can emit. The renderer must translate all of them. */
 export type DomainMessageKey =
   | NextActionKey
@@ -122,7 +133,8 @@ export type DomainMessageKey =
   | RescueMessageKey
   | InterventionReasonCode
   | TutorFallbackMessageKey
-  | ProposalMessageKey;
+  | ProposalMessageKey
+  | ToolMessageKey;
 
 export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...NEXT_ACTION_KEYS,
@@ -132,6 +144,7 @@ export const DOMAIN_MESSAGE_KEYS: readonly DomainMessageKey[] = [
   ...TUTOR_UNAVAILABLE_MESSAGE_KEYS,
   ...TUTOR_REJECTION_MESSAGE_KEYS,
   ...PROPOSAL_MESSAGE_KEYS,
+  ...TOOL_MESSAGE_KEYS,
 ];
 
 export function message(key: DomainMessageKey, params: MessageParams = {}): LocalizedMessage {

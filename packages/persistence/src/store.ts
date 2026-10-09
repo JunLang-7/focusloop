@@ -19,6 +19,7 @@ import type {
   MicroTaskKind,
   Quiz,
   ResumeCardTiming,
+  ToolCall,
 } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 import { migrate } from './migrations';
@@ -688,6 +689,53 @@ export class FocusLoopStore {
     return { sessionId: row.session_id, clearedAt: row.cleared_at, actor: row.actor };
   }
 
+  // --------------------------------------------------------- tool calls (AG8.1)
+
+  /**
+   * Inserts one tool-call attempt — success or refusal, the attempt is the record.
+   * Returns false when the id already exists (hostile replay of the same insert).
+   */
+  insertToolCall(call: ToolCall): boolean {
+    const exists = this.db.prepare('SELECT 1 FROM tool_calls WHERE id = ?;').get(call.id);
+    if (exists !== undefined) return false;
+    const result = this.db
+      .prepare(
+        `INSERT INTO tool_calls
+           (id, session_id, tool, args, status, confirmation, error, idempotency_key, at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);`,
+      )
+      .run(
+        call.id,
+        call.sessionId,
+        call.tool,
+        JSON.stringify(call.args),
+        call.status,
+        call.confirmation,
+        call.error,
+        call.idempotencyKey,
+        call.at,
+      );
+    return result.changes > 0;
+  }
+
+  /** A session's attempts, newest first. The inspector's read surface (AG8.8 refines it). */
+  listToolCalls(sessionId: string): readonly ToolCall[] {
+    const rows = this.db
+      .prepare('SELECT * FROM tool_calls WHERE session_id = ? ORDER BY at DESC, id DESC;')
+      .all(sessionId) as readonly SqlRow[];
+    return rows.map((row) => ({
+      id: readText(row, 'tool_calls', 'id'),
+      sessionId: readText(row, 'tool_calls', 'session_id'),
+      tool: readText(row, 'tool_calls', 'tool'),
+      args: parseToolArgs(readText(row, 'tool_calls', 'args')),
+      status: readText(row, 'tool_calls', 'status') === 'ok' ? 'ok' : 'refused',
+      confirmation: readNullableText(row, 'tool_calls', 'confirmation'),
+      error: (readNullableText(row, 'tool_calls', 'error') ?? null) as ToolCall['error'],
+      at: readText(row, 'tool_calls', 'at'),
+      idempotencyKey: readNullableText(row, 'tool_calls', 'idempotency_key'),
+    }));
+  }
+
   // --------------------------------------------------------- agent proposals
 
   /**
@@ -946,4 +994,20 @@ function mapAgentProposal(row: SqlRow): StoredAgentProposal {
     eventId: readNullableText(row, 'agent_proposals', 'event_id'),
     refusalReason: readNullableText(row, 'agent_proposals', 'refusal_reason'),
   };
+}
+
+/**
+ * Stored args were validated on the way in, but a corrupted row must degrade to "no args
+ * recorded" rather than throw inside a read: an audit read is never worth a crash.
+ */
+function parseToolArgs(text: string): Record<string, unknown> {
+  try {
+    const parsed: unknown = JSON.parse(text);
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+  } catch {
+    // fall through to the empty record below
+  }
+  return {};
 }

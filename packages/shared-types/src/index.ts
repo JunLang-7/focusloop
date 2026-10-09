@@ -25,6 +25,7 @@ export * from './resume';
 export * from './intervention';
 export * from './rescue';
 export * from './proposal';
+export * from './tool';
 export * from './dashboard';
 export * from './insights';
 export * from './provider';

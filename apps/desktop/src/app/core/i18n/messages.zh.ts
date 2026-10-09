@@ -475,5 +475,11 @@ export const zh: Record<MessageKey, string> = {
   'proposal.refusal.already-refused': '这项变更已经拒绝过了。',
   'proposal.refusal.not-confirmed': '请先确认，变更才能执行。',
   'proposal.refusal.forged-id': '变更标识无效。',
+  // 工具调用拒绝（AG8.1）。拒绝永远是一个学习者读得懂的理由。
+  'tool.refusal.unknown-tool': '没有这个操作，什么也没有执行。',
+  'tool.refusal.bad-schema': '这次操作没有被理解，什么也没有执行。',
+  'tool.refusal.wrong-session': '这个操作属于另一个会话。',
+  'tool.refusal.permission': '这个操作需要先得到你的确认。',
+  'tool.refusal.internal': '这个操作没能执行。',
   'reason.none': '现在不需要任何建议。',
 };

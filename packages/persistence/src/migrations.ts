@@ -279,6 +279,25 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0007-tool-calls',
+    sql: `
+      -- AG8.1: one row per tool-call attempt, refusals included — AG8.8's raw material.
+      CREATE TABLE IF NOT EXISTS tool_calls (
+        id TEXT PRIMARY KEY,
+        session_id TEXT NOT NULL,
+        tool TEXT NOT NULL,
+        args TEXT NOT NULL,
+        status TEXT NOT NULL,
+        confirmation TEXT,
+        error TEXT,
+        idempotency_key TEXT UNIQUE,
+        at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_tool_calls_session
+        ON tool_calls(session_id, at, id);
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

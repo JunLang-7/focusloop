@@ -524,6 +524,12 @@ const en = {
   'proposal.refusal.already-refused': 'This change was already declined.',
   'proposal.refusal.not-confirmed': 'Confirm the change before it can run.',
   'proposal.refusal.forged-id': 'That change identifier is not valid.',
+  // Tool call refusals (AG8.1). A refusal is always a reason the learner can read.
+  'tool.refusal.unknown-tool': 'That action is not available, so nothing ran.',
+  'tool.refusal.bad-schema': 'That action was not understood, so nothing ran.',
+  'tool.refusal.wrong-session': 'That action belongs to a different session.',
+  'tool.refusal.permission': 'That action needs your confirmation before it can run.',
+  'tool.refusal.internal': 'That action could not run.',
 } as const;
 
 export default en;
