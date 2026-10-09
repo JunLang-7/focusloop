@@ -484,5 +484,10 @@ export const zh: Record<MessageKey, string> = {
   'proposal.confirm.apply': '确认',
   'proposal.confirm.dismiss': '暂不',
   // 工具调用拒绝（AG8.1）。拒绝永远是一个学习者读得懂的理由。
+  'tool.refusal.unknown-tool': '没有这个操作，什么也没有执行。',
+  'tool.refusal.bad-schema': '这次操作没有被理解，什么也没有执行。',
+  'tool.refusal.wrong-session': '这个操作属于另一个会话。',
+  'tool.refusal.permission': '这个操作需要先得到你的确认。',
+  'tool.refusal.internal': '这个操作没能执行。',
   'reason.none': '现在不需要任何建议。',
 };

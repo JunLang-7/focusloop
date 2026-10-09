@@ -10,6 +10,7 @@ import type {
   LearningCheckpoint,
   LearningEvent,
   MaterialDocument,
+  ToolCall,
 } from '@focusloop/shared-types';
 import { createInitialState } from '@focusloop/learning-state';
 import { RowParseError } from './row';
@@ -835,6 +836,83 @@ describe('FocusLoopStore', () => {
     it('returns null for unknown proposal ids', () => {
       expect(store.getAgentProposal('missing')).toBeNull();
       expect(store.getAgentProposalByIdempotencyKey('missing')).toBeNull();
+    });
+  });
+
+  describe('tool calls', () => {
+    const T = '2026-01-01T00:05:00.000Z';
+
+    function toolCall(overrides: Partial<ToolCall> = {}): ToolCall {
+      return {
+        id: 'tc-1',
+        sessionId: 'session-1',
+        tool: 'readCurrentTask',
+        args: {},
+        status: 'ok',
+        confirmation: null,
+        error: null,
+        at: T,
+        idempotencyKey: null,
+        ...overrides,
+      };
+    }
+
+    it('round-trips a call with its args, and the refusal reason when there is one', () => {
+      expect(store.insertToolCall(toolCall({ args: { id: 'c1' } }))).toBe(true);
+      expect(
+        store.insertToolCall(
+          toolCall({ id: 'tc-2', tool: 'dropTable', status: 'refused', error: 'unknown-tool' }),
+        ),
+      ).toBe(true);
+
+      const rows = store.listToolCalls('session-1');
+      expect(rows).toHaveLength(2);
+      const ok = rows.find((row) => row.status === 'ok');
+      expect(ok?.args).toEqual({ id: 'c1' });
+      expect(ok?.error).toBeNull();
+      const refused = rows.find((row) => row.status === 'refused');
+      expect(refused?.error).toBe('unknown-tool');
+      expect(refused?.tool).toBe('dropTable');
+    });
+
+    it('refuses a replayed insert of the same id', () => {
+      expect(store.insertToolCall(toolCall())).toBe(true);
+      expect(store.insertToolCall(toolCall())).toBe(false);
+      expect(store.listToolCalls('session-1')).toHaveLength(1);
+    });
+
+    /*
+     * A repeated key is two attempts, not an error state.
+     *
+     * The key is caller-chosen, so enforcing uniqueness in the table would let the call being
+     * audited decide whether its own audit row lands — and the registry's promise is the opposite:
+     * a hostile call cannot take the attempt record down with it. Both rows are kept, and the second
+     * insert returns true because it really did write.
+     */
+    it('records a second attempt that repeats a key, instead of failing on it', () => {
+      expect(store.insertToolCall(toolCall({ id: 'tc-a', idempotencyKey: 'k1' }))).toBe(true);
+      expect(store.insertToolCall(toolCall({ id: 'tc-b', idempotencyKey: 'k1' }))).toBe(true);
+
+      const rows = store.listToolCalls('session-1');
+      expect(rows).toHaveLength(2);
+      expect(rows.map((row) => row.idempotencyKey)).toEqual(['k1', 'k1']);
+      // And a keyed refusal is recorded just as plainly as a keyed success.
+      expect(
+        store.insertToolCall(
+          toolCall({ id: 'tc-c', idempotencyKey: 'k1', status: 'refused', error: 'unknown-tool' }),
+        ),
+      ).toBe(true);
+      expect(store.listToolCalls('session-1')).toHaveLength(3);
+    });
+
+    it('keeps sessions apart and lists newest first', () => {
+      store.insertToolCall(toolCall({ id: 'tc-1', at: '2026-01-01T00:01:00.000Z' }));
+      store.insertToolCall(toolCall({ id: 'tc-2', at: '2026-01-01T00:02:00.000Z' }));
+      store.insertToolCall(toolCall({ id: 'tc-3', sessionId: 'session-2' }));
+
+      expect(store.listToolCalls('session-1').map((row) => row.id)).toEqual(['tc-2', 'tc-1']);
+      expect(store.listToolCalls('session-2').map((row) => row.id)).toEqual(['tc-3']);
+      expect(store.listToolCalls('session-3')).toEqual([]);
     });
   });
 });

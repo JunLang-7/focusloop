@@ -4,6 +4,7 @@ import type {
   AgentContextReport,
   AgentProposal,
   AgentProposalKind,
+  AgentProposalProposedEvent,
   ConfirmProposalRequest,
   Course,
   DashboardSummary,
@@ -36,6 +37,8 @@ import type {
   SimulatorCommand,
   StartSessionResponse,
   ThemePreference,
+  ToolCallRequest,
+  ToolCallResult,
   TutorAnswer,
   TutorAskRequest,
   TutorContextReport,
@@ -43,7 +46,6 @@ import type {
   TutorReply,
   TutorUnavailableReason,
   TaskRewrite,
-  AgentProposalProposedEvent,
   ProposeStructuralChangeResponse,
 } from '@focusloop/shared-types';
 import {
@@ -58,6 +60,7 @@ import {
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
 import { buildRescueGrounding } from './rescue-grounding';
+import { createAgentReadRegistry, type ToolRegistry } from './tool-registry';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
@@ -167,6 +170,14 @@ export class FocusLoopEngine {
    * options, text vs structured modes. Skills never talk to `AIProvider` directly.
    */
   private readonly runtime: AgentRuntime;
+  /**
+   * The tool contract (AG8.1): registered reads, validated in this process.
+   *
+   * On the engine and not on the renderer, for the same reason the context builder is: grading a
+   * call needs the session, and the renderer must never hold what it would need to grade one.
+   * Phase 2 adds the write registrations, which route through the proposal envelope.
+   */
+  private readonly tools: ToolRegistry;
   private readonly clock: () => string;
   private readonly idFactory: () => string;
   private readonly simulatorEnabled: boolean;
@@ -201,6 +212,7 @@ export class FocusLoopEngine {
     this.store = options.store;
     this.providers = options.providers;
     this.runtime = new AgentRuntime(options.providers);
+    this.tools = createAgentReadRegistry();
     this.clock = options.clock ?? (() => new Date().toISOString());
     this.idFactory = options.idFactory ?? (() => randomUUID());
     this.stateConfig = options.stateConfig ?? {};
@@ -435,6 +447,26 @@ export class FocusLoopEngine {
       checkpoint: this.getLatestCheckpoint(session.id),
       learningState: session.state,
     });
+  }
+
+  /**
+   * Runs one tool call through the contract: validate, grade, run, record (AG8.1).
+   *
+   * Every attempt produces a `ToolCall` row — success, refusal, even a name nobody registered —
+   * because the attempt is what AG8.8's audit reads. The row is the only write on this path; the
+   * reads themselves serve the `AgentContext` slices above, so there is no second query path to
+   * keep side-effect free and no write for a refusal to leave half-done.
+   */
+  executeToolCall(request: ToolCallRequest): ToolCallResult {
+    const snapshot = this.getCurrentSession();
+    const result = this.tools.execute(request, {
+      currentSessionId: snapshot === null ? null : snapshot.session.id,
+      context: this.getAgentContext().context,
+      now: this.clock(),
+      id: () => this.idFactory(),
+    });
+    this.store.insertToolCall(result.call);
+    return result;
   }
 
   /**
