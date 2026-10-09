@@ -1205,9 +1205,13 @@ describe('FocusLoopEngine', () => {
       });
 
       expect(response.resumeCard?.card.variant).toBe('long');
+      // The idea is c-bst's own summary — buildRescueGrounding('HINT', …)'s selection, not a sentence
+      // this test wrote: rbt-t1's concept, quoted because it is quotable (#193, decision C).
       expect(response.resumeCard?.card.refresher).toEqual({
         key: 'resume.refresher.long',
-        params: { seconds: '30' },
+        params: {
+          idea: 'A BST keeps every left descendant smaller and every right descendant larger.',
+        },
       });
     });
 

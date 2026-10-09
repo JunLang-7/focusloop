@@ -111,18 +111,59 @@ describe('buildResumeCard', () => {
     });
   });
 
-  it('uses the long variant and a 30-second refresher at the long boundary', () => {
+  it('uses the long variant and names the idea at the long boundary', () => {
+    const idea = 'A BST keeps every left descendant smaller and every right descendant larger.';
     const card = buildResumeCard({
       checkpoint: checkpointFor(createInitialState(T0)),
       session: tinySession(),
       course: tinyCourse(),
       recentEvents: [tabReturned(24 * 60 * 60 * 1000)],
       now: T1,
+      refresherIdea: idea,
     });
 
     expect(card.variant).toBe('long');
-    expect(card.refresher).toEqual({ key: 'resume.refresher.long', params: { seconds: '30' } });
+    expect(card.refresher).toEqual({ key: 'resume.refresher.long', params: { idea } });
     expect(card.completed).toHaveLength(0);
+  });
+
+  /*
+   * Decision C on #193: the refresher names the concept's idea instead of asking the learner to
+   * recall one the card never showed. The idea is an input — only the engine holds the AgentContext
+   * it was selected from, and the selection itself is buildRescueGrounding's — so there is one
+   * selector, not two. It belongs to the long card alone.
+   */
+  describe('the idea a long card names (AG5.5)', () => {
+    const idea = 'A BST keeps every left descendant smaller and every right descendant larger.';
+    const cardWithGap = (awayMs: number, refresherIdea?: string | null) =>
+      buildResumeCard({
+        checkpoint: checkpointFor(createInitialState(T0)),
+        session: tinySession(),
+        course: tinyCourse(),
+        recentEvents: [tabReturned(awayMs)],
+        now: T1,
+        ...(refresherIdea === undefined ? {} : { refresherIdea }),
+      });
+
+    it('carries the idea it is given, and null on the shorter cards even when it has one', () => {
+      expect(cardWithGap(24 * 60 * 60 * 1000, idea).refresher).toEqual({
+        key: 'resume.refresher.long',
+        params: { idea },
+      });
+      expect(cardWithGap(60_000, idea).refresher).toBeNull();
+      expect(cardWithGap(20 * 60 * 1000, idea).refresher).toBeNull();
+    });
+
+    it('asks for nothing when there is no idea to name', () => {
+      expect(cardWithGap(24 * 60 * 60 * 1000).refresher).toBeNull();
+      expect(cardWithGap(24 * 60 * 60 * 1000, null).refresher).toBeNull();
+      expect(cardWithGap(24 * 60 * 60 * 1000, '   ').refresher).toBeNull();
+    });
+
+    it('bounds it, because it is learner material that must not grow the card', () => {
+      const card = cardWithGap(24 * 60 * 60 * 1000, 'x'.repeat(4000));
+      expect(card.refresher?.params['idea']).toHaveLength(320);
+    });
   });
 
   it('limits a short card to one completed and unresolved item', () => {

@@ -28,12 +28,20 @@ export interface BuildResumeCardInput {
    * what the course holds, and a builder that guessed would have to reimplement that rule.
    */
   readonly currentStepText?: string | null;
+  /**
+   * The concept's idea for a long card's refresher (#193, decision C).
+   *
+   * Supplied rather than derived, for the same reason as `currentStepText`: only the engine holds
+   * the AgentContext it was selected from, and the selection itself is `buildRescueGrounding`'s —
+   * the same text a HINT quotes, so the two cards cannot name different ideas. Absent means there
+   * is nothing quotable to name, and a long card then carries no refresher rather than a demand.
+   */
+  readonly refresherIdea?: string | null;
 }
 
 const DEFAULT_ESTIMATED_MINUTES = 5;
 const MAX_COMPLETED_ITEMS = 3;
 const MAX_UNRESOLVED_ITEMS = 3;
-const LONG_REFRESHER_SECONDS = '30';
 /** A step is a line the learner reads, not a document; the same bound the checkpoint's text uses. */
 const MAX_STEP_CHARACTERS = 320;
 
@@ -146,13 +154,12 @@ export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
       : [...checkpoint.mastered].slice(-MAX_COMPLETED_ITEMS);
 
   const itemLimit = variant === 'short' ? 1 : MAX_COMPLETED_ITEMS;
+  const idea = boundText(input.refresherIdea);
   return {
     variant,
     gapMs,
     refresher:
-      variant === 'long'
-        ? message('resume.refresher.long', { seconds: LONG_REFRESHER_SECONDS })
-        : null,
+      variant === 'long' && idea !== null ? message('resume.refresher.long', { idea }) : null,
     title:
       currentTask === null
         ? message('resume.title.course', { course: course.title })
@@ -161,7 +168,7 @@ export function buildResumeCard(input: BuildResumeCardInput): ResumeCard {
     completed: completed.slice(-itemLimit),
     unresolved: [...checkpoint.unresolved].slice(-Math.min(itemLimit, MAX_UNRESOLVED_ITEMS)),
     nextAction: checkpoint.nextBestAction,
-    currentStep: boundStep(input.currentStepText),
+    currentStep: boundText(input.currentStepText),
     estimatedMinutes: clampMinutes(currentTask?.estimatedMinutes),
   };
 }
@@ -188,8 +195,8 @@ function formatDuration(ms: number): string {
   return `${minutes} min`;
 }
 
-/** The step, or `null` when there is not one to show. */
-function boundStep(text: string | null | undefined): string | null {
+/** Learner text — the step, the idea — bounded, or `null` when there is not one to show. */
+function boundText(text: string | null | undefined): string | null {
   if (typeof text !== 'string') return null;
   const trimmed = text.trim();
   if (trimmed.length === 0) return null;

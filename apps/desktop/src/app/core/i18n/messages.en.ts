@@ -433,7 +433,7 @@ const en = {
   'resume.context.moment': 'You were working on {concept} a moment ago. The goal was: {goal}',
   'resume.context.away':
     'You were working on {concept} and stepped away for {duration}. The goal was: {goal}',
-  'resume.refresher.long': 'Take {seconds} seconds to recall the key idea before continuing.',
+  'resume.refresher.long': 'The key idea behind this step: {idea}',
   // Deterministic AG2 rescue steps
   'rescue.microStart.first': 'Open the task and do the first visible action.',
   'rescue.simplify.identify': 'Name the one result this task asks for.',
