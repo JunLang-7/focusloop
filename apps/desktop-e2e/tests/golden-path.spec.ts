@@ -213,7 +213,15 @@ async function pinThroughPeek(): Promise<void> {
   const sidebar = window.locator('.sidebar');
   await fab.hover();
   await expect(sidebar).toBeVisible();
-  await sidebar.click();
+  /*
+   * Pressed at the brand, not at the panel's centre. The whole sidebar is the pin target
+   * (`pinIfPeeking`), and its centre is not inert: the column is laid out differently while it
+   * peeks, so for a frame or two the point that the centre lands on is the language row — and a
+   * press there changes the interface language instead of pinning anything, which leaves every
+   * later English role query looking for a link that is now called 首页. The brand block is the
+   * same inert text in both layouts, so the press means one thing either way.
+   */
+  await sidebar.click({ position: { x: 116, y: 30 } });
   await expect(fab).toBeHidden();
   await expect(sidebar).toBeVisible();
 
