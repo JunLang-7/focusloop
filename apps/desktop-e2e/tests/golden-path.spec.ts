@@ -2185,3 +2185,83 @@ test('a proposal that expires while it is on screen says so, with the reason', a
   await window.getByTestId('end-session').click();
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
+
+/*
+ * AG8.3: a lifecycle tool is a proposal like any other — refused while the state it was built from
+ * has moved, then confirmed and executed into the log. The refusal leg is the point: the screen
+ * saying "something changed" is what makes the TOCTOU gate a promise the learner can see rather
+ * than a check they only hear about by nothing happening.
+ *
+ * The state is moved from the main process (dispatchEvent), not by clicking the UI the modal
+ * covers: an aria-modal that a test could click through would not be aria-modal.
+ */
+test('a lifecycle tool waits for confirmation, refuses when the state moves, then runs once', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+
+  const propose = (key: string) =>
+    window.evaluate(async (id: string) => {
+      const snapshot = await globalThis.focusloop.getCurrentSession();
+      return globalThis.focusloop.proposeStructuralChange({
+        sessionId: snapshot!.session.id,
+        kind: 'reversible-write',
+        payload: { tool: 'startTask', args: { taskId: 'rbt-t1' } },
+        createdBy: 'e2e',
+        idempotencyKey: id,
+      });
+    }, key);
+
+  const first = await propose('e2e-lifecycle-1');
+  expect(first.proposal).not.toBeNull();
+
+  const dialog = window.getByTestId('proposal-confirm-dialog');
+  await expect(dialog).toBeVisible();
+  // The reversible level weighs differently from the structural one (ADR 0003, §2).
+  await expect(window.getByTestId('proposal-level')).toHaveText('Needs a quick confirmation');
+
+  // Move the state under the proposal's feet.
+  await window.evaluate(async () => {
+    const snapshot = await globalThis.focusloop.getCurrentSession();
+    await globalThis.focusloop.dispatchEvent({
+      sessionId: snapshot!.session.id,
+      type: 'TASK_STARTED',
+      source: 'user',
+      payload: { taskId: 'rbt-t2' },
+    });
+  });
+
+  await window.getByTestId('proposal-confirm').click();
+  await expect(window.getByTestId('proposal-refusal')).toHaveText(
+    'Something changed after this change was prepared, so it was not applied. Review the new state and try again.',
+  );
+
+  // Decline the stale one: nothing ran, and the dialog is gone.
+  await window.getByTestId('proposal-dismiss').click();
+  await expect(dialog).toBeHidden();
+
+  // Re-propose against the state as it now is; confirm; the tool runs — once.
+  const second = await propose('e2e-lifecycle-2');
+  expect(second.proposal).not.toBeNull();
+  await expect(dialog).toBeVisible();
+  await window.getByTestId('proposal-confirm').click();
+  await expect(dialog).toBeHidden();
+
+  // The log lives on the Dashboard route — the same lesson the memory test learned. The zero above
+  // was never asserted against a log (dismiss happens before any navigation), so it is the counts
+  // below, on the page that has the timeline, that carry the claim.
+  await clickSidebarLink('Dashboard');
+
+  // Two TASK_STARTED rows — the user's mutation and the tool's effect, different sources, so the
+  // timeline keeps them apart — and exactly one applied-change row for the executed proposal.
+  await expect(
+    window.locator('[data-testid="timeline-row"] strong[title="TASK_STARTED"]'),
+  ).toHaveCount(2);
+  await expect(
+    window.locator('[data-testid="timeline-row"] strong[title="AGENT_PROPOSAL_EXECUTED"]'),
+  ).toHaveCount(1);
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
+  await clickSidebarLink('Focus Session');
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
