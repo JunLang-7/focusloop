@@ -255,6 +255,7 @@ describe('the engine registry carries both halves (AG8.3)', () => {
   it('registers the four reads and the four lifecycle writes', () => {
     expect([...createAgentRegistry().names()].sort()).toEqual([
       'completeTask',
+      'createAdaptiveTask',
       'readCheckpoint',
       'readConcept',
       'readCurrentTask',

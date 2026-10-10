@@ -1430,7 +1430,9 @@ export class FocusLoopEngine {
     if (built.status !== 'suggested') return;
     const proposal = this.createStructuralProposal({
       sessionId: record.session.id,
-      kind: 'structural-write',
+      // Re-graded with AG8.4 (#227): this is the same reversible change the tool makes — derived on
+      // read, ended by Continue — and the matrix level and the proposal kind now agree.
+      kind: 'reversible-write',
       // The intervention id is carried so the rewrite can be ended by the learner continuing the task,
       // which is an outcome rather than a change to the course.
       payload: { rewrite: built.rewrite, interventionId: intervention.id },
@@ -1910,8 +1912,21 @@ export class FocusLoopEngine {
     // A tool-shaped payload has to earn its proposal before it exists: registered, at the level the
     // kind claims, with args the contract describes and a target that is really there. Everything
     // below this line can then trust what it applies (AG8.3).
-    if (!this.toolProposalIsProposable(input)) return { proposal: null, event: null };
-    const proposal = this.createStructuralProposal(input);
+    const prepared = this.prepareToolPayload(input);
+    if (prepared === null) return { proposal: null, event: null };
+
+    /*
+     * The adaptive rewrite takes the *domain* key — `rewriteIdempotencyKey(task, action)` — the same
+     * one the rescue's accept uses. One task, one action, one rewrite proposal, across both paths:
+     * a second attempt (any caller key) fails the insert, and `activeTaskRewrite` keeps serving the
+     * single executed proposal it finds by that key (AG8.4).
+     */
+    const idempotencyKey = this.rewriteIdempotencyKeyFor(input) ?? input.idempotencyKey;
+    const proposal = this.createStructuralProposal({
+      ...input,
+      payload: prepared.payload,
+      idempotencyKey,
+    });
     if (proposal === null) return { proposal: null, event: null };
     /*
      * The announcement is an event, not a message: the log is where the asking is kept (#23), and
@@ -1940,62 +1955,84 @@ export class FocusLoopEngine {
    * exists right now. Anything else returns false and no proposal is ever created, which is why the
    * execute path can trust every payload it sees.
    */
-  private toolProposalIsProposable(input: {
+  private prepareToolPayload(input: {
     readonly sessionId: string;
     readonly kind: AgentProposalKind;
     readonly payload: Record<string, unknown>;
-  }): boolean {
+  }): { payload: Record<string, unknown> } | null {
     const { payload } = input;
-    if (payload['tool'] === undefined) return true;
-    if (typeof payload['tool'] !== 'string') return false;
+    if (payload['tool'] === undefined) return { payload };
+    if (typeof payload['tool'] !== 'string') return null;
 
     const record = this.store.getSession(input.sessionId);
-    if (record === null) return false;
+    if (record === null) return null;
 
     const registration = this.tools.get(payload['tool']);
-    if (registration === undefined) return false;
+    if (registration === undefined) return null;
     // The level gate: the kind claimed must BE the matrix level — and since `input.kind` can only
     // be a write kind, a safe-read tool fails this comparison before it can ever pass it.
-    if (registration.tool.permission !== input.kind) return false;
+    if (registration.tool.permission !== input.kind) return null;
 
     const rawArgs = payload['args'];
-    if (typeof rawArgs !== 'object' || rawArgs === null || Array.isArray(rawArgs)) return false;
+    if (typeof rawArgs !== 'object' || rawArgs === null || Array.isArray(rawArgs)) return null;
     const args = rawArgs as Record<string, unknown>;
-    if (validateRuntimeSchema(rawArgs, registration.tool.inputSchema).length > 0) return false;
+    if (validateRuntimeSchema(rawArgs, registration.tool.inputSchema).length > 0) return null;
+
+    const taskId = args['taskId'];
+    const course = this.getCourse(record.session.courseId);
+    const taskExists =
+      typeof taskId === 'string' &&
+      course !== null &&
+      course.microTasks.some((task) => task.id === taskId);
 
     switch (registration.tool.name) {
       case 'startTask':
-      case 'completeTask': {
-        const course = this.getCourse(record.session.courseId);
-        const taskId = args['taskId'];
-        return (
-          typeof taskId === 'string' &&
-          course !== null &&
-          course.microTasks.some((task) => task.id === taskId)
-        );
-      }
+      case 'completeTask':
+        return taskExists ? { payload } : null;
       case 'resumeTask': {
         const checkpointId = args['checkpointId'];
         const card = this.getResumeCard(input.sessionId);
-        return (
-          typeof checkpointId === 'string' &&
+        return typeof checkpointId === 'string' &&
           card !== null &&
           card.timing.checkpointId === checkpointId
-        );
+          ? { payload }
+          : null;
       }
       case 'startBreak': {
         const interventionId = args['interventionId'];
-        if (typeof interventionId !== 'string') return false;
+        if (typeof interventionId !== 'string') return null;
         const intervention = this.store.getIntervention(interventionId);
-        return (
-          intervention !== null &&
+        return intervention !== null &&
           intervention.sessionId === input.sessionId &&
           intervention.action === 'BREAK'
-        );
+          ? { payload }
+          : null;
+      }
+      case 'createAdaptiveTask': {
+        // The narrowing must be of the task the learner is ON: `activeTaskRewrite` serves from
+        // `currentTaskId`, so a rewrite of any other task would execute and serve nowhere.
+        const action = args['action'];
+        if (!taskExists || typeof action !== 'string' || !isTaskRewriteAction(action)) return null;
+        if (record.session.currentTaskId !== taskId) return null;
+
+        const built = buildTaskRewrite(action, this.contextFor(record).context);
+        if (built.status !== 'suggested') return null;
+
+        // The rewrite rides the payload — this is what `activeTaskRewrite` serves — and carrying it
+        // from the start means the hash binds the change the learner confirmed, not a promise to
+        // build one later against a world that may have moved.
+        const interventionId = args['interventionId'];
+        return {
+          payload: {
+            ...payload,
+            rewrite: built.rewrite,
+            ...(typeof interventionId === 'string' ? { interventionId } : {}),
+          },
+        };
       }
       default:
         // A registered write this validator does not know: refuse rather than propose blind.
-        return false;
+        return null;
     }
   }
 
@@ -2039,9 +2076,29 @@ export class FocusLoopEngine {
           resolution: 'accept',
         });
         return;
+      case 'createAdaptiveTask':
+        // The effect is the derivation: `activeTaskRewrite` serves the executed proposal's payload
+        // at read time — the same way the rescue's accept has always worked. Executing records the
+        // agreement; serving performs it; the stored course is never written (AG8.4's AC2).
+        return;
       default:
         throw new Error(`Confirmed proposal names an unregistered tool: ${payload.tool}`);
     }
+  }
+
+  /** The domain idempotency key for a rewrite proposal, or null when the payload is not a rewrite. */
+  private rewriteIdempotencyKeyFor(input: {
+    readonly sessionId: string;
+    readonly payload: Record<string, unknown>;
+  }): string | null {
+    const payload = input.payload;
+    if (payload['tool'] !== 'createAdaptiveTask') return null;
+    const args = payload['args'];
+    if (typeof args !== 'object' || args === null) return null;
+    const { taskId, action } = args as Record<string, unknown>;
+    if (typeof taskId !== 'string' || typeof action !== 'string') return null;
+    if (!isTaskRewriteAction(action)) return null;
+    return rewriteIdempotencyKey(input.sessionId, taskId, action);
   }
 
   /**

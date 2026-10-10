@@ -281,7 +281,33 @@ function lifecycleTools(): readonly ToolRegistration[] {
 }
 
 /**
- * The registry the engine keeps: the four reads (AG8.2) and the lifecycle writes (AG8.3).
+ * The adaptive-task tool (AG8.4): MICRO_START and SIMPLIFY as a reversible write — ADR 0003's row
+ * that cites "derived on read, ends with the task or with Continue" as the reason it is reversible.
+ */
+function adaptiveTools(): readonly ToolRegistration[] {
+  return [
+    {
+      tool: {
+        name: 'createAdaptiveTask',
+        version: 1,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            action: { type: 'string' },
+            taskId: { type: 'string' },
+            interventionId: { type: 'string' },
+          },
+          required: ['action', 'taskId'],
+        },
+        permission: 'reversible-write',
+        idempotency: 'keyed',
+      },
+    },
+  ];
+}
+
+/**
+ * The registry the engine keeps: the four reads (AG8.2) and the writes (AG8.3/8.4).
  *
  * Writes are registered even though the direct path refuses them — registering is what lets a tool
  * proposal be validated against the same contract that would refuse a direct call, and it is what
@@ -289,6 +315,8 @@ function lifecycleTools(): readonly ToolRegistration[] {
  */
 export function createAgentRegistry(): ToolRegistry {
   const registry = createAgentReadRegistry();
-  for (const registration of lifecycleTools()) registry.register(registration);
+  for (const registration of [...lifecycleTools(), ...adaptiveTools()]) {
+    registry.register(registration);
+  }
   return registry;
 }
