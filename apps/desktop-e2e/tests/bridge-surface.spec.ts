@@ -2,9 +2,46 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron, expect, test } from '@playwright/test';
+import { BRIDGE_PROTOCOL_VERSION } from '@focusloop/shared-types';
 import { hermeticEnv } from '../hermetic-env.mjs';
 
 const MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs');
+
+/**
+ * One message through the real socket, and the answer it came back with.
+ *
+ * Resolved from `message`, not from a count: the bridge may answer more than one frame on a
+ * reconnect, and the assertion below is about the ACK for the event it just sent.
+ */
+function submit(
+  url: string,
+  message: Record<string, unknown>,
+): Promise<{ type: string; state?: string }> {
+  return new Promise((resolve, reject) => {
+    const socket = new WebSocket(url);
+    const timer = setTimeout(() => {
+      socket.close();
+      reject(new Error('the bridge did not answer in time'));
+    }, 10_000);
+    const done = (value: { type: string; state?: string }): void => {
+      clearTimeout(timer);
+      socket.close();
+      resolve(value);
+    };
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify(message));
+    });
+    socket.addEventListener('message', (event) => {
+      const raw = typeof event.data === 'string' ? event.data : '';
+      if (raw === '') return;
+      done(JSON.parse(raw) as { type: string; state?: string });
+    });
+    socket.addEventListener('error', () => {
+      clearTimeout(timer);
+      reject(new Error(`could not reach the bridge at ${url}`));
+    });
+  });
+}
 
 /**
  * #135: the dashboard is the learner's own screen, and the bridge's address, protocol version,
@@ -94,6 +131,87 @@ test('the dashboard keeps the bridge behind an explicit request', async () => {
     await expect(page.getByTestId('bridge-token')).toHaveCount(0);
     await expect(body).not.toContainText('ws://');
     await expect(reveal).toHaveAttribute('aria-expanded', 'false');
+  } finally {
+    await app.close();
+    rmSync(profile, { recursive: true, force: true });
+  }
+});
+
+/**
+ * #204: an event the extension reports reaches the window by itself.
+ *
+ * The extension is the primary way an interruption is reported — the learner switches to the
+ * browser, `TAB_LEFT` is sent over this socket, and the engine moves on. What it cannot do is touch
+ * the window, so the window has to be told.
+ *
+ * The tick is pushed a minute out for this launch, and that is what makes the test decisive rather
+ * than lucky: the five-second tick pushes the same response, so an assertion that polls for ten
+ * seconds inside a five-second cycle would pass whether or not the push exists. With the timer moved
+ * out of the way, the only thing that can carry the event to the screen is the event's own response.
+ *
+ * The expected state is read off the ACK rather than written into the assertion. Which state
+ * `TAB_LEFT` produces is the engine's business (`DISTRACTED`, measured, not `INTERRUPTED` — the
+ * later gap is what reports that); what is this test's business is that the window is told at all,
+ * and taking the value from the socket's own answer is what keeps the two apart.
+ */
+test('an event the extension reports reaches the window without a tick', async () => {
+  const profile = mkdtempSync(join(tmpdir(), 'focusloop-bridge-event-'));
+  const app = await electron.launch({
+    args: [MAIN, `--user-data-dir=${profile}`],
+    env: { ...hermeticEnv(), FOCUSLOOP_TICK_INTERVAL_MS: '60000' },
+  });
+  try {
+    const page = await app.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
+    await page.setViewportSize({ width: 1280, height: 900 });
+
+    await page.getByTestId('course-card').first().getByTestId('start-session').click();
+    await page.getByTestId('start-task').first().click();
+    await expect(page.getByTestId('state')).toHaveAttribute('data-state', 'FOCUSED');
+
+    const info = await page.evaluate(async () => globalThis.focusloop.getBridgeInfo());
+    expect(info.running, 'the bridge is not running, so the socket path cannot be tested').toBe(
+      true,
+    );
+
+    const token = info.token;
+    const left = await submit(info.url, {
+      protocol: BRIDGE_PROTOCOL_VERSION,
+      type: 'TAB_LEFT',
+      token,
+      eventId: 'e2e-tab-left',
+      at: '2026-01-01T00:00:01.000Z',
+      payload: { origin: 'https://example.com' },
+    });
+    expect(left.type).toBe('ACK');
+    const leftState = left.state;
+    expect(
+      leftState,
+      'the socket moved nothing, so an assertion about the window would pass vacuously',
+    ).toBeDefined();
+    expect(leftState).not.toBe('FOCUSED');
+
+    /*
+     * Nothing is clicked, no route changes, and the tick is a minute away: the engine recorded the
+     * absence through the socket, and the screen has to say so on its own.
+     */
+    await expect(page.getByTestId('state')).toHaveAttribute('data-state', leftState ?? '');
+
+    // And the other half of the round trip: coming back carries the window with it, same route.
+    const returned = await submit(info.url, {
+      protocol: BRIDGE_PROTOCOL_VERSION,
+      type: 'TAB_RETURNED',
+      token,
+      eventId: 'e2e-tab-returned',
+      at: '2026-01-01T00:00:04.000Z',
+      payload: { origin: 'https://example.com' },
+    });
+    expect(returned.type).toBe('ACK');
+    expect(
+      returned.state,
+      'the return left the window where the departure did, so this half proves nothing',
+    ).not.toBe(leftState);
+    await expect(page.getByTestId('state')).toHaveAttribute('data-state', returned.state ?? '');
   } finally {
     await app.close();
     rmSync(profile, { recursive: true, force: true });

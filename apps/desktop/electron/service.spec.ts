@@ -48,6 +48,7 @@ vi.mock('@focusloop/persistence', async (importOriginal) => {
 
 const { createService } = await import('./service');
 const { broadcastTick } = await import('./ipc/handlers');
+const { createEventRouter } = await import('./event-router');
 
 const temporaryDirectories: string[] = [];
 
@@ -288,8 +289,16 @@ describe('createService', () => {
        * no learner behind it (the bridge's socket handler is the other), so it cannot be protected by refusing to
        * act in the UI: an uncaught throw from a `setInterval` callback puts an Electron error dialog over the
        * message telling them to restart.
+       *
+       * No windows, which is the state the assertion is about: the tick still runs, still finds nothing to tell,
+       * and the closed store is reported once rather than thrown (#10).
        */
-      expect(() => broadcastTick(service, [])).not.toThrow();
+      expect(() =>
+        broadcastTick(
+          service,
+          createEventRouter(service.engine, () => []),
+        ),
+      ).not.toThrow();
     } finally {
       // And the store survives its own teardown in that state, which is why `close` is idempotent.
       expect(() => service.dispose()).not.toThrow();
