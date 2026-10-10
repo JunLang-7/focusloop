@@ -459,6 +459,7 @@ export const zh: Record<MessageKey, string> = {
   'proposal.refusal.forged-id': '变更标识无效。',
   // 确认对话框（#209）。等级标签按 ADR 0003 的矩阵随 kind 走。
   'proposal.level.structural-write': '需要你确认',
+  'proposal.level.reversible-write': '需要快速确认',
   'proposal.confirm.title': '确认这项变更',
   'proposal.confirm.change': '将要发生的改变',
   'proposal.confirm.why': '发起方',

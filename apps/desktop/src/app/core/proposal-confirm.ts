@@ -21,6 +21,8 @@ import type { MessageKey } from './i18n/messages.en';
  */
 export const PROPOSAL_LEVEL_KEYS: Record<AgentProposalKind, MessageKey> = {
   'structural-write': 'proposal.level.structural-write',
+  // ADR 0003 §2: this is the moment the kind vocabulary grows, and the screen weighs it differently.
+  'reversible-write': 'proposal.level.reversible-write',
 };
 
 /**

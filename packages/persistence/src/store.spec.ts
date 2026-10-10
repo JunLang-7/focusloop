@@ -959,6 +959,56 @@ describe('FocusLoopStore', () => {
     });
   });
 
+  describe('executed rewrite reads (AG6.2)', () => {
+    function proposalFor(id: string, payload: Record<string, unknown>, executedAt?: string): void {
+      store.insertAgentProposal({
+        id,
+        sessionId: 'session-1',
+        kind: 'structural-write',
+        payload,
+        proposedAt: '2026-01-01T00:00:00.000Z',
+        expiresAt: '2126-01-01T00:00:00.000Z',
+        proposalHash: `hash-${id}`,
+        stateFingerprint: 'fp',
+        idempotencyKey: `key-${id}`,
+        createdBy: 'spec',
+      });
+      if (executedAt === undefined) return;
+      store.markAgentProposalConfirmed(id, executedAt);
+      store.markAgentProposalExecuted(id, `evt-${id}`, executedAt);
+    }
+
+    it('reads executed rewrites, and skips everything that is not one', () => {
+      proposalFor(
+        'rw-1',
+        { rewrite: { taskId: 't1', estimatedMinutes: 2 } },
+        '2026-01-03T00:00:00.000Z',
+      );
+      proposalFor(
+        'rw-2',
+        { rewrite: { taskId: 't1', estimatedMinutes: 1 } },
+        '2026-01-02T00:00:00.000Z',
+      );
+      // Executed, but a generic proposal — no rewrite in its payload.
+      proposalFor('generic-1', { op: 'demo' }, '2026-01-04T00:00:00.000Z');
+      // A rewrite that was never executed: intent, not history.
+      proposalFor('rw-proposed', { rewrite: { taskId: 't1', estimatedMinutes: 5 } });
+      // Executed, but the minutes are not a number — not a size anyone lived with.
+      proposalFor(
+        'rw-bad-minutes',
+        { rewrite: { estimatedMinutes: 'two' } },
+        '2026-01-05T00:00:00.000Z',
+      );
+
+      expect(store.listExecutedTaskRewrites('session-1')).toEqual([
+        { executedAt: '2026-01-02T00:00:00.000Z', minutes: 1 },
+        { executedAt: '2026-01-03T00:00:00.000Z', minutes: 2 },
+      ]);
+      // Another session's rewrites are not this session's evidence.
+      expect(store.listExecutedTaskRewrites('session-2')).toEqual([]);
+    });
+  });
+
   describe('agent memory counts (AG7.5)', () => {
     it('counts and dates each episodic source for one session, and never another session', () => {
       store.appendEvent({

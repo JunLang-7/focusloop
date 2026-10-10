@@ -53,6 +53,7 @@ import type {
   AgentMemoryScope,
   AgentMemorySourceCount,
   AgentMemorySummaryResult,
+  DeriveCandidateResult,
   LearnerPreferenceListResult,
   PreferenceDeleteResult,
   AgentMemoryWindow,
@@ -66,6 +67,7 @@ import {
   AGENT_MEMORY_RETENTION_MS,
   MEMORY_LIST_LIMIT,
   MEMORY_QUERY_MAX,
+  validateRuntimeSchema,
   TASK_REWRITE_ACTIONS,
   TUTOR_LIMITS,
   findMaterialForCourse,
@@ -77,7 +79,12 @@ import {
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
 import { buildRescueGrounding } from './rescue-grounding';
-import { createAgentReadRegistry, type ToolRegistry } from './tool-registry';
+import { createAgentRegistry, type ToolRegistry } from './tool-registry';
+import {
+  deriveExplanationCandidate,
+  deriveInterventionCandidate,
+  deriveTaskSizeCandidate,
+} from './preference-derivation';
 import { buildWeeklyReflection } from './reflection';
 import {
   DEFAULT_INSIGHT_RANGE,
@@ -120,7 +127,12 @@ import { buildInsightsSummary, weekWindow, type InsightsSessionSource } from './
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
-import { confirmAgentProposal, createAgentProposal, executeAgentProposal } from './proposal';
+import {
+  confirmAgentProposal,
+  createAgentProposal,
+  executeAgentProposal,
+  type ProposalCommandDeps,
+} from './proposal';
 import { applyTaskRewrite, buildTaskRewrite, rewriteIdempotencyKey } from './task-rewrite';
 import {
   TutorTranscript,
@@ -214,7 +226,7 @@ export class FocusLoopEngine {
     this.store = options.store;
     this.providers = options.providers;
     this.runtime = new AgentRuntime(options.providers);
-    this.tools = createAgentReadRegistry();
+    this.tools = createAgentRegistry();
     this.clock = options.clock ?? (() => new Date().toISOString());
     this.idFactory = options.idFactory ?? (() => randomUUID());
     this.stateConfig = options.stateConfig ?? {};
@@ -1428,7 +1440,9 @@ export class FocusLoopEngine {
     if (built.status !== 'suggested') return;
     const proposal = this.createStructuralProposal({
       sessionId: record.session.id,
-      kind: 'structural-write',
+      // Re-graded with AG8.4 (#227): this is the same reversible change the tool makes — derived on
+      // read, ended by Continue — and the matrix level and the proposal kind now agree.
+      kind: 'reversible-write',
       // The intervention id is carried so the rewrite can be ended by the learner continuing the task,
       // which is an outcome rather than a change to the course.
       payload: { rewrite: built.rewrite, interventionId: intervention.id },
@@ -1871,6 +1885,131 @@ export class FocusLoopEngine {
   }
 
   /**
+   * Task size from the narrowings the learner accepted (AG6.2).
+   *
+   * Reads executed rewrites — the rows the rescue and the adaptive tool both write — and hands them
+   * to the pure derivation. Writes nothing: `learner_preferences` is untouched by construction, and
+   * the spec asserts it after every call.
+   */
+  deriveTaskSizePreference(sessionId: string): DeriveCandidateResult<'task-size'> {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+    const candidate = deriveTaskSizeCandidate({
+      accepted: this.store
+        .listExecutedTaskRewrites(sessionId)
+        .map((row) => ({ at: row.executedAt, minutes: row.minutes })),
+      now: this.clock(),
+    });
+    if (candidate === null) return { ok: true, candidate: null };
+    return {
+      ok: true,
+      candidate: {
+        id: this.idFactory(),
+        sessionId,
+        scope: 'task-size',
+        value: candidate.value,
+        evidence: candidate.evidence,
+        source: 'ag6.task-size',
+        confirmedAt: null,
+        expiresAt: null,
+        createdAt: this.clock(),
+      },
+    };
+  }
+
+  /**
+   * What was welcomed and what was waved away, from interventions with resolved outcomes (AG6.3).
+   *
+   * An intervention nobody resolved is not an observation — unresolved is not a preference — so the
+   * outcome join is part of the evidence, not a convenience.
+   */
+  deriveInterventionPreference(sessionId: string): DeriveCandidateResult<'intervention'> {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+
+    const outcomes = new Map(
+      this.store.listOutcomes(sessionId).map((outcome) => [outcome.interventionId, outcome]),
+    );
+    const observations = this.store
+      .listInterventions(sessionId)
+      .map((intervention) => {
+        const outcome = outcomes.get(intervention.id);
+        if (outcome === undefined) return null;
+        return {
+          at: intervention.at,
+          action: intervention.action,
+          accepted: outcome.accepted,
+          dismissed: outcome.dismissed,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const candidate = deriveInterventionCandidate({ observations, now: this.clock() });
+    if (candidate === null) return { ok: true, candidate: null };
+    return {
+      ok: true,
+      candidate: {
+        id: this.idFactory(),
+        sessionId,
+        scope: 'intervention',
+        value: candidate.value,
+        evidence: candidate.evidence,
+        source: 'ag6.intervention',
+        confirmedAt: null,
+        expiresAt: null,
+        createdAt: this.clock(),
+      },
+    };
+  }
+
+  /**
+   * Which explanation form landed — from persisted rows only (AG6.4).
+   *
+   * The tutor's transcript is in-process and deliberately unpersisted, so it is not evidence: a
+   * derivation from it would be a derivation from nothing after the next launch. The input is rows
+   * or it is an abstention, and the spec asks a real question first to prove the transcript cannot
+   * sneak in.
+   */
+  deriveExplanationPreference(sessionId: string): DeriveCandidateResult<'explanation'> {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+
+    const outcomes = new Map(
+      this.store.listOutcomes(sessionId).map((outcome) => [outcome.interventionId, outcome]),
+    );
+    const observations = this.store
+      .listInterventions(sessionId)
+      .map((intervention) => {
+        const outcome = outcomes.get(intervention.id);
+        if (outcome === undefined) return null;
+        return {
+          at: intervention.at,
+          action: intervention.action,
+          accepted: outcome.accepted,
+          dismissed: outcome.dismissed,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const candidate = deriveExplanationCandidate({ observations, now: this.clock() });
+    if (candidate === null) return { ok: true, candidate: null };
+    return {
+      ok: true,
+      candidate: {
+        id: this.idFactory(),
+        sessionId,
+        scope: 'explanation',
+        value: candidate.value,
+        evidence: candidate.evidence,
+        source: 'ag6.explanation',
+        confirmedAt: null,
+        expiresAt: null,
+        createdAt: this.clock(),
+      },
+    };
+  }
+
+  /**
    * The shared gate for both memory reads: a session must be running, and it must be this one.
    * `null` means the read may proceed — anything else is the refusal to return verbatim.
    */
@@ -1924,8 +2063,15 @@ export class FocusLoopEngine {
 
   // --------------------------------------------------- structural proposals
 
-  private proposalDeps() {
-    return { store: this.store, now: this.clock, idFactory: this.idFactory };
+  private proposalDeps(): ProposalCommandDeps {
+    return {
+      store: this.store,
+      now: this.clock,
+      idFactory: this.idFactory,
+      // The effect of a first execution, inside the envelope's transaction (AG8.3): a throw rolls
+      // the record and the effect back together, so "executed" can never mean "half-applied".
+      onExecute: (proposal: AgentProposal) => this.applyToolProposal(proposal),
+    };
   }
 
   /**
@@ -1940,7 +2086,24 @@ export class FocusLoopEngine {
     idempotencyKey: string;
     ttlMs?: number;
   }): ProposeStructuralChangeResponse {
-    const proposal = this.createStructuralProposal(input);
+    // A tool-shaped payload has to earn its proposal before it exists: registered, at the level the
+    // kind claims, with args the contract describes and a target that is really there. Everything
+    // below this line can then trust what it applies (AG8.3).
+    const prepared = this.prepareToolPayload(input);
+    if (prepared === null) return { proposal: null, event: null };
+
+    /*
+     * The adaptive rewrite takes the *domain* key — `rewriteIdempotencyKey(task, action)` — the same
+     * one the rescue's accept uses. One task, one action, one rewrite proposal, across both paths:
+     * a second attempt (any caller key) fails the insert, and `activeTaskRewrite` keeps serving the
+     * single executed proposal it finds by that key (AG8.4).
+     */
+    const idempotencyKey = this.rewriteIdempotencyKeyFor(input) ?? input.idempotencyKey;
+    const proposal = this.createStructuralProposal({
+      ...input,
+      payload: prepared.payload,
+      idempotencyKey,
+    });
     if (proposal === null) return { proposal: null, event: null };
     /*
      * The announcement is an event, not a message: the log is where the asking is kept (#23), and
@@ -1958,6 +2121,202 @@ export class FocusLoopEngine {
     };
     this.store.appendEvent(event);
     return { proposal, event };
+  }
+
+  /**
+   * May this payload become a proposal? (AG8.3)
+   *
+   * Generic payloads — the ones with no `tool` — stay allowed as they always were (#218's screen
+   * records intent for them). A tool payload must name a registered *write*, claim the kind its
+   * ADR 0003 matrix row carries, pass the schema the registry holds, and point at a target that
+   * exists right now. Anything else returns false and no proposal is ever created, which is why the
+   * execute path can trust every payload it sees.
+   */
+  private prepareToolPayload(input: {
+    readonly sessionId: string;
+    readonly kind: AgentProposalKind;
+    readonly payload: Record<string, unknown>;
+  }): { payload: Record<string, unknown> } | null {
+    const { payload } = input;
+    if (payload['tool'] === undefined) return { payload };
+    if (typeof payload['tool'] !== 'string') return null;
+
+    const record = this.store.getSession(input.sessionId);
+    if (record === null) return null;
+
+    const registration = this.tools.get(payload['tool']);
+    if (registration === undefined) return null;
+    // The level gate: the kind claimed must BE the matrix level — and since `input.kind` can only
+    // be a write kind, a safe-read tool fails this comparison before it can ever pass it.
+    if (registration.tool.permission !== input.kind) return null;
+
+    const rawArgs = payload['args'];
+    if (typeof rawArgs !== 'object' || rawArgs === null || Array.isArray(rawArgs)) return null;
+    const args = rawArgs as Record<string, unknown>;
+    if (validateRuntimeSchema(rawArgs, registration.tool.inputSchema).length > 0) return null;
+
+    const taskId = args['taskId'];
+    const course = this.getCourse(record.session.courseId);
+    const taskExists =
+      typeof taskId === 'string' &&
+      course !== null &&
+      course.microTasks.some((task) => task.id === taskId);
+
+    switch (registration.tool.name) {
+      case 'startTask':
+      case 'completeTask':
+        return taskExists ? { payload } : null;
+      case 'resumeTask': {
+        const checkpointId = args['checkpointId'];
+        const card = this.getResumeCard(input.sessionId);
+        return typeof checkpointId === 'string' &&
+          card !== null &&
+          card.timing.checkpointId === checkpointId
+          ? { payload }
+          : null;
+      }
+      case 'startBreak': {
+        const interventionId = args['interventionId'];
+        if (typeof interventionId !== 'string') return null;
+        const intervention = this.store.getIntervention(interventionId);
+        return intervention !== null &&
+          intervention.sessionId === input.sessionId &&
+          intervention.action === 'BREAK'
+          ? { payload }
+          : null;
+      }
+      case 'createAdaptiveTask': {
+        // The narrowing must be of the task the learner is ON: `activeTaskRewrite` serves from
+        // `currentTaskId`, so a rewrite of any other task would execute and serve nowhere.
+        const action = args['action'];
+        if (!taskExists || typeof action !== 'string' || !isTaskRewriteAction(action)) return null;
+        if (record.session.currentTaskId !== taskId) return null;
+
+        const built = buildTaskRewrite(action, this.contextFor(record).context);
+        if (built.status !== 'suggested') return null;
+
+        // The rewrite rides the payload — this is what `activeTaskRewrite` serves — and carrying it
+        // from the start means the hash binds the change the learner confirmed, not a promise to
+        // build one later against a world that may have moved.
+        const interventionId = args['interventionId'];
+        return {
+          payload: {
+            ...payload,
+            rewrite: built.rewrite,
+            ...(typeof interventionId === 'string' ? { interventionId } : {}),
+          },
+        };
+      }
+      case 'reorderSessionPlan': {
+        // The belt over the schema's own array check, then the two rules `applyTaskOrder` cannot
+        // enforce for us: no empty order (the reducer would clear the plan), no duplicates (two
+        // tasks sharing a rank cannot swap), and no phantom ids — `applyTaskOrder` drops ids it
+        // cannot find, so a ghost would silently reshape the plan nobody confirmed.
+        const order = args['order'];
+        if (!Array.isArray(order)) return null;
+        if (order.length === 0) return null;
+        const ids: string[] = [];
+        for (const id of order as readonly unknown[]) {
+          if (typeof id !== 'string') return null;
+          ids.push(id);
+        }
+        if (new Set(ids).size !== ids.length) return null;
+        if (course === null) return null;
+        const known = new Set(course.microTasks.map((task) => task.id));
+        if (ids.some((id) => !known.has(id))) return null;
+        return { payload };
+      }
+      case 'saveCheckpoint':
+        // Nothing to target: the checkpoint is built from the session as it is at execution, and
+        // session existence was checked above. Structural because resume trusts whatever is newest
+        // and there is no delete (ADR 0003 §3).
+        return { payload };
+      default:
+        // A registered write this validator does not know: refuse rather than propose blind.
+        return null;
+    }
+  }
+
+  /**
+   * The effect of an executed tool proposal, inside the envelope's transaction (AG8.3).
+   *
+   * The `!` after `tool` is propose-time validation: a proposal naming a tool got here only if it
+   * was registered, matched its matrix level and passed its schema. The default case throws on
+   * purpose — a hand-fabricated proposal naming a ghost tool rolls the whole execution back (tested)
+   * rather than committing an "executed" record with no effect behind it.
+   */
+  private applyToolProposal(proposal: AgentProposal): void {
+    const payload = proposal.payload as { tool?: unknown; args?: unknown };
+    if (payload.tool === undefined) return; // generic payloads record intent only (#218)
+    if (typeof payload.tool !== 'string') {
+      // A plain Error on purpose: this is an invariant the envelope guarantees, not an engine
+      // state the renderer could receive and map — and the rollback is what makes it safe.
+      throw new Error('Confirmed proposal has a malformed tool payload');
+    }
+    const args = (payload.args ?? {}) as Record<string, unknown>;
+
+    switch (payload.tool) {
+      case 'startTask':
+      case 'completeTask':
+        this.dispatch({
+          sessionId: proposal.sessionId,
+          type: payload.tool === 'startTask' ? 'TASK_STARTED' : 'TASK_COMPLETED',
+          source: 'agent',
+          payload: { taskId: String(args['taskId']) },
+          // Deterministic: one proposal, one event, and a duplicate append dedupes to nothing.
+          eventId: `tool:${proposal.id}`,
+        });
+        return;
+      case 'resumeTask':
+        this.acceptResume(String(args['checkpointId']));
+        return;
+      case 'startBreak':
+        this.resolveRescue({
+          sessionId: proposal.sessionId,
+          interventionId: String(args['interventionId']),
+          resolution: 'accept',
+        });
+        return;
+      case 'reorderSessionPlan': {
+        const order = args['order'];
+        this.dispatch({
+          sessionId: proposal.sessionId,
+          type: 'TASKS_REORDERED',
+          source: 'agent',
+          payload: { order: Array.isArray(order) ? (order as string[]) : [] },
+          // Deterministic, like the lifecycle tools: one proposal, one order.
+          eventId: `tool:${proposal.id}`,
+        });
+        return;
+      }
+      case 'saveCheckpoint':
+        // Newest wins — resume reads `getLatestCheckpoint`, and there is no delete to undo a
+        // checkpoint with, which is exactly why this one is structural (ADR 0003 §3).
+        this.createCheckpoint(proposal.sessionId);
+        return;
+      case 'createAdaptiveTask':
+        // The effect is the derivation: `activeTaskRewrite` serves the executed proposal's payload
+        // at read time — the same way the rescue's accept has always worked. Executing records the
+        // agreement; serving performs it; the stored course is never written (AG8.4's AC2).
+        return;
+      default:
+        throw new Error(`Confirmed proposal names an unregistered tool: ${payload.tool}`);
+    }
+  }
+
+  /** The domain idempotency key for a rewrite proposal, or null when the payload is not a rewrite. */
+  private rewriteIdempotencyKeyFor(input: {
+    readonly sessionId: string;
+    readonly payload: Record<string, unknown>;
+  }): string | null {
+    const payload = input.payload;
+    if (payload['tool'] !== 'createAdaptiveTask') return null;
+    const args = payload['args'];
+    if (typeof args !== 'object' || args === null) return null;
+    const { taskId, action } = args as Record<string, unknown>;
+    if (typeof taskId !== 'string' || typeof action !== 'string') return null;
+    if (!isTaskRewriteAction(action)) return null;
+    return rewriteIdempotencyKey(input.sessionId, taskId, action);
   }
 
   /**
