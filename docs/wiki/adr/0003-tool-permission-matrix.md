@@ -54,10 +54,12 @@ Every write — reversible or structural — goes propose → confirm → execut
 envelope. The level drives presentation and obligations, not a second pipeline:
 
 - reads never create a proposal;
-- `AGENT_PROPOSAL_KINDS` grows from today's `['structural-write']` to
-  `['reversible-write', 'structural-write']` when the first reversible tool registers (AG8.3/8.4,
-  phase 2). Until then, the adaptive rewrites stay typed `structural-write` — the conservative
-  default, recorded here so the change is deliberate when it happens;
+- `AGENT_PROPOSAL_KINDS` grew to `['reversible-write', 'structural-write']` when the first
+  reversible tool registered (AG8.3, `#238`), and the adaptive rewrites were re-graded to
+  `reversible-write` with AG8.4 (#227) — the deferral this bullet used to carry is now spent, which
+  is the change being deliberate: the matrix row and the proposal kind agree. What still types
+  `structural-write` is exactly what has no way back: `completeTask`, `reorderSessionPlan`,
+  `saveCheckpoint`;
 - refusals reuse the `ProposalRefusal` vocabulary (closed reasons, translatable keys), extended by
   #208 for the read-path reasons (`unknown-tool`, `bad-schema`, `wrong-session`, `permission`).
 

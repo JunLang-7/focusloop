@@ -6,6 +6,7 @@ import type {
   RuntimeRequestData,
   RuntimeSchema,
 } from '@focusloop/shared-types';
+import { validateRuntimeSchema } from '@focusloop/shared-types';
 import { ProviderError } from './errors';
 import { MockAIProvider } from './mock-provider';
 import { AgentRuntime, createProviderSelection } from './index';
@@ -360,5 +361,38 @@ describe('validateRuntimeSchema', () => {
     );
     expect(validateRuntimeSchema({}, SCHEMA)).toContain('missing required property "answer"');
     expect(validateRuntimeSchema({ answer: 'ok' }, SCHEMA)).toEqual([]);
+  });
+});
+
+describe('validateRuntimeSchema — arrays (AG8.5)', () => {
+  const schema: RuntimeSchema = {
+    type: 'object',
+    properties: { order: { type: 'array', items: { type: 'string' } }, count: { type: 'number' } },
+    required: ['order'],
+  };
+
+  it('accepts a homogeneous list of the declared element type', () => {
+    expect(validateRuntimeSchema({ order: ['t1', 't2'] }, schema)).toEqual([]);
+  });
+
+  it('rejects an array whose elements are not the declared type', () => {
+    expect(validateRuntimeSchema({ order: ['t1', 2] }, schema)).toEqual([
+      'property "order" must be array',
+    ]);
+  });
+
+  it('rejects a non-array where the schema says array', () => {
+    expect(validateRuntimeSchema({ order: 't1' }, schema)).toEqual([
+      'property "order" must be array',
+    ]);
+  });
+
+  it('still bounds numbers as finite and rejects unknown keys', () => {
+    expect(validateRuntimeSchema({ order: [], count: Number.POSITIVE_INFINITY }, schema)).toEqual([
+      'property "count" must be number',
+    ]);
+    expect(validateRuntimeSchema({ order: [], extra: true }, schema)).toEqual([
+      'unexpected property "extra"',
+    ]);
   });
 });

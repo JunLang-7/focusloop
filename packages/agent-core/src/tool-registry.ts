@@ -29,7 +29,12 @@ export type ToolHandler = (args: Record<string, unknown>, context: AgentContext)
 
 export interface ToolRegistration {
   readonly tool: AgentTool;
-  readonly handler: ToolHandler;
+  /**
+   * The read itself. Required of safe-read registrations (enforced at register time) and
+   * deliberately absent for writes: a write never runs on the direct path — its effect belongs to
+   * the confirmed execution (the engine's `onExecute`), not to a handler this registry could reach.
+   */
+  readonly handler?: ToolHandler;
 }
 
 /** Everything the registry needs from the engine to grade one call. */
@@ -75,7 +80,16 @@ export class ToolRegistry {
     if (this.tools.has(name)) {
       throw new Error(`Tool "${name}" is already registered`);
     }
+    if (registration.tool.permission === 'safe-read' && registration.handler === undefined) {
+      // A read with nothing to run would return `undefined` and call it an answer.
+      throw new Error(`Safe-read tool "${name}" needs a handler`);
+    }
     this.tools.set(name, registration);
+  }
+
+  /** A registration by name — `proposeStructuralChange` validates tool payloads against it (AG8.3). */
+  get(name: string): ToolRegistration | undefined {
+    return this.tools.get(name);
   }
 
   /** The closed vocabulary, for whoever builds the model's schema over it. */
@@ -159,9 +173,11 @@ export class ToolRegistry {
     }
     if (deps.context === null) return refuse('wrong-session');
 
-    // 6. The read itself. A throwing handler is `internal` — a refusal, never a crash.
+    // 6. The read itself. A throwing handler is `internal` — a refusal, never a crash. The `!` is
+    // the register-time promise: a safe-read registration cannot exist without a handler, and step 3
+    // has already established this is a safe-read.
     try {
-      const output = registration.handler(rawArgs, deps.context);
+      const output = registration.handler!(rawArgs, deps.context);
       return { ok: true, call: call('ok', null), output };
     } catch {
       return refuse('internal');
@@ -198,5 +214,142 @@ export function createAgentReadRegistry(): ToolRegistry {
   registry.register(readTool('readConcept', (context) => context.concept));
   registry.register(readTool('readMaterial', (context) => context.material));
   registry.register(readTool('readCheckpoint', (context) => context.checkpoint));
+  return registry;
+}
+
+/**
+ * The four lifecycle writes with engine effects (AG8.3), at their ADR 0003 matrix levels.
+ *
+ * `pauseTask` and `extendTask` are absent on purpose: the focus timer lives in a renderer signal
+ * with no domain command to dispatch, and whether the model may pause a learner's timer at all is a
+ * product question rather than a registration — recorded in the follow-up issue, not papered over
+ * with a handler that does nothing.
+ */
+function lifecycleTools(): readonly ToolRegistration[] {
+  const keyed = 'keyed' as const;
+  const taskIdSchema: RuntimeSchema = {
+    type: 'object',
+    properties: { taskId: { type: 'string' } },
+    required: ['taskId'],
+  };
+  return [
+    {
+      tool: {
+        name: 'startTask',
+        version: 1,
+        inputSchema: taskIdSchema,
+        permission: 'reversible-write',
+        idempotency: keyed,
+      },
+    },
+    {
+      tool: {
+        name: 'completeTask',
+        version: 1,
+        inputSchema: taskIdSchema,
+        permission: 'structural-write',
+        idempotency: keyed,
+      },
+    },
+    {
+      tool: {
+        name: 'resumeTask',
+        version: 1,
+        inputSchema: {
+          type: 'object',
+          properties: { checkpointId: { type: 'string' } },
+          required: ['checkpointId'],
+        },
+        permission: 'reversible-write',
+        idempotency: keyed,
+      },
+    },
+    {
+      tool: {
+        name: 'startBreak',
+        version: 1,
+        inputSchema: {
+          type: 'object',
+          properties: { interventionId: { type: 'string' } },
+          required: ['interventionId'],
+        },
+        permission: 'reversible-write',
+        idempotency: keyed,
+      },
+    },
+  ];
+}
+
+/**
+ * The adaptive-task tool (AG8.4): MICRO_START and SIMPLIFY as a reversible write — ADR 0003's row
+ * that cites "derived on read, ends with the task or with Continue" as the reason it is reversible.
+ */
+function adaptiveTools(): readonly ToolRegistration[] {
+  return [
+    {
+      tool: {
+        name: 'createAdaptiveTask',
+        version: 1,
+        inputSchema: {
+          type: 'object',
+          properties: {
+            action: { type: 'string' },
+            taskId: { type: 'string' },
+            interventionId: { type: 'string' },
+          },
+          required: ['action', 'taskId'],
+        },
+        permission: 'reversible-write',
+        idempotency: 'keyed',
+      },
+    },
+  ];
+}
+
+/**
+ * The session-plan tools (AG8.5): both structural in ADR 0003 §3 — the rows with no way back.
+ * `reorderSessionPlan` takes the whole intended order (a list, hence the schema's `array`), and
+ * `saveCheckpoint` takes nothing: it builds the position resume will trust from the session as it
+ * is, and there is no checkpoint delete to undo it with.
+ */
+function sessionPlanTools(): readonly ToolRegistration[] {
+  return [
+    {
+      tool: {
+        name: 'reorderSessionPlan',
+        version: 1,
+        inputSchema: {
+          type: 'object',
+          properties: { order: { type: 'array', items: { type: 'string' } } },
+          required: ['order'],
+        },
+        permission: 'structural-write',
+        idempotency: 'keyed',
+      },
+    },
+    {
+      tool: {
+        name: 'saveCheckpoint',
+        version: 1,
+        inputSchema: { type: 'object', properties: {}, required: [] },
+        permission: 'structural-write',
+        idempotency: 'keyed',
+      },
+    },
+  ];
+}
+
+/**
+ * The registry the engine keeps: the four reads (AG8.2) and the writes (AG8.3/8.4).
+ *
+ * Writes are registered even though the direct path refuses them — registering is what lets a tool
+ * proposal be validated against the same contract that would refuse a direct call, and it is what
+ * makes "unknown tool" mean *unregistered* rather than *not yet*.
+ */
+export function createAgentRegistry(): ToolRegistry {
+  const registry = createAgentReadRegistry();
+  for (const registration of [...lifecycleTools(), ...adaptiveTools(), ...sessionPlanTools()]) {
+    registry.register(registration);
+  }
   return registry;
 }

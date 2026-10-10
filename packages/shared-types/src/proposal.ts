@@ -7,7 +7,7 @@ import type { ProposalMessageKey } from './messages';
  * this union when it registers its adaptations; nothing outside the list may
  * be proposed or executed.
  */
-export const AGENT_PROPOSAL_KINDS = ['structural-write'] as const;
+export const AGENT_PROPOSAL_KINDS = ['structural-write', 'reversible-write'] as const;
 
 export type AgentProposalKind = (typeof AGENT_PROPOSAL_KINDS)[number];
 
