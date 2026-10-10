@@ -154,13 +154,13 @@ Home
 - 风险：多 provider 行为不一致；streaming 与 schema 校验冲突；重试放大成本；本地模型能力不足导致隐藏降级。
 - 实施步骤：ADR 分离 Provider 与 AgentRuntime → runtime contract → abort/timeout → structured adapter → retry/backoff → provider chain → token estimator/budget → optional adapters → conformance suite。
 
-### AG10 Evaluation & Guardrails — 分支完成（`main` 上只有工程测试，无场景数据集）
+### AG10 Evaluation & Guardrails — 已合并（runner 与 39 个场景在 `main`；工具安全套件随 #212 落地）
 
 - 当前证据：本次静态审查时（2026-09-21，含当时可见的功能分支）共 703 项 Vitest 测试；state/policy/continuity/persistence/engine/IPC 测试较完善，并有 Electron + Playwright golden path；Tutor 有格式、模式、引用、grounding、预算 guardrail；隐私边界已有文档和若干测试。
 - **测试数量的警告**：本页的 703、实施进度页的 737/764 互相不一致，而且**都无法从 `main` 复现**
   （大数字来自分支）。测试条数只能证明“跑过”，不能作为证据。可复现的证据是 `main` 上必需检查的结果：
   `quality` ×3 OS、`golden path` ×2（17 个测试）、`coverage`、`package (smoke)`、CodeQL、`analyze`。
-- 差距：没有版本化 scenario dataset、统一 evaluator、expected/allowed/forbidden 断言、真实模型抽样评测、质量趋势报告；没有系统的 tool safety、跨语言、干扰度、resume quality 与 privacy regression 套件。
+- 差距：版本化 scenario dataset、统一 evaluator 与 expected/allowed/forbidden 断言已在 `main`（39 个场景，含 #212 的 tool safety 九场景）；仍缺真实模型抽样评测、质量趋势报告，以及跨语言、干扰度与 resume quality 套件。
 - 验收标准：每个 AG 至少有 happy/edge/adversarial 场景；deterministic gates 100% 稳定；LLM eval 固定模型/参数并报告通过率与方差；发布门槛含 grounding、tool correctness、privacy zero-tolerance、concision、continuity；场景不得含真实用户数据；失败能定位到 capability/runtime/provider。
 - 依赖：应横切全阶段，不能等功能全部完成。
 - 风险：用字符串匹配冒充质量；eval 数据泄漏进 prompt；在线模型漂移导致 CI 抖动；只测英文。

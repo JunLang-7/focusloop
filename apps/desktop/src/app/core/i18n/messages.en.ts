@@ -508,6 +508,7 @@ const en = {
   'proposal.refusal.forged-id': 'That change identifier is not valid.',
   // The confirmation dialog (#209). The level label names ADR 0003's matrix via `kind`.
   'proposal.level.structural-write': 'Needs your confirmation',
+  'proposal.level.reversible-write': 'Needs a quick confirmation',
   'proposal.confirm.title': 'Confirm this change',
   'proposal.confirm.change': 'What will change',
   'proposal.confirm.why': 'Requested by',

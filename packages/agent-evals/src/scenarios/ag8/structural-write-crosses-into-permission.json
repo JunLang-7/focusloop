@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-structural-write-crosses-into-permission",
+  "capability": "AG8",
+  "kind": "edge",
+  "description": "The structural cell: same door, same closed reason — the full confirm lives on the envelope path, not here.",
+  "input": {
+    "case": "structural-write-crosses-into-permission"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "permission"
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 0
+    },
+    {
+      "type": "equals",
+      "path": "lastEventType",
+      "value": null
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "eventsAdded",
+      "value": 1
+    },
+    {
+      "type": "forbidden-value",
+      "path": "handlerApplied",
+      "value": true
+    }
+  ]
+}

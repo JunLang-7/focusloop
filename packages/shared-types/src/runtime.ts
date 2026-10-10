@@ -42,7 +42,15 @@ export interface RuntimeSchema {
 }
 
 export interface RuntimeSchemaProperty {
-  readonly type: 'string' | 'number' | 'boolean';
+  readonly type: 'string' | 'number' | 'boolean' | 'array';
+  /**
+   * Element types for `array`: homogeneous scalars, nothing nested.
+   *
+   * Added for tool arguments that are lists by nature — a plan reorder is the whole intended order,
+   * not a single move (#23) — and shaped so both readers stay simple: the audit renders it, and a
+   * provider receiving it as JSON Schema finds `type: array` with an optional `items` valid as-is.
+   */
+  readonly items?: { readonly type: 'string' | 'number' | 'boolean' };
 }
 
 /** Outcome of a structured call. Only `value` (when present) may be committed. */
@@ -74,6 +82,13 @@ export interface StreamRuntimeResult {
   readonly failureReason?: string;
 }
 
+/** One scalar check, used for both a property's own type and an array's elements. */
+function matchesScalar(value: unknown, type: 'string' | 'number' | 'boolean'): boolean {
+  if (type === 'string') return typeof value === 'string';
+  if (type === 'number') return typeof value === 'number' && Number.isFinite(value);
+  return typeof value === 'boolean';
+}
+
 /**
  * Validates a parsed JSON value against a runtime schema.
  *
@@ -100,12 +115,13 @@ export function validateRuntimeSchema(value: unknown, schema: RuntimeSchema): re
   for (const [key, property] of Object.entries(schema.properties)) {
     if (!(key in record)) continue;
     const actual = record[key];
+    const items = property.items;
     const ok =
-      property.type === 'string'
-        ? typeof actual === 'string'
-        : property.type === 'number'
-          ? typeof actual === 'number' && Number.isFinite(actual)
-          : typeof actual === 'boolean';
+      property.type === 'array'
+        ? Array.isArray(actual) &&
+          (items === undefined ||
+            (actual as readonly unknown[]).every((element) => matchesScalar(element, items.type)))
+        : matchesScalar(actual, property.type);
     if (!ok) problems.push(`property "${key}" must be ${property.type}`);
   }
 

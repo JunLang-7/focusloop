@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-malformed-args-refused",
+  "capability": "AG8",
+  "kind": "adversarial",
+  "description": "Args the schema does not describe are refused before anything looks at them — smuggling a field past the contract gains nothing.",
+  "input": {
+    "case": "malformed-args-refused"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "bad-schema"
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 0
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "eventsAdded",
+      "value": 1
+    },
+    {
+      "type": "forbidden-value",
+      "path": "handlerApplied",
+      "value": true
+    }
+  ]
+}
