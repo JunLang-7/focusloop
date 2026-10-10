@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-unknown-tool-refused",
+  "capability": "AG8",
+  "kind": "adversarial",
+  "description": "A name nobody registered is unknown, whatever it spells — the vocabulary is a closed list.",
+  "input": {
+    "case": "unknown-tool-refused"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "unknown-tool"
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 0
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "eventsAdded",
+      "value": 1
+    },
+    {
+      "type": "forbidden-value",
+      "path": "handlerApplied",
+      "value": true
+    }
+  ]
+}

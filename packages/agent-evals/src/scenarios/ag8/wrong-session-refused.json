@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-wrong-session-refused",
+  "capability": "AG8",
+  "kind": "edge",
+  "description": "A call naming a session that is not running is refused — cross-session reads are not a thing the contract offers.",
+  "input": {
+    "case": "wrong-session-refused"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "wrong-session"
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 0
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "eventsAdded",
+      "value": 1
+    },
+    {
+      "type": "forbidden-value",
+      "path": "handlerApplied",
+      "value": true
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-forged-key-refused",
+  "capability": "AG8",
+  "kind": "adversarial",
+  "description": "A confirmed proposal executed with the wrong idempotency key is forged, not forgotten: the proposal stays confirmed and nothing runs.",
+  "input": {
+    "case": "forged-key-refused"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "forged-id"
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 1
+    },
+    {
+      "type": "equals",
+      "path": "lastEventType",
+      "value": "AGENT_PROPOSAL_PROPOSED"
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "proposalStatus",
+      "value": "confirmed"
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "lastEventType",
+      "value": "AGENT_PROPOSAL_EXECUTED"
+    },
+    {
+      "type": "forbidden-value",
+      "path": "proposalStatus",
+      "value": "executed"
+    }
+  ]
+}
