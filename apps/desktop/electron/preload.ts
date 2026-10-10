@@ -80,6 +80,7 @@ const api: FocusLoopApi = {
   listMemory: (sessionId: string, scope: AgentMemoryScope, window?: AgentMemoryWindow) =>
     ipcRenderer.invoke(IPC_CHANNELS.memoryList, payload.memoryList(sessionId, scope, window)),
   cleanupOldEpisodicMemory: () => ipcRenderer.invoke(IPC_CHANNELS.memoryCleanup, payload.none()),
+  getWeeklyReflection: () => ipcRenderer.invoke(IPC_CHANNELS.weeklyReflection, payload.none()),
   clearAgentMemory: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.memoryClear, payload.sessionId(sessionId)),
   listPreferences: (sessionId: string) =>

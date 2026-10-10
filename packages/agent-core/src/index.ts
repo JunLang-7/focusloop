@@ -16,6 +16,7 @@ export * from './insights';
 export * from './proposal';
 export * from './adaptive-task';
 export * from './rescue-grounding';
+export * from './reflection';
 export * from './task-rewrite';
 export * from './tool-registry';
 export * from './engine';
