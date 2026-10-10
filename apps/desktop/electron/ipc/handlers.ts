@@ -1,10 +1,11 @@
-import { ipcMain, type BrowserWindow, type IpcMainInvokeEvent, type WebContents } from 'electron';
+import { ipcMain, type IpcMainInvokeEvent } from 'electron';
 import {
   IPC_CHANNELS,
   BRIDGE_PROTOCOL_VERSION,
   type DispatchEventResponse,
 } from '@focusloop/shared-types';
 import type { FocusLoopService } from '../service';
+import type { EventRouter } from '../event-router';
 import {
   parseConfirmProposal,
   parseCourseId,
@@ -44,7 +45,7 @@ function defineHandler<TPayload, TResult>(
 }
 
 /** The complete, closed list of what the renderer may ask for. */
-export function createHandlers(service: FocusLoopService) {
+export function createHandlers(service: FocusLoopService, router: EventRouter) {
   const { engine } = service;
   const bridgeInfo = () =>
     service.bridge === null
@@ -131,7 +132,7 @@ export function createHandlers(service: FocusLoopService) {
     defineHandler({
       channel: IPC_CHANNELS.dispatchEvent,
       parse: parseDispatchRequest,
-      handle: (request) => engine.dispatch(request),
+      handle: (request) => router.dispatch(request),
     }),
     defineHandler({
       channel: IPC_CHANNELS.listEvents,
@@ -196,7 +197,7 @@ export function createHandlers(service: FocusLoopService) {
     defineHandler({
       channel: IPC_CHANNELS.simulateEvent,
       parse: parseSimulatorCommand,
-      handle: (command, invokeEvent) => {
+      handle: (command) => {
         const response = engine.simulate(command);
         /*
          * Pushed to the renderer rather than left for a tick to carry.
@@ -206,8 +207,11 @@ export function createHandlers(service: FocusLoopService) {
          * some unrelated state change arrives — which is how the long resume card stayed off screen
          * while the engine had already offered it (#192). `subscribeToEvents` is subscribed to exactly
          * this channel, waiting for events the renderer did not cause; this is one of them.
+         *
+         * The requesting window is no longer named here: `router.publish` reaches every window, and it
+         * is one of them (#204).
          */
-        pushEventToRenderer(invokeEvent.sender, response);
+        router.publish(response);
         return response;
       },
     }),
@@ -300,7 +304,7 @@ export function createHandlers(service: FocusLoopService) {
     defineHandler({
       channel: IPC_CHANNELS.proposeStructuralChange,
       parse: parseProposeStructuralChange,
-      handle: (request, invokeEvent) => {
+      handle: (request) => {
         const response = engine.proposeStructuralChange(request);
         /*
          * Pushed for the same reason the simulator's result is (#192): the renderer refreshes on
@@ -311,7 +315,7 @@ export function createHandlers(service: FocusLoopService) {
          * no rescue — which is exactly what the other fields say.
          */
         if (response.event !== null) {
-          pushEventToRenderer(invokeEvent.sender, {
+          router.publish({
             event: response.event,
             state: engine.getCurrentSession()?.session.state ?? 'READY',
             checkpoint: null,
@@ -342,13 +346,8 @@ export function createHandlers(service: FocusLoopService) {
   ] as const;
 }
 
-export function pushEventToRenderer(target: WebContents, response: DispatchEventResponse): void {
-  if (target.isDestroyed()) return;
-  target.send(IPC_CHANNELS.onEvent, response);
-}
-
-export function registerIpcHandlers(service: FocusLoopService): () => void {
-  const handlers = createHandlers(service);
+export function registerIpcHandlers(service: FocusLoopService, router: EventRouter): () => void {
+  const handlers = createHandlers(service, router);
 
   for (const handler of handlers) {
     ipcMain.handle(handler.channel, async (event, rawPayload) => {
@@ -366,7 +365,7 @@ export function registerIpcHandlers(service: FocusLoopService): () => void {
 }
 
 /** Called by a timer in the main process; broadcasts state changes to windows. */
-export function broadcastTick(service: FocusLoopService, windows: readonly BrowserWindow[]): void {
+export function broadcastTick(service: FocusLoopService, router: EventRouter): void {
   /*
    * Guarded, and not defensively.
    *
@@ -391,10 +390,7 @@ export function broadcastTick(service: FocusLoopService, windows: readonly Brows
   }
 
   if (response === null) return;
-  for (const window of windows) {
-    if (window.isDestroyed()) continue;
-    pushEventToRenderer(window.webContents, response);
-  }
+  router.publish(response);
 }
 
 /** Whether a tick has already failed, so a closed store is reported once instead of every five seconds. */
