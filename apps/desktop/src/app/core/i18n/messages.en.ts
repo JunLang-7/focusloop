@@ -540,6 +540,7 @@ const en = {
   'app.data.preference.scope.resume': 'Resume',
   'app.data.preference.evidence': '{samples} samples · {from} – {to}',
   'app.data.preference.unconfirmed': 'not confirmed yet',
+  'app.data.preference.expired': 'expired',
   'app.data.preference.forget': 'Forget',
   'app.data.preference.deleted': 'Preference forgotten.',
   'app.data.memory.scope.working': 'Working',

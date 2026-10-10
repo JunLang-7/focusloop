@@ -101,6 +101,12 @@ export interface PreferenceRowView {
   readonly evidenceParams: Readonly<Record<string, string>>;
   /** `null` until AG6.7 confirmed it — the panel says so rather than showing a blank. */
   readonly confirmedAt: string | null;
+  /**
+   * Past its `expiresAt` (AG6.1's decision): still stored, still shown, still deletable — marked,
+   * never hidden. An expired row is not a lie the panel tells; hiding it would be, because the row
+   * is still on the disk and still counted.
+   */
+  readonly expired: boolean;
 }
 
 export const MAX_PREFERENCE_VALUE_CHARS = 140;
@@ -108,6 +114,7 @@ export const MAX_PREFERENCE_VALUE_CHARS = 140;
 export function preferenceRowView(
   preference: LearnerPreference,
   clock: (iso: string | null) => string,
+  now: string,
 ): PreferenceRowView {
   let valueText: string;
   try {
@@ -130,6 +137,10 @@ export function preferenceRowView(
       to: clock(preference.evidence.windowEnd),
     },
     confirmedAt: preference.confirmedAt,
+    expired:
+      preference.expiresAt !== null &&
+      Number.isFinite(Date.parse(preference.expiresAt)) &&
+      Date.parse(preference.expiresAt) <= Date.parse(now),
   };
 }
 

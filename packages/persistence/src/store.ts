@@ -19,14 +19,19 @@ import type {
   MicroTaskKind,
   Quiz,
   AgentMemorySourceCount,
+  ExplanationPreferenceValue,
+  InterventionPreferenceValue,
   LearnerPreference,
   LearnerPreferenceScope,
+  ResumePreferenceValue,
+  TaskSizePreferenceValue,
   EpisodicCleanupResult,
   ResumeCardTiming,
   ToolCall,
   ToolCallRecord,
 } from '@focusloop/shared-types';
 import { redactToolArgs } from '@focusloop/shared-types';
+import { preferenceValueProblems } from '@focusloop/shared-types';
 import type { StateEngineState } from '@focusloop/learning-state';
 import { TOOL_REFUSAL_REASONS } from '@focusloop/shared-types';
 import { migrate } from './migrations';
@@ -799,6 +804,15 @@ export class FocusLoopStore {
         'LearnerPreference evidence must be a time window and a positive integer sample size',
       );
     }
+    // The scope's vocabulary, enforced for callers the compiler never saw — the typed union in
+    // `shared-types` is the same rule, written where an IPC boundary or a future derivation cannot
+    // skip it (AG6.1).
+    const valueProblems = preferenceValueProblems(preference.scope, preference.value);
+    if (valueProblems.length > 0) {
+      throw new RangeError(
+        `LearnerPreference value is outside its scope vocabulary: ${valueProblems.join('; ')}`,
+      );
+    }
 
     const exists = this.db
       .prepare('SELECT 1 FROM learner_preferences WHERE id = ?;')
@@ -1222,11 +1236,19 @@ function mapEvent(row: SqlRow): LearningEvent {
 }
 
 function mapLearnerPreference(row: SqlRow): LearnerPreference {
-  return {
+  const scope = readText(row, 'learner_preferences', 'scope') as LearnerPreferenceScope;
+  const value = parseJson<unknown>(readText(row, 'learner_preferences', 'value'), null);
+  const problems = preferenceValueProblems(scope, value);
+  if (problems.length > 0) {
+    // A stored value that no longer fits its scope is corruption, not something to render: reading
+    // it loudly beats casting it and letting a trait-shaped value reach the panel (AG6.1).
+    throw new RangeError(
+      `learner_preferences value is outside its scope vocabulary: ${problems.join('; ')}`,
+    );
+  }
+  const common = {
     id: readText(row, 'learner_preferences', 'id'),
     sessionId: readText(row, 'learner_preferences', 'session_id'),
-    scope: readText(row, 'learner_preferences', 'scope') as LearnerPreferenceScope,
-    value: parseJson<Record<string, unknown>>(readText(row, 'learner_preferences', 'value'), {}),
     evidence: {
       windowStart: readText(row, 'learner_preferences', 'evidence_window_start'),
       windowEnd: readText(row, 'learner_preferences', 'evidence_window_end'),
@@ -1237,6 +1259,18 @@ function mapLearnerPreference(row: SqlRow): LearnerPreference {
     expiresAt: readNullableText(row, 'learner_preferences', 'expires_at'),
     createdAt: readText(row, 'learner_preferences', 'created_at'),
   };
+  // Narrowed per scope now that the value is typed: the cast cannot be reached without the
+  // problems check above having passed, which is exactly the type's own rule.
+  switch (scope) {
+    case 'task-size':
+      return { ...common, scope, value: value as TaskSizePreferenceValue };
+    case 'intervention':
+      return { ...common, scope, value: value as InterventionPreferenceValue };
+    case 'explanation':
+      return { ...common, scope, value: value as ExplanationPreferenceValue };
+    case 'resume':
+      return { ...common, scope, value: value as ResumePreferenceValue };
+  }
 }
 
 function mapResumeTiming(row: SqlRow): ResumeCardTiming {

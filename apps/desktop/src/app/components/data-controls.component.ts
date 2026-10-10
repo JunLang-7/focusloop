@@ -135,6 +135,11 @@ interface DataNotice {
                         : clock(pref.confirmedAt)
                     }}</span>
                     <span class="muted small">{{ t(pref.evidenceKey, pref.evidenceParams) }}</span>
+                    @if (pref.expired) {
+                      <span class="muted small" data-testid="memory-preference-expired">{{
+                        t('app.data.preference.expired')
+                      }}</span>
+                    }
                     <button
                       type="button"
                       class="btn btn--small"
@@ -276,8 +281,9 @@ export class DataControlsComponent implements OnDestroy {
   protected readonly preferenceRows = computed(() => {
     const result = this.state.preferences();
     if (result === null || !result.ok) return [];
+    const now = new Date().toISOString();
     return result.preferences.map((preference) =>
-      preferenceRowView(preference, (iso) => this.clock(iso)),
+      preferenceRowView(preference, (iso) => this.clock(iso), now),
     );
   });
 

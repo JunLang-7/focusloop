@@ -491,6 +491,7 @@ export const zh: Record<MessageKey, string> = {
   'app.data.preference.scope.resume': '续接方式',
   'app.data.preference.evidence': '{samples} 次观察 · {from} – {to}',
   'app.data.preference.unconfirmed': '尚未确认',
+  'app.data.preference.expired': '已过期',
   'app.data.preference.forget': '忘记',
   'app.data.preference.deleted': '已忘记该偏好。',
   'app.data.memory.scope.working': '工作记忆',

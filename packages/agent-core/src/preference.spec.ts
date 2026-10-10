@@ -1,14 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import type { LearnerPreference } from '@focusloop/shared-types';
+import type { LearnerPreference, LearnerPreferenceCommon } from '@focusloop/shared-types';
 import { createTestEngine, type TestEngine } from './test-helpers';
 import { DEMO_COURSE_ID } from './demo-course';
 
-function preference(overrides: Partial<LearnerPreference> = {}): LearnerPreference {
+/**
+ * Overrides are the *common* fields: scope and value are a pair (AG6.1's discriminated union), and
+ * this suite is about sessions and deletion, not about the vocabulary — that lives in
+ * `shared-types/learner-preference.spec.ts`.
+ */
+function preference(overrides: Partial<LearnerPreferenceCommon> = {}): LearnerPreference {
   return {
     id: 'pref-1',
     sessionId: 's1',
     scope: 'task-size',
-    value: { stepMinutes: 2 },
+    value: { preferredStepMinutes: 2 },
     evidence: {
       windowStart: '2026-01-01T00:00:00.000Z',
       windowEnd: '2026-01-08T00:00:00.000Z',
