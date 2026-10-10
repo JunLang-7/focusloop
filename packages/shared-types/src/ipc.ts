@@ -9,6 +9,7 @@ import type {
   AgentMemoryWindow,
   EpisodicCleanupResult,
 } from './memory';
+import type { WeeklyReflection } from './reflection';
 import type { LearnerPreferenceListResult, PreferenceDeleteResult } from './learner-preference';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { RescueView } from './rescue';
@@ -58,6 +59,7 @@ export const IPC_CHANNELS = {
   preferencesList: 'focusloop:agent:preferences-list',
   preferenceDelete: 'focusloop:agent:preference-delete',
   memoryCleanup: 'focusloop:agent:memory-cleanup',
+  weeklyReflection: 'focusloop:reflection:weekly',
   proposeStructuralChange: 'focusloop:agent:propose',
   confirmProposal: 'focusloop:agent:confirm-proposal',
   executeProposal: 'focusloop:agent:execute-proposal',
@@ -392,6 +394,11 @@ export interface FocusLoopApi {
    * and course tables are never in reach. Read-only for the renderer: it reports what happened.
    */
   cleanupOldEpisodicMemory(): Promise<EpisodicCleanupResult>;
+  /**
+   * This week as counts and quoted preferences (AG6.5) — cross-session like the dashboard's views,
+   * every line carrying the rows behind it. No args: the window comes from the engine's clock.
+   */
+  getWeeklyReflection(): Promise<WeeklyReflection>;
   /** Clears session memory through the tested engine path (ADR 0001); null when the session is not. */
   clearAgentMemory(sessionId: string): Promise<{ clearedAt: string; actor: string } | null>;
   /** This session's stored preferences, newest first; refused like the memory reads (AG7.4). */

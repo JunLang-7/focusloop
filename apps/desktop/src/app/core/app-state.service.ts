@@ -35,6 +35,7 @@ import type {
   AgentMemorySummaryResult,
   LearnerPreferenceListResult,
   PreferenceDeleteResult,
+  WeeklyReflection,
 } from '@focusloop/shared-types';
 
 import type { FocusNoticeFold } from './focus-notice';
@@ -117,6 +118,8 @@ export class AppStateService {
    * `null` before the first read — distinct from a refusal, which is an answer.
    */
   readonly memorySummary = signal<AgentMemorySummaryResult | null>(null);
+  /** This week as counts and quoted preferences (AG6.5) — cross-session, like the dashboard's views. */
+  readonly weeklyReflection = signal<WeeklyReflection | null>(null);
   /** Stored preferences for this session (AG7.4), read the same way as the summary. */
   readonly preferences = signal<LearnerPreferenceListResult | null>(null);
   /**
@@ -380,6 +383,7 @@ export class AppStateService {
     this.interventionId.set(null);
     this.insights.set(null);
     this.todayInsights.set(null);
+    this.weeklyReflection.set(null);
     this.focusNoticeFold.set({ sessionId: null, folded: false });
   }
 
@@ -394,6 +398,12 @@ export class AppStateService {
       this.insights.set(await this.api.getInsights({ range: this.insightRange() }));
     } catch {
       this.insights.set(null);
+    }
+    try {
+      this.weeklyReflection.set(await this.api.getWeeklyReflection());
+    } catch {
+      // Same rule as the insights reload: a window that will not load must not raise a banner.
+      this.weeklyReflection.set(null);
     }
   }
 
@@ -615,6 +625,13 @@ export class AppStateService {
     this.insightRange.set(range);
     await this.run(async () => {
       this.insights.set(await this.api.getInsights({ range }));
+      // The week shares the insights lifecycle — page init, range change, post-delete reload — so
+      // the two windows are read at the same moments and cannot drift into different truths (AG6.5).
+      try {
+        this.weeklyReflection.set(await this.api.getWeeklyReflection());
+      } catch {
+        this.weeklyReflection.set(null);
+      }
     });
   }
 

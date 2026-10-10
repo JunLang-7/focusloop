@@ -28,6 +28,7 @@ export * from './proposal';
 export * from './tool';
 export * from './memory';
 export * from './learner-preference';
+export * from './reflection';
 export * from './dashboard';
 export * from './insights';
 export * from './provider';

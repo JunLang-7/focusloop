@@ -302,6 +302,11 @@ export function createHandlers(service: FocusLoopService, router: EventRouter) {
       handle: () => engine.cleanupOldEpisodicMemory({ actor: 'user' }),
     }),
     defineHandler({
+      channel: IPC_CHANNELS.weeklyReflection,
+      parse: parseNoArgs,
+      handle: () => engine.getWeeklyReflection(),
+    }),
+    defineHandler({
       channel: IPC_CHANNELS.proposeStructuralChange,
       parse: parseProposeStructuralChange,
       handle: (request) => {

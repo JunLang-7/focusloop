@@ -181,6 +181,16 @@ interface Window {
   readonly sessionOnlyId: string | null;
 }
 
+/**
+ * The same window `resolveWindow('week')` resolves — exported so the weekly reflection (AG6.5)
+ * cannot drift from the dashboard's week view: two "this week" numbers that disagree would be a
+ * bug neither view could see.
+ */
+export function weekWindow(nowMs: number): { readonly fromMs: number; readonly toMs: number } {
+  if (!Number.isFinite(nowMs)) throw new RangeError('weekWindow needs a finite instant');
+  return { fromMs: startOfLocalDay(nowMs - 6 * MS_PER_DAY), toMs: nowMs };
+}
+
 function resolveWindow(input: BuildInsightsInput, nowMs: number): Window {
   switch (input.range) {
     case 'today':

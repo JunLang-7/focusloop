@@ -58,6 +58,9 @@ import type {
   PreferenceDeleteResult,
   AgentMemoryWindow,
   EpisodicCleanupResult,
+  WeeklyReflection,
+  LearnerPreference,
+  ResumeCardTiming,
 } from '@focusloop/shared-types';
 import {
   AGENT_MEMORY_SOURCES,
@@ -82,6 +85,7 @@ import {
   deriveInterventionCandidate,
   deriveTaskSizeCandidate,
 } from './preference-derivation';
+import { buildWeeklyReflection } from './reflection';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
@@ -119,7 +123,7 @@ import {
   type ProviderSelection,
 } from '@focusloop/llm-provider';
 import { buildDashboardSummary, type EvaluatedRescue } from './dashboard';
-import { buildInsightsSummary, type InsightsSessionSource } from './insights';
+import { buildInsightsSummary, weekWindow, type InsightsSessionSource } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
@@ -1544,6 +1548,48 @@ export class FocusLoopEngine {
       courses: this.store.listCourses(),
       currentSessionId: onScreen?.session.id ?? null,
       config: this.stateConfig,
+    });
+  }
+
+  /**
+   * This week, as counts the learner can read (AG6.5).
+   *
+   * Cross-session like the dashboard's views — a week is not one session — and gathered the same
+   * way `getInsights` gathers: rows in, no model, no prose. The window comes from `weekWindow`, the
+   * exported twin of the dashboard's own, so the two weekly numbers cannot disagree.
+   */
+  getWeeklyReflection(): WeeklyReflection {
+    const nowMs = Date.parse(this.clock());
+    const { fromMs, toMs } = weekWindow(nowMs);
+
+    const interventions: Intervention[] = [];
+    const outcomes: InterventionOutcome[] = [];
+    const resumeTimings: ResumeCardTiming[] = [];
+    const checkpoints: LearningCheckpoint[] = [];
+    const tasksCompleted: LearningEvent[] = [];
+    const preferences: LearnerPreference[] = [];
+
+    for (const record of this.store.listSessions()) {
+      const sessionId = record.session.id;
+      interventions.push(...this.store.listInterventions(sessionId));
+      outcomes.push(...this.store.listOutcomes(sessionId));
+      resumeTimings.push(...this.store.listResumeTimings(sessionId));
+      checkpoints.push(...this.store.listCheckpoints(sessionId));
+      preferences.push(...this.store.listLearnerPreferences(sessionId));
+      for (const event of this.store.listEvents(sessionId)) {
+        if (event.type === 'TASK_COMPLETED') tasksCompleted.push(event);
+      }
+    }
+
+    return buildWeeklyReflection({
+      windowFrom: new Date(fromMs).toISOString(),
+      windowTo: new Date(toMs).toISOString(),
+      interventions,
+      outcomes,
+      resumeTimings,
+      checkpoints,
+      tasksCompleted,
+      preferences,
     });
   }
 

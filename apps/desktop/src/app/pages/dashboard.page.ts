@@ -26,7 +26,8 @@ import {
   sortedShares,
   weekdayIndex,
 } from '../core/insights-view';
-import { formatDuration, formatLatency } from '../core/format';
+import { formatClock, formatDuration, formatLatency } from '../core/format';
+import { reflectionView } from '../core/reflection-view';
 
 const RANGE_KEYS: Record<InsightRange, MessageKey> = {
   session: 'dashboard.range.session',
@@ -408,6 +409,44 @@ const DONUT_RADIUS = 42;
       </div>
     </section>
 
+    <!--
+      The week, as counts with their evidence (AG6.5): every line names the rows behind it and the
+      window it counts; an empty week says so rather than printing seven honest zeros.
+    -->
+    <section data-testid="reflection-section">
+      <h2 class="section-title">{{ t('app.reflection.title') }}</h2>
+      @if (reflection(); as week) {
+        @if (week.isEmpty) {
+          <p class="muted small" data-testid="reflection-empty">{{ t('app.reflection.empty') }}</p>
+        } @else {
+          @if (week.stats.length > 0) {
+            <p class="eyebrow">{{ t('app.reflection.stats') }}</p>
+            <ul data-testid="reflection-stats">
+              @for (stat of week.stats; track stat.key) {
+                <li data-testid="reflection-stat-row">
+                  <strong>{{ t(stat.labelKey) }}</strong>
+                  <span>{{ stat.value }}</span>
+                  <span class="muted small">{{ t(stat.evidenceKey, stat.evidenceParams) }}</span>
+                </li>
+              }
+            </ul>
+          }
+          @if (week.claims.length > 0) {
+            <p class="eyebrow">{{ t('app.reflection.claims') }}</p>
+            <ul data-testid="reflection-claims">
+              @for (claim of week.claims; track claim.scope) {
+                <li data-testid="reflection-claim">
+                  <strong>{{ t(claim.scopeKey) }}</strong>
+                  <span class="muted small">{{ claim.valueText }}</span>
+                  <span class="muted small">{{ t(claim.evidenceKey, claim.evidenceParams) }}</span>
+                </li>
+              }
+            </ul>
+          }
+        }
+      }
+    </section>
+
     <section>
       <h2 class="section-title">{{ t('dashboard.events') }}</h2>
       <ul class="timeline">
@@ -469,6 +508,14 @@ export class DashboardPage {
    * Newest run first. Reversing first means the log reads top-down as most-recent-first,
    * which is the only order an audit tail is useful in.
    */
+  /** The week as counts and claims — the pure view does the deciding, this only renders it (AG6.5). */
+  protected readonly reflection = computed(() => {
+    const week = this.state.weeklyReflection();
+    return week === null
+      ? null
+      : reflectionView(week, (iso) => (iso === null ? '—' : formatClock(iso)));
+  });
+
   protected readonly eventGroups = computed(() =>
     groupEvents([...this.state.recentEvents()].reverse()),
   );
