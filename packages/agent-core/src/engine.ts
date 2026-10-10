@@ -63,6 +63,7 @@ import {
   AGENT_MEMORY_RETENTION_MS,
   MEMORY_LIST_LIMIT,
   MEMORY_QUERY_MAX,
+  validateRuntimeSchema,
   TASK_REWRITE_ACTIONS,
   TUTOR_LIMITS,
   findMaterialForCourse,
@@ -74,7 +75,7 @@ import {
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
 import { buildRescueGrounding } from './rescue-grounding';
-import { createAgentReadRegistry, type ToolRegistry } from './tool-registry';
+import { createAgentRegistry, type ToolRegistry } from './tool-registry';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
@@ -116,7 +117,12 @@ import { buildInsightsSummary, type InsightsSessionSource } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
-import { confirmAgentProposal, createAgentProposal, executeAgentProposal } from './proposal';
+import {
+  confirmAgentProposal,
+  createAgentProposal,
+  executeAgentProposal,
+  type ProposalCommandDeps,
+} from './proposal';
 import { applyTaskRewrite, buildTaskRewrite, rewriteIdempotencyKey } from './task-rewrite';
 import {
   TutorTranscript,
@@ -210,7 +216,7 @@ export class FocusLoopEngine {
     this.store = options.store;
     this.providers = options.providers;
     this.runtime = new AgentRuntime(options.providers);
-    this.tools = createAgentReadRegistry();
+    this.tools = createAgentRegistry();
     this.clock = options.clock ?? (() => new Date().toISOString());
     this.idFactory = options.idFactory ?? (() => randomUUID());
     this.stateConfig = options.stateConfig ?? {};
@@ -1878,8 +1884,15 @@ export class FocusLoopEngine {
 
   // --------------------------------------------------- structural proposals
 
-  private proposalDeps() {
-    return { store: this.store, now: this.clock, idFactory: this.idFactory };
+  private proposalDeps(): ProposalCommandDeps {
+    return {
+      store: this.store,
+      now: this.clock,
+      idFactory: this.idFactory,
+      // The effect of a first execution, inside the envelope's transaction (AG8.3): a throw rolls
+      // the record and the effect back together, so "executed" can never mean "half-applied".
+      onExecute: (proposal: AgentProposal) => this.applyToolProposal(proposal),
+    };
   }
 
   /**
@@ -1894,6 +1907,10 @@ export class FocusLoopEngine {
     idempotencyKey: string;
     ttlMs?: number;
   }): ProposeStructuralChangeResponse {
+    // A tool-shaped payload has to earn its proposal before it exists: registered, at the level the
+    // kind claims, with args the contract describes and a target that is really there. Everything
+    // below this line can then trust what it applies (AG8.3).
+    if (!this.toolProposalIsProposable(input)) return { proposal: null, event: null };
     const proposal = this.createStructuralProposal(input);
     if (proposal === null) return { proposal: null, event: null };
     /*
@@ -1912,6 +1929,119 @@ export class FocusLoopEngine {
     };
     this.store.appendEvent(event);
     return { proposal, event };
+  }
+
+  /**
+   * May this payload become a proposal? (AG8.3)
+   *
+   * Generic payloads — the ones with no `tool` — stay allowed as they always were (#218's screen
+   * records intent for them). A tool payload must name a registered *write*, claim the kind its
+   * ADR 0003 matrix row carries, pass the schema the registry holds, and point at a target that
+   * exists right now. Anything else returns false and no proposal is ever created, which is why the
+   * execute path can trust every payload it sees.
+   */
+  private toolProposalIsProposable(input: {
+    readonly sessionId: string;
+    readonly kind: AgentProposalKind;
+    readonly payload: Record<string, unknown>;
+  }): boolean {
+    const { payload } = input;
+    if (payload['tool'] === undefined) return true;
+    if (typeof payload['tool'] !== 'string') return false;
+
+    const record = this.store.getSession(input.sessionId);
+    if (record === null) return false;
+
+    const registration = this.tools.get(payload['tool']);
+    if (registration === undefined) return false;
+    // The level gate: the kind claimed must BE the matrix level — and since `input.kind` can only
+    // be a write kind, a safe-read tool fails this comparison before it can ever pass it.
+    if (registration.tool.permission !== input.kind) return false;
+
+    const rawArgs = payload['args'];
+    if (typeof rawArgs !== 'object' || rawArgs === null || Array.isArray(rawArgs)) return false;
+    const args = rawArgs as Record<string, unknown>;
+    if (validateRuntimeSchema(rawArgs, registration.tool.inputSchema).length > 0) return false;
+
+    switch (registration.tool.name) {
+      case 'startTask':
+      case 'completeTask': {
+        const course = this.getCourse(record.session.courseId);
+        const taskId = args['taskId'];
+        return (
+          typeof taskId === 'string' &&
+          course !== null &&
+          course.microTasks.some((task) => task.id === taskId)
+        );
+      }
+      case 'resumeTask': {
+        const checkpointId = args['checkpointId'];
+        const card = this.getResumeCard(input.sessionId);
+        return (
+          typeof checkpointId === 'string' &&
+          card !== null &&
+          card.timing.checkpointId === checkpointId
+        );
+      }
+      case 'startBreak': {
+        const interventionId = args['interventionId'];
+        if (typeof interventionId !== 'string') return false;
+        const intervention = this.store.getIntervention(interventionId);
+        return (
+          intervention !== null &&
+          intervention.sessionId === input.sessionId &&
+          intervention.action === 'BREAK'
+        );
+      }
+      default:
+        // A registered write this validator does not know: refuse rather than propose blind.
+        return false;
+    }
+  }
+
+  /**
+   * The effect of an executed tool proposal, inside the envelope's transaction (AG8.3).
+   *
+   * The `!` after `tool` is propose-time validation: a proposal naming a tool got here only if it
+   * was registered, matched its matrix level and passed its schema. The default case throws on
+   * purpose — a hand-fabricated proposal naming a ghost tool rolls the whole execution back (tested)
+   * rather than committing an "executed" record with no effect behind it.
+   */
+  private applyToolProposal(proposal: AgentProposal): void {
+    const payload = proposal.payload as { tool?: unknown; args?: unknown };
+    if (payload.tool === undefined) return; // generic payloads record intent only (#218)
+    if (typeof payload.tool !== 'string') {
+      // A plain Error on purpose: this is an invariant the envelope guarantees, not an engine
+      // state the renderer could receive and map — and the rollback is what makes it safe.
+      throw new Error('Confirmed proposal has a malformed tool payload');
+    }
+    const args = (payload.args ?? {}) as Record<string, unknown>;
+
+    switch (payload.tool) {
+      case 'startTask':
+      case 'completeTask':
+        this.dispatch({
+          sessionId: proposal.sessionId,
+          type: payload.tool === 'startTask' ? 'TASK_STARTED' : 'TASK_COMPLETED',
+          source: 'agent',
+          payload: { taskId: String(args['taskId']) },
+          // Deterministic: one proposal, one event, and a duplicate append dedupes to nothing.
+          eventId: `tool:${proposal.id}`,
+        });
+        return;
+      case 'resumeTask':
+        this.acceptResume(String(args['checkpointId']));
+        return;
+      case 'startBreak':
+        this.resolveRescue({
+          sessionId: proposal.sessionId,
+          interventionId: String(args['interventionId']),
+          resolution: 'accept',
+        });
+        return;
+      default:
+        throw new Error(`Confirmed proposal names an unregistered tool: ${payload.tool}`);
+    }
   }
 
   /**

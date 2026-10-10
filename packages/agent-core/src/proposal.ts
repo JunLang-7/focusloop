@@ -19,12 +19,13 @@ import type { FocusLoopStore, SessionRecord } from '@focusloop/persistence';
  * propose → (learner confirms) → execute → one domain event, where a proposal
  * is bound to the state it was built from and cannot be executed twice.
  *
- * **This module is the command layer, and for now it only records intent.** `executeAgentProposal`
- * writes one audit event and moves the proposal to `executed` after a successful confirm; it does
- * **not** apply a payload, because applying one is AG4's work. No second export applies a payload —
- * the architectural test pins the export list so none can appear unnoticed. Until AG4 supplies the
- * applier, a "structural write" that reaches `executed` has been *agreed to and recorded*, not
- * performed, and the wording must not claim otherwise.
+ * **This module is the command layer, and it records intent.** `executeAgentProposal` writes one
+ * audit event and moves the proposal to `executed` after a successful confirm; it applies nothing
+ * itself — no second export applies a payload, and the architectural test pins the export list so
+ * none can appear unnoticed. What *does* apply, and only for a first execution, is whatever the
+ * engine passes as `onExecute`, inside this transaction: rewrite payloads keep applying by
+ * derivation at serving time (AG4), and tool payloads (AG8.3) get their effect there — with the
+ * rollback guarantee that an effect which throws was never recorded.
  *
  * Free of shrink/split/reorder: those are AG4's payloads, not the envelope's.
  */
@@ -33,6 +34,16 @@ export interface ProposalCommandDeps {
   readonly store: FocusLoopStore;
   readonly now: () => string;
   readonly idFactory: () => string;
+  /**
+   * The effect of a *first* execution, run inside the transaction that records it (AG8.3).
+   *
+   * Supplied by the engine — the applier this layer deliberately does not contain. Because it runs
+   * between `markAgentProposalExecuted` and the commit, a throw rolls the whole attempt back: the
+   * proposal stays `confirmed`, no EXECUTED event survives, and an execution that could not be
+   * applied never becomes an execution that happened. The export pin below is unaffected — this
+   * module still exports no function that applies a payload; the engine owns the applying.
+   */
+  readonly onExecute?: (proposal: AgentProposal) => void;
 }
 
 export interface CreateProposalInput {
@@ -251,6 +262,8 @@ export function executeAgentProposal(
     if (!deps.store.markAgentProposalExecuted(stored.proposal.id, eventId, deps.now())) {
       throw new ExecutionRaceError('the proposal status changed under this execution');
     }
+    // The effect, atomically with the record of it: a throw here rolls both back (see the dep).
+    deps.onExecute?.(stored.proposal);
     return true;
   });
 
