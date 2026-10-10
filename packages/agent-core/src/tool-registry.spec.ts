@@ -252,7 +252,7 @@ describe('the tool registry contract (AG8.1)', () => {
 });
 
 describe('the engine registry carries both halves (AG8.3)', () => {
-  it('registers the four reads and the four lifecycle writes', () => {
+  it('registers the four reads and the seven writes (AG8.3/8.4/8.5)', () => {
     expect([...createAgentRegistry().names()].sort()).toEqual([
       'completeTask',
       'createAdaptiveTask',
@@ -260,7 +260,9 @@ describe('the engine registry carries both halves (AG8.3)', () => {
       'readConcept',
       'readCurrentTask',
       'readMaterial',
+      'reorderSessionPlan',
       'resumeTask',
+      'saveCheckpoint',
       'startBreak',
       'startTask',
     ]);
