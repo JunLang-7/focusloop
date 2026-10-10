@@ -103,7 +103,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 | F Agent | AG7 Agent Memory               | E2E 验证   | [ADR 0001](./adr/0001-agent-memory-deletion.md)、`6a4a0cf` (#129)、`5e3d764` (#221)、`cb2d33a` (#222)、`d40ba0a` (#223) | 三类边界、检查 UI、偏好单项删除、时间窗清理均已合并，见 §4.C3 与 §4.F                                    |
 | F Agent | AG8 Tools & Actions            | E2E 验证   | 信封 `bf0844b` (#126)；确认屏 `b870e00` (#218)；`b624064` (#216)、`e59ea9b` (#217)、`d08790f` (#219)                    | contract / 四个读工具 / 权限矩阵 / 工具审计均已合并；写工具（AG8.3–8.5）与模型工具调用解析未实现，见 #93 |
 | F Agent | AG9 Model Runtime              | 已合并     | `6c89f97`… 系列 #125/#147/#156/#161/#162；conformance `dc6b0de` (#165)                                                  | 结构化/流式/abort/重试/预算均已合并，见 §4.F9                                                            |
-| F Agent | AG10 Evaluation & Guardrails   | E2E 验证   | `656bb70` (#118)、`dc6b0de` (#165)、`3bbcdae` (#186)、`394c061` (#220)                                                  | runner 与场景数据集已合并；剩 AG10.6 = #212                                                              |
+| F Agent | AG10 Evaluation & Guardrails   | E2E 验证   | `656bb70` (#118)、`dc6b0de` (#165)、`3bbcdae` (#186)、`394c061` (#220)、#212                                            | runner 与场景数据集已合并；工具安全九场景补齐越权 / 畸形 / 伪造类                                        |
 
 > 「CI 绿」指该能力所在 PR 的全部必需检查在 `main` 上通过（`quality` ×3 OS、`golden path` ×2、
 > `coverage`、`package (smoke)`、CodeQL、`analyze`）。「E2E 验证」表示 `golden path` 里有对应的
@@ -489,7 +489,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 6. **状态与证据**：设计完成 — 方案页 AG4；`main` 上有 `MICRO_START`/`SIMPLIFY` 的读时派生改写（#171/#172），但没有持久化的 `AdaptiveTask`/`SessionPlanRevision`。
 7. **已知限制**：计划级改写完全没有实现（无持久化任务、无前后对比预览、无 plan revision）。**依赖顺序已修正**：AG4 只依赖 AG8 的
    confirmation/idempotency primitive；原先「依赖 AG7 episodic schema」的写法会造成依赖倒置（AG7 排在
-   AG4 之后），已改为「如需 episodic 查询，拆出 AG7a 并提前」。
+   AG4 之后），已改为「如需 episodic 查询，拆出 AG7a 并提前」。**该依赖已满足**：信封 `bf0844b` (#126)、契约 `e59ea9b` (#217)、生命周期工具 `#238` 与自适应任务工具（AG8.4，#227）——AG8 phase 2 落地后，AG4 的计划级改写不再有任何 AG8 侧前置。
 8. **依赖**：AG8 确认/幂等；AG10 安全场景。
 9. **怎么验证**：待实现；验收要求见方案页 AG4 测试矩阵。
 
@@ -517,35 +517,33 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 8. **依赖**：AG7。
 9. **怎么验证**：待实现。
 
-#### F7 AG7 Agent Memory — 已合并（ADR 0001，#129）
+#### F7 AG7 Agent Memory — 已合并（ADR 0001 `6a4a0cf` #129；检查/偏好/时间窗 `5e3d764` #221、`cb2d33a` #222、`d40ba0a` #223）
 
 1. **定位**：记忆分层且**可检查、可删除**，不是黑箱画像。
-2. **用户怎么用**（计划）：隐私页查看 scope、来源、时间与删除影响；清除前确认。
+2. **用户怎么用**：「Your data」区列出各来源的 scope、数量、最新时间与**删除影响**（措辞取 ADR 的术语，绝不是内容本身）；清除走自己的两段式确认框；单条偏好可「忘记」。来源为 transcript 等八项（`outbound` 随 #225 移除）。
 3. **何时发生**：Working 从当前 session 派生；Episodic 是已有事实的查询；Preference 走 AG6 确认。
 4. **永不做什么**：不复制完整日志或材料；不存诊断/智力/人格/心理健康推断。
-5. **数据与边界**（计划）：`getMemorySummary` / `listMemory` / `deletePreference` /
-   `clearAgentMemory`；每类有 purpose、来源、保留期、读取者。
-6. **状态与证据**：**已合并** — [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110，`6a4a0cf`）；`clearAgentMemory` +
-   `agent_memory_clears` 审计与 write→clear→query 回归测试已在 `main` 的 `agent-core` / `persistence` 里；episodic 行本身已存在（events / checkpoints /
-   outcomes / resume_cards / `agent_proposals`），清除会连同该 session 的 proposal 行一起删。
+5. **数据与边界**（`main`）：`getMemorySummary`（九/八来源计数 + 不透明审计行）、`listMemory`（有界时间窗读取，`MEMORY_QUERY_MAX` 上限与截断标记）、`cleanupOldEpisodicMemory`（保留期 `AGENT_MEMORY_RETENTION_MS` = 90 天，运行中会话被按 id 排除）、`listPreferences` / `deletePreference`（幂等、按 session 拒绝他人行）、`clearAgentMemory`；全部结果只含元数据，面板侧有键白名单扫描测试。
+6. **状态与证据**：**已合并** — 删除语义 [ADR 0001](./adr/0001-agent-memory-deletion.md)（#110，`6a4a0cf`）；检查面板与 IPC `5e3d764` (#221)；偏好存储与单项删除（含证据必填与不透明删除审计）`cb2d33a` (#222)；时间窗有界读取与跨 session 批量清理 `d40ba0a` (#223)。测试：`memory-summary.spec`（含无内容键扫描）、`preference.spec`、`episodic-memory.spec`、`memory-clear.spec`（write→clear→query 三路回归）、store 层裸列扫描。
 7. **已知限制**：**删除语义已按 ADR 0001 冻结**（物理删除；Dashboard 不得使用被清除行；
-   审计仅 opaque id + 时间 + actor）。未交付：scope 检查 UI、preference 删除、按时间窗的批量清理。
+   审计仅 opaque id + 时间 + actor）。仍开放：preference 的**产生**链路属 AG6（确认后才写入，#91）；
+   时间窗清理目前只有 IPC 面、产品内尚无触发点（见调度页）；working 记忆只剩 transcript 轮次
+   （`outbound` 缓冲随 #225 的面板移除一并删除）。
 8. **依赖**：ADR 0001、persistence migrations。
 9. **怎么验证**：`agent-core/src/memory-clear.spec.ts`（每类写→清→查空，含 dashboard/context/transcript）
    - `persistence` store 单测。
 
-#### F8 AG8 Tools & Actions — 设计完成
+#### F8 AG8 Tools & Actions — 已合并（phase 1 四件；写工具 phase 2 = #226/#227/#228）
 
 1. **定位**：让模型能**请求**动作，但永远不能直接动数据。
-2. **用户怎么用**（计划）：结构性变更弹出待确认参数、影响与撤销入口。
+2. **用户怎么用**：结构性变更从**确认屏**读起——待确认参数、等级、发起方与拒绝原因（过期 / 状态已变 / 哈希不符）都上屏（`b870e00` #218，e2e 两条：propose→confirm→execute 与等过期→拒绝可见）；撤销入口待 reversible 级落地（phase 2）。
 3. **何时发生**：LLM 结构化 tool call → 校验 → 领域命令 → 学习事件。
 4. **永不做什么**：LLM 永不直写 SQLite；不能传 SQL 或任意 IPC channel。
-5. **数据与边界**（计划）：`AgentTool`、`ToolCall`、`ToolAudit`；工具分 Safe Read /
-   Reversible Write / Structural Write 三类权限。
-6. **状态与证据**：设计完成 — 方案页 AG8；`main` 上只有既有领域命令，没有 tool contract。
-7. **已知限制**：未实现；它的 confirmation/idempotency 是 AG4 的硬门槛。
-8. **依赖**：AG9 结构化输出。
-9. **怎么验证**：待实现；需含越权、重放、TOCTOU 与坏 schema 的对抗用例。
+5. **数据与边界**（`main`）：`AgentTool` / `ToolCall`（`shared-types/tool.ts`）、`ToolRegistry`（main 内校验 schema/权限/session，直路只跑 safe-read）、三级权限与逐格理由见 [ADR 0003](./adr/0003-tool-permission-matrix.md)；写前脱敏 `redactToolArgs`；`tool_calls` 表 + 单查询 join（`d08790f` #219，**屏幕视图随后被 #225 移除**，表/脱敏/查询保留）；四类读工具读的是 `AgentContext` 切片。
+6. **状态与证据**：**phase 1 已合并** — 确认信封 `bf0844b` (#126)、权限矩阵 `b624064` (#216)、契约与四个读工具 `e59ea9b` (#217)、确认屏 `b870e00` (#218)、工具审计 `d08790f` (#219)。测试：`tool-registry.spec`（对抗：未知工具 / 坏 schema / 跨会话 / 越权 / 原型污染）、`proposal.spec`（TOCTOU、幂等、过期）、golden-path 两条确认屏 e2e。
+7. **已知限制**：写工具 AG8.3–8.5 未实现（phase 2 = #226/#227/#228，全部 14 格矩阵落地后关闭）；模型侧**工具调用解析还没有入口**——`executeToolCall` 有契约与审计但没有 skill 调它（需 AG9 结构化门的第一个使用者）；reversible 级的撤销入口随 phase 2 出现。原「confirmation/idempotency 是 AG4 的硬门槛」已满足（#126）。
+8. **依赖**：AG9 结构化输出（已合并；`executeStructured` 尚无 skill 调用者）。
+9. **怎么验证**：越权 / 重放 / 坏 schema / 原型污染在 `tool-registry.spec`，TOCTOU 与幂等在 `proposal.spec`，确认屏两条在 golden path；phase 2 的写工具对抗场景由 #212 按矩阵补。
 
 #### F9 AG9 Model Runtime — 已合并
 
@@ -567,12 +565,14 @@ failure }`、`ProviderHealth`。
 3. **何时发生**：开发/CI 时运行固定场景。
 4. **永不做什么**：不从生产应用上报评测数据；场景不得含真实用户数据。
 5. **数据与边界**（`main`）：`packages/agent-evals`——版本化场景、受限路径解析、确定性 runner、结果与隐私
-   断言。JSON 场景按能力分目录，共 **30** 个：AG1 ×8（含隐私类 3）、AG2 ×9（含 grounding 类 3、干预恰当性类 3）、
-   AG3 ×3（follow-up）、AG5 ×9、AG9 ×1；每类 ≥3 个场景，覆盖正常 / 边界 / 失败或越权。
+   断言。JSON 场景按能力分目录，共 **39** 个：AG1 ×8（含隐私类 3）、AG2 ×9（含 grounding 类 3、干预恰当性类 3）、
+   AG3 ×3（follow-up）、AG5 ×9、AG8 ×9（工具调用安全：只读直通、越权、畸形参数、会话错配、确认绕过、
+   伪造幂等键、重放）、AG9 ×1；每类 ≥3 个场景，覆盖正常 / 边界 / 失败或越权。
 6. **状态与证据**：**已合并** — runner 与 AG1 投影场景 `656bb70`（#118）、AG9 provider-failure `dc6b0de`（#165）、
-   rewrite/grounding cases `3bbcdae`（#186）；follow-up、干预恰当性、grounding、隐私四类场景补齐（#211）。
-7. **已知限制**：仍是 deterministic、同步、JSON-only runner，不含真实模型评测；工具安全套件（AG10.6）等 AG8 的
-   工具契约落地。**遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、
+   rewrite/grounding cases `3bbcdae`（#186）；follow-up、干预恰当性、grounding、隐私四类场景补齐（#211）；
+   AG8 工具调用安全九场景（越权 / 畸形 / 伪造 / 会话错配 / 确认绕过 / 重放，#212）。
+7. **已知限制**：仍是 deterministic、同步、JSON-only runner，不含真实模型评测。
+   **遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、
    分析或崩溃上报（见 `docs/privacy.md` 决策节与 #115）。选项 (B) 已否决，除非先改隐私文档。
 8. **依赖**：横切全阶段。
 9. **怎么验证**：`pnpm test`（`agent-evals` 项目）+ 仓库级 required checks；场景数 = 各能力目录的 JSON 文件数。

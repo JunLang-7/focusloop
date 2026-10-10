@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-safe-read-crosses-the-direct-path",
+  "capability": "AG8",
+  "kind": "happy",
+  "description": "The safe-read cell: the direct path runs a read, and running it writes no event and applies nothing.",
+  "input": {
+    "case": "safe-read-crosses-the-direct-path"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": true
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": null
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 0
+    },
+    {
+      "type": "equals",
+      "path": "lastEventType",
+      "value": null
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "eventsAdded",
+      "value": 1
+    },
+    {
+      "type": "forbidden-value",
+      "path": "lastEventType",
+      "value": "TASK_STARTED"
+    }
+  ]
+}

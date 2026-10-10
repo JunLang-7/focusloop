@@ -4,7 +4,7 @@ import { createProviderSelection } from '@focusloop/llm-provider';
 import { FocusLoopStore, openDatabase } from '@focusloop/persistence';
 import { createTestEngine } from './test-helpers';
 import { FocusLoopEngine } from './engine';
-import { ToolRegistry, createAgentReadRegistry } from './tool-registry';
+import { ToolRegistry, createAgentReadRegistry, createAgentRegistry } from './tool-registry';
 
 const DEPS = {
   currentSessionId: 's1',
@@ -248,6 +248,52 @@ describe('the tool registry contract (AG8.1)', () => {
         handler: () => null,
       }),
     ).toThrow();
+  });
+});
+
+describe('the engine registry carries both halves (AG8.3)', () => {
+  it('registers the four reads and the seven writes (AG8.3/8.4/8.5)', () => {
+    expect([...createAgentRegistry().names()].sort()).toEqual([
+      'completeTask',
+      'createAdaptiveTask',
+      'readCheckpoint',
+      'readConcept',
+      'readCurrentTask',
+      'readMaterial',
+      'reorderSessionPlan',
+      'resumeTask',
+      'saveCheckpoint',
+      'startBreak',
+      'startTask',
+    ]);
+  });
+
+  it('refuses a write on the direct path, without ever running an effect', () => {
+    const registry = createAgentRegistry();
+    // Writes have no direct handler by contract: their effect belongs to the confirmed execution.
+    expect(registry.get('completeTask')?.handler).toBeUndefined();
+
+    const result = registry.execute(
+      { sessionId: 's1', tool: 'completeTask', args: { taskId: 't1' } },
+      DEPS,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.reason).toBe('permission');
+  });
+
+  it('refuses to register a safe-read without a handler', () => {
+    const registry = new ToolRegistry();
+    expect(() =>
+      registry.register({
+        tool: {
+          name: 'readThing',
+          version: 1,
+          inputSchema: { type: 'object', properties: {}, required: [] },
+          permission: 'safe-read',
+          idempotency: 'natural',
+        },
+      }),
+    ).toThrow(/needs a handler/);
   });
 });
 

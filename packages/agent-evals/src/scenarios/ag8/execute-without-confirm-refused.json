@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-execute-without-confirm-refused",
+  "capability": "AG8",
+  "kind": "adversarial",
+  "description": "The confirmation bypass: executing a proposal nobody confirmed changes nothing — not the status, not the log.",
+  "input": {
+    "case": "execute-without-confirm-refused"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": "not-confirmed"
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 1
+    },
+    {
+      "type": "equals",
+      "path": "lastEventType",
+      "value": "AGENT_PROPOSAL_PROPOSED"
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "proposalStatus",
+      "value": "proposed"
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "lastEventType",
+      "value": "AGENT_PROPOSAL_EXECUTED"
+    },
+    {
+      "type": "forbidden-value",
+      "path": "proposalStatus",
+      "value": "executed"
+    }
+  ]
+}
