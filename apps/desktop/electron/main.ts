@@ -1,6 +1,7 @@
 import { BrowserWindow, app } from 'electron';
 import { join } from 'node:path';
 import { broadcastTick, registerIpcHandlers } from './ipc/handlers';
+import { createEventRouter } from './event-router';
 import { createService, startBridge } from './service';
 import { createMainWindow, isDevelopment } from './window';
 import { surfaceWindow } from './window-focus';
@@ -11,14 +12,20 @@ const RENDERER_DIRECTORY = join(__dirname, '..', 'renderer', 'browser');
 const PRELOAD_PATH = join(__dirname, 'preload.cjs');
 
 /** Interval for time-based interruption detection. */
-const TICK_INTERVAL_MS = 5_000;
+const TICK_INTERVAL_MS = Number(process.env['FOCUSLOOP_TICK_INTERVAL_MS'] ?? 5_000);
 
 async function bootstrap(): Promise<void> {
   const service = createService();
   service.store.setMeta('last_boot_at', new Date().toISOString());
 
-  const disposeIpc = registerIpcHandlers(service);
-  await startBridge(service);
+  /*
+   * Every window, looked up when an event is delivered rather than captured here: the bridge starts
+   * before any window exists, and the tick outlives every window the learner closes.
+   */
+  const router = createEventRouter(service.engine, () => BrowserWindow.getAllWindows());
+
+  const disposeIpc = registerIpcHandlers(service, router);
+  await startBridge(service, router);
 
   const isDev = isDevelopment();
   const devServerUrl = process.env['FOCUSLOOP_RENDERER_URL'];
@@ -31,7 +38,7 @@ async function bootstrap(): Promise<void> {
   });
 
   const ticker = setInterval(() => {
-    broadcastTick(service, BrowserWindow.getAllWindows());
+    broadcastTick(service, router);
   }, TICK_INTERVAL_MS);
   ticker.unref();
 

@@ -6,6 +6,7 @@ import { createProviderSelection, DeepSeekProvider } from '@focusloop/llm-provid
 import { openDatabase, FocusLoopStore } from '@focusloop/persistence';
 import type { DataInfo, DeleteDataResponse, OpenDataFolderResponse } from '@focusloop/shared-types';
 import { startBridgeServer, type BridgeServerHandle } from './bridge/server';
+import type { EventEngine } from './event-router';
 import { databaseFiles, deleteFiles } from './data-files';
 
 export interface FocusLoopService {
@@ -185,11 +186,12 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
  */
 export async function startBridge(
   service: FocusLoopService,
+  engine: EventEngine = service.engine,
   port?: number,
 ): Promise<BridgeServerHandle | null> {
   try {
     service.bridge = await startBridgeServer({
-      engine: service.engine,
+      engine,
       ...(port === undefined ? {} : { port }),
     });
     service.store.setMeta('bridge_token', service.bridge.token);
