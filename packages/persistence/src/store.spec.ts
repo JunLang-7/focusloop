@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type {
   Course,
+  LearnerPreference,
   Intervention,
   InterventionOutcome,
   LearningCheckpoint,
@@ -663,7 +664,7 @@ describe('FocusLoopStore', () => {
       id: 'pref-1',
       sessionId: 'session-1',
       scope: 'task-size' as const,
-      value: { stepMinutes: 2 },
+      value: { preferredStepMinutes: 2 },
       evidence: {
         windowStart: '2026-01-01T00:00:00.000Z',
         windowEnd: '2026-01-08T00:00:00.000Z',
@@ -683,6 +684,84 @@ describe('FocusLoopStore', () => {
       expect(rows).toHaveLength(1);
       expect(rows[0]).toEqual(PREF);
       expect(store.listLearnerPreferences('session-2')).toEqual([]);
+    });
+
+    it("round-trips every scope's value through its own vocabulary (AG6.1)", () => {
+      const common = {
+        sessionId: 'session-1',
+        evidence: {
+          windowStart: '2026-01-01T00:00:00.000Z',
+          windowEnd: '2026-01-08T00:00:00.000Z',
+          sampleSize: 4,
+        },
+        source: 'ag6.spec',
+        confirmedAt: null,
+        expiresAt: null,
+        createdAt: '2026-01-08T00:05:00.000Z',
+      };
+      const fixtures: readonly LearnerPreference[] = [
+        { ...common, id: 'pref-ts', scope: 'task-size', value: { preferredStepMinutes: 5 } },
+        {
+          ...common,
+          id: 'pref-iv',
+          scope: 'intervention',
+          value: {
+            welcomed: [{ action: 'HINT', count: 3 }],
+            refused: [{ action: 'BREAK', count: 1 }],
+          },
+        },
+        {
+          ...common,
+          id: 'pref-ex',
+          scope: 'explanation',
+          value: { modes: [{ mode: 'EXPLAIN', count: 2 }] },
+        },
+        { ...common, id: 'pref-rs', scope: 'resume', value: { style: 'recap' } },
+      ];
+
+      for (const fixture of fixtures) {
+        expect(store.insertLearnerPreference(fixture)).toBe(true);
+        const back = store.listLearnerPreferences('session-1').find((row) => row.id === fixture.id);
+        expect(back?.scope).toBe(fixture.scope);
+        expect(back?.value).toEqual(fixture.value);
+      }
+      expect(store.listLearnerPreferences('session-1')).toHaveLength(fixtures.length);
+    });
+
+    it('refuses a value its scope does not describe — both the wrong shape and the wrong bound', () => {
+      // A resume value wearing a task-size scope: the discriminated union says no, and so does the
+      // store. The double cast is the point — this is the caller the compiler never saw, the one
+      // the runtime rule exists for.
+      expect(() =>
+        store.insertLearnerPreference({
+          ...PREF,
+          id: 'pref-mismatch',
+          value: { style: 'brief' },
+        } as unknown as LearnerPreference),
+      ).toThrow(RangeError);
+      // In-vocabulary key, out-of-vocabulary number.
+      expect(() =>
+        store.insertLearnerPreference({
+          ...PREF,
+          id: 'pref-bound',
+          value: { preferredStepMinutes: 99 },
+        }),
+      ).toThrow(RangeError);
+      // Neither row exists: the throw was before the insert.
+      expect(
+        store.listLearnerPreferences('session-1').some((row) => row.id === 'pref-mismatch'),
+      ).toBe(false);
+    });
+
+    it('reads loudly when a stored value no longer fits its scope', () => {
+      store.insertLearnerPreference(PREF);
+      // Corrupt the row the way a future migration or a hand-edited database might: a trait-shaped
+      // value under a task-size scope. Reading it must fail rather than hand the panel a claim.
+      db.prepare('UPDATE learner_preferences SET value = ? WHERE id = ?;').run(
+        JSON.stringify({ note: 'is avoidant when confused' }),
+        'pref-1',
+      );
+      expect(() => store.listLearnerPreferences('session-1')).toThrow(RangeError);
     });
 
     it('rejects a preference whose evidence is not a window and a sample', () => {

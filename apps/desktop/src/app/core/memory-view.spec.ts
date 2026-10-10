@@ -82,12 +82,17 @@ describe('memory rows as the data panel shows them (AG7.5)', () => {
   });
 });
 
-function preference(overrides: Partial<LearnerPreference> = {}): LearnerPreference {
+/**
+ * The view renders whatever JSON is stored; the vocabulary is enforced at the store's door (AG6.1),
+ * so a fixture here may hold any shape — including one deliberately outside the vocabulary, which
+ * is how the bound test proves the row cannot grow past its line.
+ */
+function preference(overrides: Record<string, unknown> = {}): LearnerPreference {
   return {
     id: 'pref-1',
     sessionId: 's1',
     scope: 'task-size',
-    value: { stepMinutes: 2 },
+    value: { preferredStepMinutes: 2 },
     evidence: {
       windowStart: '2026-01-01T00:00:00.000Z',
       windowEnd: '2026-01-08T00:00:00.000Z',
@@ -98,7 +103,7 @@ function preference(overrides: Partial<LearnerPreference> = {}): LearnerPreferen
     expiresAt: null,
     createdAt: '2026-01-08T00:05:00.000Z',
     ...overrides,
-  };
+  } as unknown as LearnerPreference;
 }
 
 describe('a stored preference as the panel shows it (AG7.4/7.6)', () => {
@@ -111,9 +116,9 @@ describe('a stored preference as the panel shows it (AG7.4/7.6)', () => {
   });
 
   it('shows the value as bounded text, the evidence as its window, and whether it is confirmed', () => {
-    const row = preferenceRowView(preference(), clock);
+    const row = preferenceRowView(preference(), clock, '2026-01-09T00:00:00.000Z');
     expect(row.scopeKey).toBe('app.data.preference.scope.task-size');
-    expect(row.valueText).toBe('{"stepMinutes":2}');
+    expect(row.valueText).toBe('{"preferredStepMinutes":2}');
     expect(row.evidenceParams).toEqual({
       samples: '6',
       from: '00:00',
@@ -123,11 +128,48 @@ describe('a stored preference as the panel shows it (AG7.4/7.6)', () => {
   });
 
   it('says plainly when nothing has confirmed it yet, and bounds a value that would grow the row', () => {
-    const unconfirmed = preferenceRowView(preference({ confirmedAt: null }), clock);
+    const now = '2026-01-09T00:00:00.000Z';
+    const unconfirmed = preferenceRowView(preference({ confirmedAt: null }), clock, now);
     expect(unconfirmed.confirmedAt).toBeNull();
+    expect(unconfirmed.expired).toBe(false);
 
-    const long = preferenceRowView(preference({ value: { note: 'x'.repeat(500) } }), clock);
+    // A realistic worst case: every action tallied twice — in-vocabulary, and over the line.
+    const actions = ['MICRO_START', 'SIMPLIFY', 'HINT', 'EXAMPLE', 'BREAK', 'QUESTION'];
+    const tallies = [
+      ...actions.map((action) => ({ action, count: 3 })),
+      ...actions.map((action) => ({ action, count: 1 })),
+    ];
+    const long = preferenceRowView(
+      preference({ scope: 'intervention', value: { welcomed: tallies, refused: tallies } }),
+      clock,
+      now,
+    );
     expect(long.valueText.length).toBeLessThanOrEqual(140);
     expect(long.valueText.endsWith('…')).toBe(true);
+  });
+
+  it('marks an expired preference rather than hiding it (AG6.1: still stored, never current)', () => {
+    const now = '2026-01-09T00:00:00.000Z';
+    const past = preferenceRowView(
+      preference({ expiresAt: '2026-01-01T00:00:00.000Z' }),
+      clock,
+      now,
+    );
+    expect(past.expired).toBe(true);
+
+    const future = preferenceRowView(
+      preference({ expiresAt: '2027-01-01T00:00:00.000Z' }),
+      clock,
+      now,
+    );
+    expect(future.expired).toBe(false);
+
+    // Never expires: not expired by definition, however old the clock says the panel is.
+    const forever = preferenceRowView(
+      preference({ expiresAt: null }),
+      clock,
+      '2099-01-01T00:00:00.000Z',
+    );
+    expect(forever.expired).toBe(false);
   });
 });
