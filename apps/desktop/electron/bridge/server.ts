@@ -9,10 +9,17 @@ import {
   parseBridgeInbound,
   type BridgeOutboundMessage,
 } from '@focusloop/shared-types';
-import type { FocusLoopEngine } from '@focusloop/agent-core';
+import type { EventEngine } from '../event-router';
 
 export interface BridgeServerOptions {
-  readonly engine: FocusLoopEngine;
+  /**
+   * The engine the bridge applies through, narrowed to the two calls it makes.
+   *
+   * In production this is an `EventRouter`, so an event reported by the extension reaches the
+   * windows in the same step it is applied (#204). The type is the narrow one rather than the
+   * engine so a caller cannot pass something that applies without telling anyone.
+   */
+  readonly engine: EventEngine;
   readonly port?: number;
   readonly token?: string;
   readonly host?: string;
