@@ -127,6 +127,15 @@ export type LearnerPreference =
     })
   | (LearnerPreferenceCommon & { readonly scope: 'resume'; readonly value: ResumePreferenceValue });
 
+/**
+ * Asking for a candidate has three answers, and they must not collapse into one `null` (AG6.2–6.4):
+ * a candidate, an honest abstention (`ok: true, candidate: null` — below the sample, nothing
+ * welcomed, nothing persisted to count), or the session gate's refusal, which is an error about
+ * *where* the question was asked rather than about the evidence.
+ */
+export type DeriveCandidateResult<S extends LearnerPreferenceScope> =
+  { readonly ok: true; readonly candidate: LearnerPreferenceFor<S> | null } | AgentMemoryRefusal;
+
 /** Scope and value paired, for callers who know the scope — AG6.2–6.4 write through this. */
 export type LearnerPreferenceFor<S extends LearnerPreferenceScope> = Extract<
   LearnerPreference,

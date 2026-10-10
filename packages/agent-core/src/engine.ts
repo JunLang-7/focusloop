@@ -53,6 +53,7 @@ import type {
   AgentMemoryScope,
   AgentMemorySourceCount,
   AgentMemorySummaryResult,
+  DeriveCandidateResult,
   LearnerPreferenceListResult,
   PreferenceDeleteResult,
   AgentMemoryWindow,
@@ -75,6 +76,11 @@ import {
 import { buildAgentContext } from './agent-context';
 import { buildRescueGrounding } from './rescue-grounding';
 import { createAgentReadRegistry, type ToolRegistry } from './tool-registry';
+import {
+  deriveExplanationCandidate,
+  deriveInterventionCandidate,
+  deriveTaskSizeCandidate,
+} from './preference-derivation';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
@@ -1822,6 +1828,131 @@ export class FocusLoopEngine {
       actor: options.actor ?? 'user',
       excludeSessionId: active === null ? '' : active.session.id,
     });
+  }
+
+  /**
+   * Task size from the narrowings the learner accepted (AG6.2).
+   *
+   * Reads executed rewrites — the rows the rescue and the adaptive tool both write — and hands them
+   * to the pure derivation. Writes nothing: `learner_preferences` is untouched by construction, and
+   * the spec asserts it after every call.
+   */
+  deriveTaskSizePreference(sessionId: string): DeriveCandidateResult<'task-size'> {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+    const candidate = deriveTaskSizeCandidate({
+      accepted: this.store
+        .listExecutedTaskRewrites(sessionId)
+        .map((row) => ({ at: row.executedAt, minutes: row.minutes })),
+      now: this.clock(),
+    });
+    if (candidate === null) return { ok: true, candidate: null };
+    return {
+      ok: true,
+      candidate: {
+        id: this.idFactory(),
+        sessionId,
+        scope: 'task-size',
+        value: candidate.value,
+        evidence: candidate.evidence,
+        source: 'ag6.task-size',
+        confirmedAt: null,
+        expiresAt: null,
+        createdAt: this.clock(),
+      },
+    };
+  }
+
+  /**
+   * What was welcomed and what was waved away, from interventions with resolved outcomes (AG6.3).
+   *
+   * An intervention nobody resolved is not an observation — unresolved is not a preference — so the
+   * outcome join is part of the evidence, not a convenience.
+   */
+  deriveInterventionPreference(sessionId: string): DeriveCandidateResult<'intervention'> {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+
+    const outcomes = new Map(
+      this.store.listOutcomes(sessionId).map((outcome) => [outcome.interventionId, outcome]),
+    );
+    const observations = this.store
+      .listInterventions(sessionId)
+      .map((intervention) => {
+        const outcome = outcomes.get(intervention.id);
+        if (outcome === undefined) return null;
+        return {
+          at: intervention.at,
+          action: intervention.action,
+          accepted: outcome.accepted,
+          dismissed: outcome.dismissed,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const candidate = deriveInterventionCandidate({ observations, now: this.clock() });
+    if (candidate === null) return { ok: true, candidate: null };
+    return {
+      ok: true,
+      candidate: {
+        id: this.idFactory(),
+        sessionId,
+        scope: 'intervention',
+        value: candidate.value,
+        evidence: candidate.evidence,
+        source: 'ag6.intervention',
+        confirmedAt: null,
+        expiresAt: null,
+        createdAt: this.clock(),
+      },
+    };
+  }
+
+  /**
+   * Which explanation form landed — from persisted rows only (AG6.4).
+   *
+   * The tutor's transcript is in-process and deliberately unpersisted, so it is not evidence: a
+   * derivation from it would be a derivation from nothing after the next launch. The input is rows
+   * or it is an abstention, and the spec asks a real question first to prove the transcript cannot
+   * sneak in.
+   */
+  deriveExplanationPreference(sessionId: string): DeriveCandidateResult<'explanation'> {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+
+    const outcomes = new Map(
+      this.store.listOutcomes(sessionId).map((outcome) => [outcome.interventionId, outcome]),
+    );
+    const observations = this.store
+      .listInterventions(sessionId)
+      .map((intervention) => {
+        const outcome = outcomes.get(intervention.id);
+        if (outcome === undefined) return null;
+        return {
+          at: intervention.at,
+          action: intervention.action,
+          accepted: outcome.accepted,
+          dismissed: outcome.dismissed,
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const candidate = deriveExplanationCandidate({ observations, now: this.clock() });
+    if (candidate === null) return { ok: true, candidate: null };
+    return {
+      ok: true,
+      candidate: {
+        id: this.idFactory(),
+        sessionId,
+        scope: 'explanation',
+        value: candidate.value,
+        evidence: candidate.evidence,
+        source: 'ag6.explanation',
+        confirmedAt: null,
+        expiresAt: null,
+        createdAt: this.clock(),
+      },
+    };
   }
 
   /**
