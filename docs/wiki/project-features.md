@@ -103,7 +103,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 | F Agent | AG7 Agent Memory               | E2E 验证   | [ADR 0001](./adr/0001-agent-memory-deletion.md)、`6a4a0cf` (#129)、`5e3d764` (#221)、`cb2d33a` (#222)、`d40ba0a` (#223) | 三类边界、检查 UI、偏好单项删除、时间窗清理均已合并，见 §4.C3 与 §4.F                                    |
 | F Agent | AG8 Tools & Actions            | E2E 验证   | 信封 `bf0844b` (#126)；确认屏 `b870e00` (#218)；`b624064` (#216)、`e59ea9b` (#217)、`d08790f` (#219)                    | contract / 四个读工具 / 权限矩阵 / 工具审计均已合并；写工具（AG8.3–8.5）与模型工具调用解析未实现，见 #93 |
 | F Agent | AG9 Model Runtime              | 已合并     | `6c89f97`… 系列 #125/#147/#156/#161/#162；conformance `dc6b0de` (#165)                                                  | 结构化/流式/abort/重试/预算均已合并，见 §4.F9                                                            |
-| F Agent | AG10 Evaluation & Guardrails   | E2E 验证   | `656bb70` (#118)、`dc6b0de` (#165)、`3bbcdae` (#186)、`394c061` (#220)                                                  | runner 与场景数据集已合并；剩 AG10.6 = #212                                                              |
+| F Agent | AG10 Evaluation & Guardrails   | E2E 验证   | `656bb70` (#118)、`dc6b0de` (#165)、`3bbcdae` (#186)、`394c061` (#220)、#212                                            | runner 与场景数据集已合并；工具安全九场景补齐越权 / 畸形 / 伪造类                                        |
 
 > 「CI 绿」指该能力所在 PR 的全部必需检查在 `main` 上通过（`quality` ×3 OS、`golden path` ×2、
 > `coverage`、`package (smoke)`、CodeQL、`analyze`）。「E2E 验证」表示 `golden path` 里有对应的
@@ -567,12 +567,14 @@ failure }`、`ProviderHealth`。
 3. **何时发生**：开发/CI 时运行固定场景。
 4. **永不做什么**：不从生产应用上报评测数据；场景不得含真实用户数据。
 5. **数据与边界**（`main`）：`packages/agent-evals`——版本化场景、受限路径解析、确定性 runner、结果与隐私
-   断言。JSON 场景按能力分目录，共 **30** 个：AG1 ×8（含隐私类 3）、AG2 ×9（含 grounding 类 3、干预恰当性类 3）、
-   AG3 ×3（follow-up）、AG5 ×9、AG9 ×1；每类 ≥3 个场景，覆盖正常 / 边界 / 失败或越权。
+   断言。JSON 场景按能力分目录，共 **39** 个：AG1 ×8（含隐私类 3）、AG2 ×9（含 grounding 类 3、干预恰当性类 3）、
+   AG3 ×3（follow-up）、AG5 ×9、AG8 ×9（工具调用安全：只读直通、越权、畸形参数、会话错配、确认绕过、
+   伪造幂等键、重放）、AG9 ×1；每类 ≥3 个场景，覆盖正常 / 边界 / 失败或越权。
 6. **状态与证据**：**已合并** — runner 与 AG1 投影场景 `656bb70`（#118）、AG9 provider-failure `dc6b0de`（#165）、
-   rewrite/grounding cases `3bbcdae`（#186）；follow-up、干预恰当性、grounding、隐私四类场景补齐（#211）。
-7. **已知限制**：仍是 deterministic、同步、JSON-only runner，不含真实模型评测；工具安全套件（AG10.6）等 AG8 的
-   工具契约落地。**遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、
+   rewrite/grounding cases `3bbcdae`（#186）；follow-up、干预恰当性、grounding、隐私四类场景补齐（#211）；
+   AG8 工具调用安全九场景（越权 / 畸形 / 伪造 / 会话错配 / 确认绕过 / 重放，#212）。
+7. **已知限制**：仍是 deterministic、同步、JSON-only runner，不含真实模型评测。
+   **遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、
    分析或崩溃上报（见 `docs/privacy.md` 决策节与 #115）。选项 (B) 已否决，除非先改隐私文档。
 8. **依赖**：横切全阶段。
 9. **怎么验证**：`pnpm test`（`agent-evals` 项目）+ 仓库级 required checks；场景数 = 各能力目录的 JSON 文件数。

@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "ag8-replay-executes-once",
+  "capability": "AG8",
+  "kind": "edge",
+  "description": "Idempotency: the whole flow adds exactly two events — the proposal and one execution — and the second execute with the right key adds nothing. The store's status is 'executed': once, not twice.",
+  "input": {
+    "case": "replay-executes-once"
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "ok",
+      "value": true
+    },
+    {
+      "type": "equals",
+      "path": "reason",
+      "value": null
+    },
+    {
+      "type": "equals",
+      "path": "eventsAdded",
+      "value": 2
+    },
+    {
+      "type": "equals",
+      "path": "lastEventType",
+      "value": "AGENT_PROPOSAL_EXECUTED"
+    },
+    {
+      "type": "equals",
+      "path": "handlerApplied",
+      "value": false
+    },
+    {
+      "type": "equals",
+      "path": "proposalStatus",
+      "value": "executed"
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "eventsAdded",
+      "value": 3
+    }
+  ]
+}
