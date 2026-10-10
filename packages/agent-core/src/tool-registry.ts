@@ -307,6 +307,39 @@ function adaptiveTools(): readonly ToolRegistration[] {
 }
 
 /**
+ * The session-plan tools (AG8.5): both structural in ADR 0003 §3 — the rows with no way back.
+ * `reorderSessionPlan` takes the whole intended order (a list, hence the schema's `array`), and
+ * `saveCheckpoint` takes nothing: it builds the position resume will trust from the session as it
+ * is, and there is no checkpoint delete to undo it with.
+ */
+function sessionPlanTools(): readonly ToolRegistration[] {
+  return [
+    {
+      tool: {
+        name: 'reorderSessionPlan',
+        version: 1,
+        inputSchema: {
+          type: 'object',
+          properties: { order: { type: 'array', items: { type: 'string' } } },
+          required: ['order'],
+        },
+        permission: 'structural-write',
+        idempotency: 'keyed',
+      },
+    },
+    {
+      tool: {
+        name: 'saveCheckpoint',
+        version: 1,
+        inputSchema: { type: 'object', properties: {}, required: [] },
+        permission: 'structural-write',
+        idempotency: 'keyed',
+      },
+    },
+  ];
+}
+
+/**
  * The registry the engine keeps: the four reads (AG8.2) and the writes (AG8.3/8.4).
  *
  * Writes are registered even though the direct path refuses them — registering is what lets a tool
@@ -315,7 +348,7 @@ function adaptiveTools(): readonly ToolRegistration[] {
  */
 export function createAgentRegistry(): ToolRegistry {
   const registry = createAgentReadRegistry();
-  for (const registration of [...lifecycleTools(), ...adaptiveTools()]) {
+  for (const registration of [...lifecycleTools(), ...adaptiveTools(), ...sessionPlanTools()]) {
     registry.register(registration);
   }
   return registry;

@@ -2030,6 +2030,30 @@ export class FocusLoopEngine {
           },
         };
       }
+      case 'reorderSessionPlan': {
+        // The belt over the schema's own array check, then the two rules `applyTaskOrder` cannot
+        // enforce for us: no empty order (the reducer would clear the plan), no duplicates (two
+        // tasks sharing a rank cannot swap), and no phantom ids — `applyTaskOrder` drops ids it
+        // cannot find, so a ghost would silently reshape the plan nobody confirmed.
+        const order = args['order'];
+        if (!Array.isArray(order)) return null;
+        if (order.length === 0) return null;
+        const ids: string[] = [];
+        for (const id of order as readonly unknown[]) {
+          if (typeof id !== 'string') return null;
+          ids.push(id);
+        }
+        if (new Set(ids).size !== ids.length) return null;
+        if (course === null) return null;
+        const known = new Set(course.microTasks.map((task) => task.id));
+        if (ids.some((id) => !known.has(id))) return null;
+        return { payload };
+      }
+      case 'saveCheckpoint':
+        // Nothing to target: the checkpoint is built from the session as it is at execution, and
+        // session existence was checked above. Structural because resume trusts whatever is newest
+        // and there is no delete (ADR 0003 §3).
+        return { payload };
       default:
         // A registered write this validator does not know: refuse rather than propose blind.
         return null;
@@ -2075,6 +2099,23 @@ export class FocusLoopEngine {
           interventionId: String(args['interventionId']),
           resolution: 'accept',
         });
+        return;
+      case 'reorderSessionPlan': {
+        const order = args['order'];
+        this.dispatch({
+          sessionId: proposal.sessionId,
+          type: 'TASKS_REORDERED',
+          source: 'agent',
+          payload: { order: Array.isArray(order) ? (order as string[]) : [] },
+          // Deterministic, like the lifecycle tools: one proposal, one order.
+          eventId: `tool:${proposal.id}`,
+        });
+        return;
+      }
+      case 'saveCheckpoint':
+        // Newest wins — resume reads `getLatestCheckpoint`, and there is no delete to undo a
+        // checkpoint with, which is exactly why this one is structural (ADR 0003 §3).
+        this.createCheckpoint(proposal.sessionId);
         return;
       case 'createAdaptiveTask':
         // The effect is the derivation: `activeTaskRewrite` serves the executed proposal's payload

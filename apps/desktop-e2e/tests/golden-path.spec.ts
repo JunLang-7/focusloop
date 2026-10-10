@@ -2265,3 +2265,72 @@ test('a lifecycle tool waits for confirmation, refuses when the state moves, the
   await window.getByTestId('end-session').click();
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
+
+/*
+ * AG8.5: the two structural tools, through the full screen. The label is the level's whole point —
+ * #226's reversible proposal read "Needs a quick confirmation", this one does not (ADR 0003 §1,
+ * presentation driven by the matrix), and the TOCTOU refusal is rendered identically because the
+ * envelope does not care which level asked.
+ */
+test('a structural tool confirms through the full screen and refuses when the state moves', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+
+  const propose = (key: string) =>
+    window.evaluate(async (id: string) => {
+      const snapshot = await globalThis.focusloop.getCurrentSession();
+      return globalThis.focusloop.proposeStructuralChange({
+        sessionId: snapshot!.session.id,
+        kind: 'structural-write',
+        payload: {
+          tool: 'reorderSessionPlan',
+          args: { order: ['rbt-t5', 'rbt-t4', 'rbt-t3', 'rbt-t2', 'rbt-t1'] },
+        },
+        createdBy: 'e2e',
+        idempotencyKey: id,
+      });
+    }, key);
+
+  const first = await propose('e2e-reorder-1');
+  expect(first.proposal).not.toBeNull();
+
+  const dialog = window.getByTestId('proposal-confirm-dialog');
+  await expect(dialog).toBeVisible();
+  // The structural label — the other side of the scale from #226's quick confirmation.
+  await expect(window.getByTestId('proposal-level')).toHaveText('Needs your confirmation');
+
+  // Move the state under it — from the main process, never through the modal.
+  await window.evaluate(async () => {
+    const snapshot = await globalThis.focusloop.getCurrentSession();
+    await globalThis.focusloop.dispatchEvent({
+      sessionId: snapshot!.session.id,
+      type: 'TASK_STARTED',
+      source: 'user',
+      payload: { taskId: 'rbt-t2' },
+    });
+  });
+
+  await window.getByTestId('proposal-confirm').click();
+  await expect(window.getByTestId('proposal-refusal')).toHaveText(
+    'Something changed after this change was prepared, so it was not applied. Review the new state and try again.',
+  );
+  await window.getByTestId('proposal-dismiss').click();
+  await expect(dialog).toBeHidden();
+
+  // Re-propose against the state as it is; confirm; the order lands as one event.
+  const second = await propose('e2e-reorder-2');
+  expect(second.proposal).not.toBeNull();
+  await expect(dialog).toBeVisible();
+  await window.getByTestId('proposal-confirm').click();
+  await expect(dialog).toBeHidden();
+
+  await clickSidebarLink('Dashboard');
+  await expect(
+    window.locator('[data-testid="timeline-row"] strong[title="TASKS_REORDERED"]'),
+  ).toHaveCount(1);
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+
+  await clickSidebarLink('Focus Session');
+  await window.getByTestId('end-session').click();
+  await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
+});
