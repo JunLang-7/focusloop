@@ -980,6 +980,42 @@ export class FocusLoopStore {
     }));
   }
 
+  /**
+   * Executed task rewrites for one session: when, and at what size the task became (AG6.2).
+   *
+   * Parsed in JS rather than through `json_extract` — the payload is a document we already wrote,
+   * and reading it with the same JSON parser the rest of the store uses keeps one definition of
+   * "what a rewrite looks like". Rows whose payload is not a rewrite (generic proposals, tool
+   * calls) are simply not this method's business.
+   */
+  listExecutedTaskRewrites(
+    sessionId: string,
+  ): readonly { readonly executedAt: string; readonly minutes: number }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT executed_at, payload FROM agent_proposals
+          WHERE session_id = ? AND status = 'executed' AND executed_at IS NOT NULL
+          ORDER BY executed_at ASC;`,
+      )
+      .all(sessionId) as readonly SqlRow[];
+    const rewrites: { executedAt: string; minutes: number }[] = [];
+    for (const row of rows) {
+      const payload = parseJson<Record<string, unknown>>(
+        readText(row, 'agent_proposals', 'payload'),
+        {},
+      );
+      const rewrite = payload['rewrite'];
+      if (typeof rewrite !== 'object' || rewrite === null) continue;
+      const minutes = (rewrite as Record<string, unknown>)['estimatedMinutes'];
+      if (typeof minutes !== 'number' || !Number.isFinite(minutes)) continue;
+      rewrites.push({
+        executedAt: readText(row, 'agent_proposals', 'executed_at'),
+        minutes,
+      });
+    }
+    return rewrites;
+  }
+
   /** The windowed-cleanup audit, newest first: when the line was drawn, what it removed. */
   listEpisodicCleanups(): readonly {
     id: string;
