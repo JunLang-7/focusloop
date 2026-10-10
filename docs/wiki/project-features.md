@@ -489,7 +489,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 6. **状态与证据**：设计完成 — 方案页 AG4；`main` 上有 `MICRO_START`/`SIMPLIFY` 的读时派生改写（#171/#172），但没有持久化的 `AdaptiveTask`/`SessionPlanRevision`。
 7. **已知限制**：计划级改写完全没有实现（无持久化任务、无前后对比预览、无 plan revision）。**依赖顺序已修正**：AG4 只依赖 AG8 的
    confirmation/idempotency primitive；原先「依赖 AG7 episodic schema」的写法会造成依赖倒置（AG7 排在
-   AG4 之后），已改为「如需 episodic 查询，拆出 AG7a 并提前」。
+   AG4 之后），已改为「如需 episodic 查询，拆出 AG7a 并提前」。**该依赖已满足**：信封 `bf0844b` (#126)、契约 `e59ea9b` (#217)、生命周期工具 `#238` 与自适应任务工具（AG8.4，#227）——AG8 phase 2 落地后，AG4 的计划级改写不再有任何 AG8 侧前置。
 8. **依赖**：AG8 确认/幂等；AG10 安全场景。
 9. **怎么验证**：待实现；验收要求见方案页 AG4 测试矩阵。
 
