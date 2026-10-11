@@ -24,6 +24,7 @@ import type {
   MaterialDocument,
   MicroTask,
   ProposalConfirmResult,
+  ProposalDeclineResult,
   ProposalExecuteResult,
   ResolveInterventionRequest,
   ResumeCardView,
@@ -88,6 +89,7 @@ import {
   preferenceCandidateId,
 } from './preference-derivation';
 import { buildWeeklyReflection } from './reflection';
+import { preferenceDecisionKey, preferenceFromProposal } from './preference-confirmation';
 import {
   DEFAULT_INSIGHT_RANGE,
   coerceLocale,
@@ -133,6 +135,7 @@ import {
   confirmAgentProposal,
   createAgentProposal,
   executeAgentProposal,
+  refusal,
   type ProposalCommandDeps,
 } from './proposal';
 import { applyTaskRewrite, buildTaskRewrite, rewriteIdempotencyKey } from './task-rewrite';
@@ -2022,6 +2025,18 @@ export class FocusLoopEngine {
   listPreferenceCandidates(sessionId: string): LearnerPreferenceCandidatesResult {
     const refusal = this.memoryRefusal(sessionId);
     if (refusal !== null) return refusal;
+    return {
+      ok: true,
+      candidates: this.derivePreferenceCandidates(sessionId).filter(
+        (candidate) =>
+          this.store.getAgentProposalByIdempotencyKey(
+            preferenceDecisionKey(sessionId, candidate.id),
+          ) === null,
+      ),
+    };
+  }
+
+  private derivePreferenceCandidates(sessionId: string): readonly LearnerPreference[] {
     const derived = [
       this.deriveTaskSizePreference(sessionId),
       this.deriveInterventionPreference(sessionId),
@@ -2037,7 +2052,7 @@ export class FocusLoopEngine {
         id: preferenceCandidateId(result.candidate.scope, result.candidate.value),
       });
     }
-    return { ok: true, candidates };
+    return candidates;
   }
 
   /**
@@ -2129,7 +2144,11 @@ export class FocusLoopEngine {
      * a second attempt (any caller key) fails the insert, and `activeTaskRewrite` keeps serving the
      * single executed proposal it finds by that key (AG8.4).
      */
-    const idempotencyKey = this.rewriteIdempotencyKeyFor(input) ?? input.idempotencyKey;
+    const candidateId = input.payload['preferenceCandidateId'];
+    const idempotencyKey =
+      typeof candidateId === 'string'
+        ? preferenceDecisionKey(input.sessionId, candidateId)
+        : (this.rewriteIdempotencyKeyFor(input) ?? input.idempotencyKey);
     const proposal = this.createStructuralProposal({
       ...input,
       payload: prepared.payload,
@@ -2169,6 +2188,21 @@ export class FocusLoopEngine {
     readonly payload: Record<string, unknown>;
   }): { payload: Record<string, unknown> } | null {
     const { payload } = input;
+    // No client-authored preference ever reaches storage. The only input is an id; main derives
+    // the claim again and freezes the value and evidence that the confirmation hash will bind.
+    if ('preferenceCandidateId' in payload || 'preference' in payload) {
+      if (
+        input.kind !== 'reversible-write' ||
+        this.memoryRefusal(input.sessionId) !== null ||
+        Object.keys(payload).length !== 1 ||
+        typeof payload['preferenceCandidateId'] !== 'string'
+      )
+        return null;
+      const candidate = this.derivePreferenceCandidates(input.sessionId).find(
+        (row) => row.id === payload['preferenceCandidateId'],
+      );
+      return candidate === undefined ? null : { payload: { preference: candidate } };
+    }
     if (payload['tool'] === undefined) return { payload };
     if (typeof payload['tool'] !== 'string') return null;
 
@@ -2277,6 +2311,23 @@ export class FocusLoopEngine {
    * rather than committing an "executed" record with no effect behind it.
    */
   private applyToolProposal(proposal: AgentProposal): void {
+    if ('preference' in proposal.payload) {
+      const candidate = preferenceFromProposal(proposal);
+      const stored = this.store.getAgentProposal(proposal.id);
+      if (stored?.confirmedAt === null || stored?.confirmedAt === undefined) {
+        throw new Error('Preference execution has no confirmation');
+      }
+      if (
+        !this.store.insertLearnerPreference({
+          ...candidate,
+          id: proposal.idempotencyKey,
+          confirmedAt: stored.confirmedAt,
+        })
+      ) {
+        throw new Error('Preference could not be stored');
+      }
+      return;
+    }
     const payload = proposal.payload as { tool?: unknown; args?: unknown };
     if (payload.tool === undefined) return; // generic payloads record intent only (#218)
     if (typeof payload.tool !== 'string') {
@@ -2370,6 +2421,24 @@ export class FocusLoopEngine {
 
   confirmProposal(request: ConfirmProposalRequest): ProposalConfirmResult {
     return confirmAgentProposal(this.proposalDeps(), request);
+  }
+
+  /** Records a learner's decline on the same proposal, so its decision identity survives reload. */
+  declineProposal(request: ConfirmProposalRequest): ProposalDeclineResult {
+    const stored = this.store.getAgentProposal(request.proposalId);
+    if (stored === null) return refusal('unknown-proposal');
+    if (
+      stored.proposal.sessionId !== request.sessionId ||
+      this.memoryRefusal(request.sessionId) !== null
+    ) {
+      return refusal('wrong-session', stored.proposal.id);
+    }
+    if (request.expectedHash !== stored.proposal.proposalHash)
+      return refusal('hash-mismatch', stored.proposal.id);
+    if (stored.status === 'executed') return refusal('already-executed', stored.proposal.id);
+    if (stored.status !== 'refused')
+      this.store.markAgentProposalRefused(stored.proposal.id, 'declined', this.clock());
+    return { ok: true, status: 'refused', proposalId: stored.proposal.id };
   }
 
   /** The only structural write path: confirmed + idempotent + audited. */

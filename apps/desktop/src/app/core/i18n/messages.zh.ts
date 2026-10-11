@@ -497,6 +497,8 @@ export const zh: Record<MessageKey, string> = {
   'app.reflection.stats': '本周发生的事',
   'app.reflection.claims': 'Agent 记下的偏好',
   'app.reflection.suggestions': '值得确认的建议',
+  'app.reflection.confirm': '查看并确认',
+  'app.reflection.declined': '已婉拒建议，没有保存偏好。',
   'app.reflection.empty': '本周没有留下任何记录。',
   'app.reflection.stat.interventions.shown': '给出的帮助',
   'app.reflection.stat.interventions.accepted': '被接受',

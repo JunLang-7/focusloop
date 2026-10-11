@@ -10,6 +10,7 @@ import type {
   AgentProposal,
   AgentProposalKind,
   ProposalConfirmResult,
+  ProposalDeclineResult,
   ProposalExecuteResult,
 } from '@focusloop/shared-types';
 import type { MessageKey } from './i18n/messages.en';
@@ -59,6 +60,27 @@ function describeValue(value: unknown): string {
 }
 
 export function proposalDialogView(proposal: AgentProposal): ProposalDialogView {
+  const preference = proposal.payload['preference'];
+  // The value may be long, but the evidence must never be pushed off its single truncated JSON
+  // line. Main validated this snapshot; the view still tolerates a malformed payload safely.
+  if (preference !== null && typeof preference === 'object' && !Array.isArray(preference)) {
+    const row = preference as Record<string, unknown>;
+    const evidence = row['evidence'];
+    if (evidence !== null && typeof evidence === 'object' && !Array.isArray(evidence)) {
+      const window = evidence as Record<string, unknown>;
+      return {
+        levelKey: PROPOSAL_LEVEL_KEYS[proposal.kind],
+        why: bounded(proposal.createdBy),
+        changeLines: [
+          bounded(`scope: ${describeValue(row['scope'])}`),
+          bounded(`value: ${describeValue(row['value'])}`),
+          `samples: ${describeValue(window['sampleSize'])}`,
+          `windowStart: ${describeValue(window['windowStart'])}`,
+          `windowEnd: ${describeValue(window['windowEnd'])}`,
+        ],
+      };
+    }
+  }
   const entries = Object.entries(proposal.payload);
   const shown = entries.slice(0, MAX_CHANGE_LINES - 1);
   const lines = shown.map(([key, value]) => bounded(`${key}: ${describeValue(value)}`));
@@ -79,7 +101,7 @@ export function proposalDialogView(proposal: AgentProposal): ProposalDialogView 
  * the screen.
  */
 export function refusalMessageKey(
-  result: ProposalConfirmResult | ProposalExecuteResult,
+  result: ProposalConfirmResult | ProposalExecuteResult | ProposalDeclineResult,
 ): MessageKey | null {
   return result.ok ? null : result.messageKey;
 }

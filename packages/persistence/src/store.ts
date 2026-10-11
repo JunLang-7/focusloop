@@ -788,6 +788,8 @@ export class FocusLoopStore {
    * that arrive without the compiler — the schema cannot carry an unbacked claim (AG7.4).
    */
   insertLearnerPreference(preference: LearnerPreference): boolean {
+    // SAFETY: this is a validation view, not a trusted evidence value. Every field is checked
+    // below before insertion, including callers that arrived without the typed evidence contract.
     const evidence = preference.evidence as unknown as Record<string, unknown> | undefined;
     const start =
       typeof evidence?.['windowStart'] === 'string'
@@ -872,6 +874,24 @@ export class FocusLoopStore {
         .prepare('DELETE FROM learner_preferences WHERE id = ? AND session_id = ?;')
         .run(id, sessionId);
       if (deleted.changes === 0) return false;
+      // AG6.7 adds confirmation snapshots. Forget must remove those copies too, not just the
+      // final row (ADR 0001). Keep the opaque decision key/status for replay and declined memory.
+      // The stored preference's id IS the session-scoped proposal decision key.
+      this.db
+        .prepare(
+          `UPDATE learning_events
+        SET payload = json_remove(payload, '$.proposal.payload.preference')
+        WHERE session_id = ? AND type = 'AGENT_PROPOSAL_PROPOSED'
+          AND json_extract(payload, '$.proposal.idempotencyKey') = ?`,
+        )
+        .run(sessionId, id);
+      this.db
+        .prepare(
+          `UPDATE agent_proposals
+        SET payload = json_remove(payload, '$.preference')
+        WHERE session_id = ? AND idempotency_key = ?`,
+        )
+        .run(sessionId, id);
       this.db
         .prepare(
           `INSERT INTO learner_preference_deletions (preference_id, session_id, deleted_at, actor)
@@ -936,18 +956,18 @@ export class FocusLoopStore {
       }
 
       let clearedCount = 0;
-      const statements: readonly (readonly [string, string])[] = [
-        ['learning_events', 'at'],
-        ['checkpoints', 'created_at'],
-        ['interventions', 'at'],
-        ['outcomes', 'at'],
-        ['resume_cards', 'shown_at'],
-        ['agent_proposals', 'proposed_at'],
+      // Literal statements rather than interpolated table/column names: same six cuts, and the
+      // only variables reach SQLite as bound parameters.
+      const statements: readonly string[] = [
+        'DELETE FROM learning_events WHERE at < ? AND session_id <> ?;',
+        'DELETE FROM checkpoints WHERE created_at < ? AND session_id <> ?;',
+        'DELETE FROM interventions WHERE at < ? AND session_id <> ?;',
+        'DELETE FROM outcomes WHERE at < ? AND session_id <> ?;',
+        'DELETE FROM resume_cards WHERE shown_at < ? AND session_id <> ?;',
+        'DELETE FROM agent_proposals WHERE proposed_at < ? AND session_id <> ?;',
       ];
-      for (const [table, column] of statements) {
-        const deleted = this.db
-          .prepare(`DELETE FROM ${table} WHERE ${column} < ? AND session_id <> ?;`)
-          .run(cutoffAt, excludeSessionId);
+      for (const statement of statements) {
+        const deleted = this.db.prepare(statement).run(cutoffAt, excludeSessionId);
         clearedCount += Number(deleted.changes);
       }
 

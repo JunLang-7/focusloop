@@ -99,6 +99,8 @@ const api: FocusLoopApi = {
     ),
   confirmProposal: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.confirmProposal, payload.confirmProposal(request)),
+  declineProposal: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.declineProposal, payload.confirmProposal(request)),
   executeProposal: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.executeProposal, payload.executeProposal(request)),
   askTutor: (request) => ipcRenderer.invoke(IPC_CHANNELS.askTutor, payload.askTutor(request)),

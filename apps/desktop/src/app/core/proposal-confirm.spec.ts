@@ -32,6 +32,33 @@ describe('what the confirmation dialog shows (#209)', () => {
     expect(view.changeLines).toEqual(['op: reorder', 'taskId: t1']);
   });
 
+  it('shows a preference value and its evidence separately — the window must not be truncated away', () => {
+    const view = proposalDialogView(
+      proposal({
+        kind: 'reversible-write',
+        payload: {
+          preference: {
+            scope: 'task-size',
+            value: { preferredStepMinutes: 2 },
+            evidence: {
+              sampleSize: 3,
+              windowStart: '2026-01-01T00:00:00.000Z',
+              windowEnd: '2026-01-29T00:00:00.000Z',
+            },
+          },
+        },
+      }),
+    );
+    expect(view.changeLines).toEqual([
+      'scope: task-size',
+      'value: {"preferredStepMinutes":2}',
+      'samples: 3',
+      'windowStart: 2026-01-01T00:00:00.000Z',
+      'windowEnd: 2026-01-29T00:00:00.000Z',
+    ]);
+    expect(view.levelKey).toBe('proposal.level.reversible-write');
+  });
+
   it('bounds a payload that would otherwise grow the dialog without limit', () => {
     const payload: Record<string, unknown> = {};
     for (let index = 0; index < 20; index += 1) payload[`k${index}`] = `v${index}`;
