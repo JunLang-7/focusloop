@@ -543,17 +543,17 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 9. **怎么验证**：`agent-core/src/memory-clear.spec.ts`（每类写→清→查空，含 dashboard/context/transcript）
    - `persistence` store 单测。
 
-#### F8 AG8 Tools & Actions — 已合并（phase 1 四件；写工具 phase 2 = #226/#227/#228）
+#### F8 AG8 Tools & Actions — 已合并（矩阵已落地；计时器两格 learner-only = #237）
 
 1. **定位**：让模型能**请求**动作，但永远不能直接动数据。
-2. **用户怎么用**：结构性变更从**确认屏**读起——待确认参数、等级、发起方与拒绝原因（过期 / 状态已变 / 哈希不符）都上屏（`b870e00` #218，e2e 两条：propose→confirm→execute 与等过期→拒绝可见）；撤销入口待 reversible 级落地（phase 2）。
+2. **用户怎么用**：结构性变更从**确认屏**读起——待确认参数、等级、发起方与拒绝原因（过期 / 状态已变 / 哈希不符）都上屏（`b870e00` #218，e2e 两条：propose→confirm→execute 与等过期→拒绝可见）；reversible 级已落地（#238–240），各格回头路依 ADR 0003 §3——rewrite 读时派生随任务结束、偏好可忘记（AG7.6）、计时器两格 learner-only 无模型入口（#237）。
 3. **何时发生**：LLM 结构化 tool call → 校验 → 领域命令 → 学习事件。
 4. **永不做什么**：LLM 永不直写 SQLite；不能传 SQL 或任意 IPC channel。
 5. **数据与边界**（`main`）：`AgentTool` / `ToolCall`（`shared-types/tool.ts`）、`ToolRegistry`（main 内校验 schema/权限/session，直路只跑 safe-read）、三级权限与逐格理由见 [ADR 0003](./adr/0003-tool-permission-matrix.md)；写前脱敏 `redactToolArgs`；`tool_calls` 表 + 单查询 join（`d08790f` #219，**屏幕视图随后被 #225 移除**，表/脱敏/查询保留）；四类读工具读的是 `AgentContext` 切片。
-6. **状态与证据**：**phase 1 已合并** — 确认信封 `bf0844b` (#126)、权限矩阵 `b624064` (#216)、契约与四个读工具 `e59ea9b` (#217)、确认屏 `b870e00` (#218)、工具审计 `d08790f` (#219)。测试：`tool-registry.spec`（对抗：未知工具 / 坏 schema / 跨会话 / 越权 / 原型污染）、`proposal.spec`（TOCTOU、幂等、过期）、golden-path 两条确认屏 e2e。
-7. **已知限制**：写工具 AG8.3–8.5 未实现（phase 2 = #226/#227/#228，全部 14 格矩阵落地后关闭）；模型侧**工具调用解析还没有入口**——`executeToolCall` 有契约与审计但没有 skill 调它（需 AG9 结构化门的第一个使用者）；reversible 级的撤销入口随 phase 2 出现。原「confirmation/idempotency 是 AG4 的硬门槛」已满足（#126）。
+6. **状态与证据**：**已合并** — 确认信封 `bf0844b` (#126)、权限矩阵 `b624064` (#216)、契约与四个读工具 `e59ea9b` (#217)、确认屏 `b870e00` (#218)、工具审计 `d08790f` (#219)；写工具 phase 2 — lifecycle `99f38f9` (#238)、adaptive `5614a94` (#239)、session-plan `d1ab7b4` (#240)；计时器 learner-only 决定 + registry 钉死（`e439254` #250，ADR 0003 §3b）。测试：`tool-registry.spec`（对抗：未知工具 / 坏 schema / 跨会话 / 越权 / 原型污染）、`proposal.spec`（TOCTOU、幂等、过期）、golden-path 两条确认屏 e2e。
+7. **已知限制**：模型侧**工具调用解析还没有入口**——`executeToolCall` 有契约与审计但没有 skill 调它（#246）；`pauseTask`/`extendTask` 按 #237 的产品决定**永不注册**（模型点名 → `unknown-tool`，`tool-registry.spec` 钉死，将来注册即 CI 红）；原「confirmation/idempotency 是 AG4 的硬门槛」已满足（#126）。
 8. **依赖**：AG9 结构化输出（已合并；`executeStructured` 尚无 skill 调用者）。
-9. **怎么验证**：越权 / 重放 / 坏 schema / 原型污染在 `tool-registry.spec`，TOCTOU 与幂等在 `proposal.spec`，确认屏两条在 golden path；phase 2 的写工具对抗场景由 #212 按矩阵补。
+9. **怎么验证**：越权 / 重放 / 坏 schema / 原型污染在 `tool-registry.spec`，TOCTOU 与幂等在 `proposal.spec`，确认屏两条在 golden path；写工具对抗场景九条已由 #212 按矩阵补（AG8 ×9）；learner-only 钉死在 `tool-registry.spec`（#250）。
 
 #### F9 AG9 Model Runtime — 已合并
 

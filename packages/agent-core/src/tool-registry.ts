@@ -221,9 +221,11 @@ export function createAgentReadRegistry(): ToolRegistry {
  * The four lifecycle writes with engine effects (AG8.3), at their ADR 0003 matrix levels.
  *
  * `pauseTask` and `extendTask` are absent on purpose: the focus timer lives in a renderer signal
- * with no domain command to dispatch, and whether the model may pause a learner's timer at all is a
- * product question rather than a registration — recorded in the follow-up issue, not papered over
- * with a handler that does nothing.
+ * with no domain command to dispatch, and whether the model may pause a learner's timer at all was
+ * a product question — answered by the owner in #237 with a double no. The timer is learner-only,
+ * so these two names stay out of the registry for good (ADR 0003 §3b) rather than being papered
+ * over with a handler that does nothing, and the spec pins their absence so a future registration
+ * fails CI instead of passing review quietly.
  */
 function lifecycleTools(): readonly ToolRegistration[] {
   const keyed = 'keyed' as const;
