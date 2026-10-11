@@ -7,11 +7,14 @@
  * the engine specs assert the store is untouched after each derivation, and this module could not
  * write to it even if a spec forgot to.
  */
+import { createHash } from 'node:crypto';
 import type {
   ActionTally,
   ExplanationPreferenceValue,
   InterventionPreferenceValue,
+  LearnerPreference,
   LearnerPreferenceEvidence,
+  LearnerPreferenceScope,
   TaskSizePreferenceValue,
 } from '@focusloop/shared-types';
 import {
@@ -58,6 +61,49 @@ function isStepSize(minutes: number): boolean {
     minutes >= TASK_SIZE_MIN_MINUTES &&
     minutes <= TASK_SIZE_MAX_MINUTES
   );
+}
+
+/**
+ * A suggestion's identity: its scope plus a fingerprint of its value — never the moment it was
+ * read. The same claim produces the same id on any day, which is what lets a declined suggestion
+ * stay declined (#236 rides this as the proposal's idempotency key), and two different claims
+ * cannot share one.
+ */
+/**
+ * The JSON shape a preference value is — everything a fingerprint can see, key order excluded.
+ * Named rather than `unknown` so the recursion's contract is checkable: in, JSON-shaped; out,
+ * the same shape with object keys sorted.
+ */
+type PreferenceJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | readonly PreferenceJsonValue[]
+  | { readonly [key: string]: PreferenceJsonValue };
+
+export function preferenceCandidateId(
+  scope: LearnerPreferenceScope,
+  value: LearnerPreference['value'],
+): string {
+  // SAFETY: every preference value is JSON on the wire and in the store — the vocabulary (AG6.1)
+  // admits only primitives, arrays and objects of them, which is exactly `PreferenceJsonValue`.
+  const shaped = value as unknown as PreferenceJsonValue;
+  const canonical = JSON.stringify({ scope, value: sortValueKeys(shaped) });
+  return `candidate:${scope}:${createHash('sha256').update(canonical).digest('hex').slice(0, 24)}`;
+}
+
+function sortValueKeys(value: PreferenceJsonValue): PreferenceJsonValue {
+  if (Array.isArray(value)) return value.map((item) => sortValueKeys(item));
+  if (value !== null && typeof value === 'object') {
+    const source = value as { readonly [key: string]: PreferenceJsonValue };
+    const sorted: Record<string, PreferenceJsonValue> = {};
+    // The index read is `| undefined` under noUncheckedIndexedAccess; a JSON object's own keys
+    // are never absent — `null` is the defensive hash input, not a value a preference can hold.
+    for (const key of Object.keys(source).sort()) sorted[key] = sortValueKeys(source[key] ?? null);
+    return sorted;
+  }
+  return value;
 }
 
 // ---------------------------------------------------------------- AG6.2 task size

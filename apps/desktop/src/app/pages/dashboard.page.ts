@@ -27,6 +27,7 @@ import {
   weekdayIndex,
 } from '../core/insights-view';
 import { formatClock, formatDuration, formatLatency } from '../core/format';
+import { suggestionRowViews } from '../core/memory-view';
 import { reflectionView } from '../core/reflection-view';
 
 const RANGE_KEYS: Record<InsightRange, MessageKey> = {
@@ -445,6 +446,26 @@ const DONUT_RADIUS = 42;
           }
         }
       }
+      <!--
+        The candidates, one row each (AG6.6): scope, the value as a line, and the evidence that
+        produced it — the same row function the stored preferences use, so a suggestion cannot
+        read lighter than what confirming it will store. No rows below the sample: the engine
+        never derives them, and nothing here invents one.
+      -->
+      @if (suggestions().length > 0) {
+        <p class="eyebrow">{{ t('app.reflection.suggestions') }}</p>
+        <ul data-testid="suggestion-list">
+          @for (suggestion of suggestions(); track suggestion.id) {
+            <li data-testid="suggestion-row">
+              <strong>{{ t(suggestion.scopeKey) }}</strong>
+              <span class="muted small">{{ suggestion.valueText }}</span>
+              <span class="muted small">{{
+                t(suggestion.evidenceKey, suggestion.evidenceParams)
+              }}</span>
+            </li>
+          }
+        </ul>
+      }
     </section>
 
     <section>
@@ -508,6 +529,21 @@ export class DashboardPage {
    * Newest run first. Reversing first means the log reads top-down as most-recent-first,
    * which is the only order an audit tail is useful in.
    */
+  /**
+   * Suggestions (AG6.6), rendered through the shared preference row — display only, and only
+   * what reached its sample; the confirm flow (#236) is the one that will ever write.
+   */
+  protected readonly suggestions = computed(() => {
+    const result = this.state.preferenceCandidates();
+    return result === null || !result.ok
+      ? []
+      : suggestionRowViews(
+          result.candidates,
+          (iso) => (iso === null ? '—' : formatClock(iso)),
+          new Date().toISOString(),
+        );
+  });
+
   /** The week as counts and claims — the pure view does the deciding, this only renders it (AG6.5). */
   protected readonly reflection = computed(() => {
     const week = this.state.weeklyReflection();

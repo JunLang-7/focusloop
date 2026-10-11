@@ -85,6 +85,8 @@ const api: FocusLoopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.memoryClear, payload.sessionId(sessionId)),
   listPreferences: (sessionId: string) =>
     ipcRenderer.invoke(IPC_CHANNELS.preferencesList, payload.sessionId(sessionId)),
+  listPreferenceCandidates: (sessionId: string) =>
+    ipcRenderer.invoke(IPC_CHANNELS.preferenceCandidates, payload.sessionId(sessionId)),
   deletePreference: (request) =>
     ipcRenderer.invoke(
       IPC_CHANNELS.preferenceDelete,

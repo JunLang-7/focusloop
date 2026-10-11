@@ -144,6 +144,19 @@ export function preferenceRowView(
   };
 }
 
+/**
+ * Suggestions as the dashboard shows them (AG6.6): the shared row, reused — a suggestion is a
+ * preference that has not been confirmed yet, and it must read exactly as a stored one will,
+ * evidence line included. Display only: nothing here can write.
+ */
+export function suggestionRowViews(
+  candidates: readonly LearnerPreference[],
+  clock: (iso: string | null) => string,
+  now: string,
+): readonly PreferenceRowView[] {
+  return candidates.map((candidate) => preferenceRowView(candidate, clock, now));
+}
+
 /** A refusal as the key it already carries — the domain's wording, not the panel's guess. */
 export function memoryRefusalKey(refusal: AgentMemoryRefusal): MessageKey {
   return MEMORY_REASON_KEYS[refusal.reason];

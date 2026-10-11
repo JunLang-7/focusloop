@@ -10,7 +10,11 @@ import type {
   EpisodicCleanupResult,
 } from './memory';
 import type { WeeklyReflection } from './reflection';
-import type { LearnerPreferenceListResult, PreferenceDeleteResult } from './learner-preference';
+import type {
+  LearnerPreferenceCandidatesResult,
+  LearnerPreferenceListResult,
+  PreferenceDeleteResult,
+} from './learner-preference';
 import type { InterventionDecision, InterventionOutcome } from './intervention';
 import type { RescueView } from './rescue';
 import type { InsightsRequest, InsightsSummary } from './insights';
@@ -57,6 +61,7 @@ export const IPC_CHANNELS = {
   memoryList: 'focusloop:agent:memory-list',
   memoryClear: 'focusloop:agent:memory-clear',
   preferencesList: 'focusloop:agent:preferences-list',
+  preferenceCandidates: 'focusloop:agent:preference-candidates',
   preferenceDelete: 'focusloop:agent:preference-delete',
   memoryCleanup: 'focusloop:agent:memory-cleanup',
   weeklyReflection: 'focusloop:reflection:weekly',
@@ -403,6 +408,8 @@ export interface FocusLoopApi {
   clearAgentMemory(sessionId: string): Promise<{ clearedAt: string; actor: string } | null>;
   /** This session's stored preferences, newest first; refused like the memory reads (AG7.4). */
   listPreferences(sessionId: string): Promise<LearnerPreferenceListResult>;
+  /** This session's suggestion candidates (AG6.6) — derived with evidence, stored nowhere. */
+  listPreferenceCandidates(sessionId: string): Promise<LearnerPreferenceCandidatesResult>;
   /**
    * Deletes one preference (AG7.6). Idempotent — the second delete of an id is `deleted: false`,
    * not an error — and another session's row is a refusal, never a row that quietly vanished.
