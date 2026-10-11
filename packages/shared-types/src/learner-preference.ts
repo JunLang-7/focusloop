@@ -241,6 +241,18 @@ export interface LearnerPreferenceListOk {
 
 export type LearnerPreferenceListResult = LearnerPreferenceListOk | AgentMemoryRefusal;
 
+export interface LearnerPreferenceCandidatesOk {
+  readonly ok: true;
+  readonly candidates: readonly LearnerPreference[];
+}
+
+/**
+ * The suggestion list (AG6.6): candidates as they were derived — evidence attached, identity
+ * belonging to the claim, nothing stored — or the session gate's refusal. An empty list means
+ * "below the sample", never "refused": the two must not collapse into one `[]`.
+ */
+export type LearnerPreferenceCandidatesResult = LearnerPreferenceCandidatesOk | AgentMemoryRefusal;
+
 /**
  * Deleting is idempotent: `deleted: false` is a completed no-op (the second press of the same id),
  * never an error. A preference belonging to another session is a refusal instead.

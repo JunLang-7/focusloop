@@ -10,6 +10,7 @@ import {
   memoryRefusalKey,
   memoryRows,
   preferenceRowView,
+  suggestionRowViews,
 } from './memory-view';
 import { LEARNER_PREFERENCE_SCOPES, type LearnerPreference } from '@focusloop/shared-types';
 
@@ -171,5 +172,44 @@ describe('a stored preference as the panel shows it (AG7.4/7.6)', () => {
       '2099-01-01T00:00:00.000Z',
     );
     expect(forever.expired).toBe(false);
+  });
+});
+
+describe('a suggestion as the dashboard shows it (AG6.6)', () => {
+  const clock = (iso: string | null): string => (iso === null ? '—' : iso.slice(0, 10));
+
+  it('renders through the shared preference row — evidence line included, unconfirmed by definition', () => {
+    // The reuse is the rule (#235's AC): one row function, tested once, serving stored preferences
+    // and not-yet-stored suggestions alike — a suggestion that lacked its evidence would have to
+    // break `preferenceRowView` to exist.
+    const rows = suggestionRowViews(
+      [
+        preference({ id: 'candidate:task-size:abc', confirmedAt: null }),
+        preference({
+          id: 'candidate:explanation:def',
+          scope: 'explanation',
+          value: { modes: [{ mode: 'HINT', count: 3 }] },
+          confirmedAt: null,
+        }),
+      ],
+      clock,
+      '2026-01-09T00:00:00.000Z',
+    );
+    expect(rows.map((row) => row.id)).toEqual([
+      'candidate:task-size:abc',
+      'candidate:explanation:def',
+    ]);
+    for (const row of rows) {
+      expect(row.evidenceKey).toBe('app.data.preference.evidence');
+      expect(row.evidenceParams.samples).toBe('6');
+      expect(row.evidenceParams.from).toBe('2026-01-01');
+      expect(row.evidenceParams.to).toBe('2026-01-08');
+      expect(row.confirmedAt).toBeNull();
+      expect(row.valueText.length).toBeLessThanOrEqual(141);
+    }
+  });
+
+  it('an empty candidate list renders nothing — the empty state is no rows, not blank ones', () => {
+    expect(suggestionRowViews([], clock, '2026-01-09T00:00:00.000Z')).toEqual([]);
   });
 });

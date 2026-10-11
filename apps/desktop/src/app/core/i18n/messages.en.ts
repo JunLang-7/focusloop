@@ -545,6 +545,7 @@ const en = {
   'app.reflection.title': 'This week',
   'app.reflection.stats': 'What happened',
   'app.reflection.claims': 'What the agent believes',
+  'app.reflection.suggestions': 'Worth confirming',
   'app.reflection.empty': 'Nothing was recorded this week.',
   'app.reflection.stat.interventions.shown': 'Help offered',
   'app.reflection.stat.interventions.accepted': 'Accepted',

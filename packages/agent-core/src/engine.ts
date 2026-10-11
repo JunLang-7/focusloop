@@ -54,6 +54,7 @@ import type {
   AgentMemorySourceCount,
   AgentMemorySummaryResult,
   DeriveCandidateResult,
+  LearnerPreferenceCandidatesResult,
   LearnerPreferenceListResult,
   PreferenceDeleteResult,
   AgentMemoryWindow,
@@ -84,6 +85,7 @@ import {
   deriveExplanationCandidate,
   deriveInterventionCandidate,
   deriveTaskSizeCandidate,
+  preferenceCandidateId,
 } from './preference-derivation';
 import { buildWeeklyReflection } from './reflection';
 import {
@@ -2007,6 +2009,35 @@ export class FocusLoopEngine {
         createdAt: this.clock(),
       },
     };
+  }
+
+  /**
+   * This session's suggestions (AG6.6): the three derivations' candidates, in scope order, each
+   * carrying the evidence that produced it and an identity that belongs to its claim rather than
+   * to this read — which is what #236's decline will ride.
+   *
+   * Reads only: a candidate is not a preference, and nothing here can make it one — the AG6
+   * never-do the spec asserts after every call.
+   */
+  listPreferenceCandidates(sessionId: string): LearnerPreferenceCandidatesResult {
+    const refusal = this.memoryRefusal(sessionId);
+    if (refusal !== null) return refusal;
+    const derived = [
+      this.deriveTaskSizePreference(sessionId),
+      this.deriveInterventionPreference(sessionId),
+      this.deriveExplanationPreference(sessionId),
+    ];
+    const candidates: LearnerPreference[] = [];
+    for (const result of derived) {
+      // The gate above already passed for this session; a refusal here is unreachable but must
+      // not be asserted away — it simply contributes no candidate.
+      if (!result.ok || result.candidate === null) continue;
+      candidates.push({
+        ...result.candidate,
+        id: preferenceCandidateId(result.candidate.scope, result.candidate.value),
+      });
+    }
+    return { ok: true, candidates };
   }
 
   /**

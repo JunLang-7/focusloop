@@ -113,10 +113,11 @@ Home
 - 风险：过时 checkpoint；时区/系统时钟异常；resume card 太长反而增加重启成本；长期卡点包含不必要敏感文本。
 - 实施步骤：已完成 gap bands → 三档纯策略 → refresher → success evaluator；后续为 checkpoint 纳入有界 Tutor/Rescue evidence → material 定位 → adaptive restore → 完整三档 E2E。
 
-### AG6 Learning Reflection — 设计完成（未实现）
+### AG6 Learning Reflection — 6/7 已合并（AG6.1–6.6；确认链路 = #236）
 
-- 当前证据：已有 dashboard/insights、events、outcomes，可作为统计输入；没有学习偏好模型或 reflection 产品链路。
-- 差距：AG6.1–AG6.7 基本均未实现；现有 UI settings 只含语言/主题/材料显示，不是 learner preference。
+- 当前证据（`main`）：偏好模型（词表 `e81f034` #241）、三派生（`2453035` #242）、每周反思
+  （`2640719` #243）、建议清单与建议行（#235）已在产品里；dashboard/insights、events、outcomes 是统计输入。
+- 差距：AG6.7 确认链路未实现（#236）——建议还不能确认入库；效果对照（建议应用后能否测量）也未做。
 - 验收标准：只从最小样本量以上的行为事实形成建议；展示证据窗口和不确定性；永不输出诊断/能力标签；偏好只有用户确认后才存；可编辑、撤销、删除；建议应用后能测量效果且不自动无限强化。
 - 依赖：AG7 preference store、AG8 confirmed preference tool、AG10 fairness/privacy scenarios。
 - 风险：小样本伪规律；把情境行为当人格；确认疲劳；反馈循环；跨课程偏好错误泛化。
