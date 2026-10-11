@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron, expect, test, type Page } from '@playwright/test';
 import { hermeticEnv } from '../hermetic-env.mjs';
+import { fireDemoEvent } from '../demo-events.mjs';
 import type { FocusLoopApi } from '@focusloop/shared-types';
 
 declare global {
@@ -42,17 +43,18 @@ async function taskIsUnobstructed(page: Page): Promise<void> {
   const task = await page.locator('.focus-task--active').boundingBox();
   const action = await page.getByTestId('complete-task').boundingBox();
   const notice = await page.getByTestId('focus-notice').boundingBox();
-  const simulator =
-    (await page.locator('.simulator').count()) > 0
-      ? await page.locator('.simulator').boundingBox()
-      : null;
   expect(task).not.toBeNull();
   expect(action).not.toBeNull();
   expect(notice).not.toBeNull();
   expect(task!.y + task!.height).toBeLessThanOrEqual(notice!.y + TOUCH_TOLERANCE);
   expect(action!.y + action!.height).toBeLessThanOrEqual(notice!.y + TOUCH_TOLERANCE);
+  /*
+   * The notice is the bottom-most thing on the screen. It used to be cleared against a developer bar
+   * pinned to the bottom edge, and with that bar gone the edge itself is the bound — which is the
+   * stricter statement anyway: nothing may be pushed out of the window to make room for the notice.
+   */
   expect(notice!.y + notice!.height).toBeLessThanOrEqual(
-    (simulator?.y ?? page.viewportSize()!.height) + TOUCH_TOLERANCE,
+    page.viewportSize()!.height + TOUCH_TOLERANCE,
   );
   await expect(page.getByTestId('complete-task')).toBeInViewport();
 }
@@ -123,7 +125,7 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
       return (await window.focusloop.getPendingRescue(session!.session.id))?.interventionId;
     });
     await toggle.click();
-    await page.getByTestId('sim-success').click();
+    await fireDemoEvent(page, 'success');
     await expect(notice).toHaveAttribute('data-folded', 'true');
     expect(
       await page.evaluate(async () => {
@@ -133,8 +135,8 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     ).toBe(offerId);
 
     // A resume wins over help and time up without consuming either lower-priority candidate.
-    await page.getByTestId('sim-distraction').click();
-    await page.getByTestId('sim-return').click();
+    await fireDemoEvent(page, 'distraction');
+    await fireDemoEvent(page, 'return');
     await expect(notice).toHaveAttribute('data-notice', 'resume');
     await expect(notice).toHaveAttribute('data-folded', 'true');
     await toggle.click();
@@ -245,10 +247,6 @@ test('one bottom slot preserves pending choices, priority, keyboard access and t
     await page.getByTestId('focus-stuck').click();
     await page.getByTestId('stuck-too-big').click();
     await expect(notice).toHaveAttribute('data-folded', 'false');
-
-    // Exercise the no-simulator CSS branch, without pretending this is a packaged-prod test.
-    await page.locator('fl-simulator-bar').evaluate((node) => node.remove());
-    await expect(page.locator('.simulator')).toHaveCount(0);
     await taskIsUnobstructed(page);
   } finally {
     await app.close();
@@ -274,8 +272,8 @@ test('other routes keep the modal resume card, trap and all', async () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await page.getByTestId('course-card').first().getByTestId('start-session').click();
     await page.getByTestId('start-task').first().click();
-    await page.getByTestId('sim-distraction').click();
-    await page.getByTestId('sim-return').click();
+    await fireDemoEvent(page, 'distraction');
+    await fireDemoEvent(page, 'return');
 
     await page.evaluate(() => {
       location.hash = '#/dashboard';

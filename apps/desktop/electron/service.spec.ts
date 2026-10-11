@@ -15,10 +15,27 @@ const getPath = vi.hoisted(() => vi.fn<() => string>());
 const openPath = vi.hoisted(() => vi.fn<(path: string) => Promise<string>>());
 /** Set to make the next `openDatabase` throw, which is how the deletion's reopen is made to fail. */
 const openFailure = vi.hoisted(() => ({ next: false }));
+/** Whether the mocked OS keychain is usable, and whether a key written now survives a restart. */
+const keychain = vi.hoisted(() => ({ available: true }));
 
 vi.mock('electron', () => ({
   app: { getPath, isPackaged: true },
   shell: { openPath },
+  /*
+   * `safeStorage` stands in for the OS keychain, in the same "reversible and not the input" shape
+   * `model-key.spec.ts` uses. `service.ts` reads and writes the key through it, so a spec that left it
+   * undefined would be testing the no-keychain path in every test by accident.
+   */
+  safeStorage: {
+    isEncryptionAvailable: () => keychain.available,
+    encryptString: (plain: string) =>
+      Buffer.from(`v1:${Buffer.from(plain, 'utf8').toString('base64')}`, 'utf8'),
+    decryptString: (buffer: Buffer) => {
+      const text = buffer.toString('utf8');
+      if (!text.startsWith('v1:')) throw new Error('not ours to decrypt');
+      return Buffer.from(text.slice(3), 'base64').toString('utf8');
+    },
+  },
   // `handlers.ts` imports these at module load; only `broadcastTick` is exercised through them.
   ipcMain: { handle: vi.fn(), removeHandler: vi.fn(), on: vi.fn() },
 }));
@@ -62,6 +79,7 @@ afterEach(() => {
   getPath.mockReset();
   openPath.mockReset();
   openFailure.next = false;
+  keychain.available = true;
   for (const directory of temporaryDirectories.splice(0)) {
     rmSync(directory, { recursive: true, force: true });
   }
@@ -354,6 +372,112 @@ describe('createService', () => {
        * here can tell apart from leftovers.
        */
       expect(await service.deleteAllData()).toMatchObject({ ok: true, removed: [databasePath] });
+    } finally {
+      service.dispose();
+    }
+  });
+});
+
+describe('the model key', () => {
+  /*
+   * The model surface's whole job is to be truthful about which key is in force (#255), so these tests
+   * are about the three answers rather than about the happy path alone: nothing configured, a key the
+   * learner saved, and a key the environment forced — the last one being the case where a learner saves
+   * a key and watches it do nothing.
+   */
+  it('reports no key, and the offline provider, on a fresh profile', () => {
+    const service = createService({ userDataPath: temporaryDirectory() });
+    try {
+      const settings = service.getModelSettings();
+      expect(settings.keySource).toBe('none');
+      expect(settings.offline).toBe(true);
+      expect(settings.canStore).toBe(true);
+    } finally {
+      service.dispose();
+    }
+  });
+
+  it('stores a key, switches the provider to it, and reports where it came from', () => {
+    const directory = temporaryDirectory();
+    const service = createService({ userDataPath: directory });
+    try {
+      const settings = service.setModelApiKey('  sk-test-key  ');
+      expect(settings.keySource).toBe('stored');
+      expect(settings.offline).toBe(false);
+      // The provider actually in use, not a flag agreeing with the request.
+      expect(settings.providerId).toContain('deepseek');
+      expect(service.engine.providerInfo().offline).toBe(false);
+    } finally {
+      service.dispose();
+    }
+  });
+
+  it('remembers the key across a restart, without the environment', () => {
+    const directory = temporaryDirectory();
+    const first = createService({ userDataPath: directory });
+    first.setModelApiKey('sk-persisted');
+    first.dispose();
+
+    const second = createService({ userDataPath: directory });
+    try {
+      const settings = second.getModelSettings();
+      expect(settings.keySource).toBe('stored');
+      expect(settings.offline).toBe(false);
+    } finally {
+      second.dispose();
+    }
+  });
+
+  it('lets the environment win, and says so instead of pretending the saved key took effect', () => {
+    const directory = temporaryDirectory();
+    const service = createService({ userDataPath: directory, deepSeekApiKey: 'sk-from-env' });
+    try {
+      expect(service.getModelSettings().keySource).toBe('environment');
+      // Saving is still allowed — it is stored for the next launch without the variable — but the
+      // answer keeps saying which key is actually in force, which is what stops the input looking broken.
+      expect(service.setModelApiKey('sk-saved-anyway').keySource).toBe('environment');
+      // And clearing does not turn the environment key off, because that is not the learner's to remove.
+      expect(service.clearModelApiKey().keySource).toBe('environment');
+      expect(service.getModelSettings().offline).toBe(false);
+    } finally {
+      service.dispose();
+    }
+  });
+
+  it('goes back to the offline provider when the key is removed', () => {
+    const service = createService({ userDataPath: temporaryDirectory() });
+    try {
+      service.setModelApiKey('sk-temporary');
+      expect(service.getModelSettings().offline).toBe(false);
+      const settings = service.clearModelApiKey();
+      expect(settings.keySource).toBe('none');
+      expect(settings.offline).toBe(true);
+    } finally {
+      service.dispose();
+    }
+  });
+
+  it('refuses to keep a key where the OS has no keychain, rather than storing it in the clear', () => {
+    const directory = temporaryDirectory();
+    keychain.available = false;
+    const service = createService({ userDataPath: directory });
+    try {
+      expect(service.getModelSettings().canStore).toBe(false);
+      const settings = service.setModelApiKey('sk-cannot-be-protected');
+      // Not configured, and honest about it: the app would rather have no model than an unprotected secret.
+      expect(settings.keySource).toBe('none');
+      expect(settings.offline).toBe(true);
+      expect(existsSync(join(directory, 'model-key.bin'))).toBe(false);
+    } finally {
+      service.dispose();
+    }
+  });
+
+  it('ignores an empty key rather than switching to a provider that cannot authenticate', () => {
+    const service = createService({ userDataPath: temporaryDirectory() });
+    try {
+      expect(service.setModelApiKey('   ').keySource).toBe('none');
+      expect(service.getModelSettings().offline).toBe(true);
     } finally {
       service.dispose();
     }

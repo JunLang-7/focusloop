@@ -96,7 +96,11 @@ installed copy instead, point it at the executable:
 ### Try it
 
 **Home** → _Start session_ on “Red-black trees: the basics” → _Start_ on the first micro task →
-_Complete task_ → simulator **Distraction** → simulator **Return** → the Resume Card appears.
+_Complete task_ → switch to another window for twenty seconds and come back → the Resume Card appears.
+
+The app notices its own window losing focus, so nothing has to be installed for that last step: the
+browser extension adds tab-level detail on top, and the footer's model entry is where a real model is
+configured. Both are optional, and both are described in [docs/privacy.md](./docs/privacy.md).
 
 ### Run the checks
 

@@ -25,7 +25,7 @@ export interface EventRouter extends EventEngine {
 /** Tells one window what the engine just did. */
 export function pushEvent(target: WebContents, response: DispatchEventResponse): void {
   if (target.isDestroyed()) return;
-  target.send(IPC_CHANNELS.onEvent, response);
+  target.send(IPC_CHANNELS.onDispatch, response);
 }
 
 /**

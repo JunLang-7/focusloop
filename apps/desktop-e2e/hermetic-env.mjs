@@ -15,7 +15,16 @@ const PROVIDER_CREDENTIALS = ['FOCUSLOOP_DEEPSEEK_API_KEY'];
 const BLOCKED_ENV_NAMES = new Set(PROVIDER_CREDENTIALS.map((key) => key.toUpperCase()));
 
 export function hermeticEnv(sourceEnv = process.env) {
-  const env = { ...sourceEnv, FOCUSLOOP_DEV: '1' };
+  /*
+   * The distraction sensor is off for every launch by default (#254).
+   *
+   * It reports the app window losing focus, and a test runner is a machine where focus moves for
+   * reasons that have nothing to do with the learner — a window opening behind another, a CI agent
+   * doing something on the desktop. A suite that asserts "the session is focused" cannot have a
+   * background observation deciding otherwise, so the sensor is opt-in here and the one spec that
+   * exercises it turns it back on. The same shape as FOCUSLOOP_TICK_INTERVAL_MS.
+   */
+  const env = { ...sourceEnv, FOCUSLOOP_DEV: '1', FOCUSLOOP_DISTRACTION_SENSOR: '0' };
   // Electron's launch env is Record<string, string>; drop any undefined leftovers from process.env.
   return Object.fromEntries(
     Object.entries(env).filter(

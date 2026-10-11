@@ -487,16 +487,6 @@ html[data-theme='dark'] .brand__wordmark--dark {
   border-top: 1px solid var(--border);
 }
 
-/*
- * The simulator bar is fixed to the bottom and spans the full width, so it sits
- * on top of whatever is at the bottom of the page. Reserve room for it instead of
- * letting it swallow the sidebar footer and the end of the content.
- */
-body:has(.simulator) .sidebar,
-body:has(.simulator) .content {
-  padding-bottom: 56px;
-}
-
 .locale__options {
   display: flex;
   gap: 4px;
@@ -511,6 +501,79 @@ body:has(.simulator) .content {
   border-color: var(--accent);
   background: var(--bg-soft);
   color: var(--text);
+}
+
+/*
+ * The model entry. Built from the footer's own vocabulary — the same top border and spacing the
+ * language and theme switches use — because it is one more preference in that column and not a
+ * feature with its own visual weight. The status dot is the exception: it is the one thing here that
+ * has to be readable without opening anything, since "is a model configured" is the question the
+ * whole entry exists to answer.
+ */
+.model-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.model-entry__toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+}
+
+.model-entry__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/*
+ * The provider's id on the same line as the state, and it may truncate rather than wrap: a long model
+ * name would otherwise push the state chip off the row it has to be readable on. `min-width: 0` is what
+ * lets a flex item shrink below its content at all.
+ */
+.model-entry__name {
+  overflow: hidden;
+  min-width: 0;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-entry__state::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.model-entry__state[data-state='connected']::before {
+  background: var(--accent);
+}
+
+.model-entry__state[data-state='degraded']::before {
+  background: var(--danger);
+}
+
+.model-entry__form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.model-entry__form .field {
+  margin: 0;
+}
+
+.model-entry__form .row {
+  gap: 6px;
 }
 
 .content {
@@ -550,7 +613,7 @@ body:has(.simulator) .content {
  */
 .sidebar-fab {
   position: fixed;
-  z-index: 25; /* above the simulator bar (20), below the agent panel (30) and dialogs (40) */
+  z-index: 25; /* below the peeking sidebar (26), the agent panel (30) and dialogs (40) */
   top: 20px;
   left: 16px;
   display: none;
@@ -592,7 +655,7 @@ body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .side
 .shell.is-collapsed.is-peeking .sidebar,
 body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open).is-peeking .sidebar {
   position: fixed;
-  z-index: 26; /* above the simulator (20), below the agent panel (30) and dialogs (40) */
+  z-index: 26; /* above the collapsed sidebar's reveal button (25), below the agent panel (30) */
   top: 0;
   bottom: 0;
   left: 0;
@@ -669,6 +732,35 @@ body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .cont
   padding-left: 256px;
 }
 
+/*
+ * The home screen's own vertical rhythm, and it was missing rather than wrong.
+ *
+ * `.content` gaps its children by 22px, but that reaches `fl-home` — one child — and stops: the
+ * header, the guidance block and the two sections inside it sat flush against each other, measured
+ * at 1280 as a run of blocks at 46, 129, 344, 528 with zero space between any two of them. The page
+ * read as a stack of full-width bands for that reason more than for any other. Same gap as the
+ * scroller above, so the two rhythms agree instead of nesting two different ones.
+ */
+fl-home {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+}
+
+/*
+ * The three steps laid out as the sequence they are.
+ *
+ * They are a numbered list in a 992px band of otherwise short lines, which left most of the first
+ * thing a learner sees empty. Three columns use the width for the information rather than around it
+ * — and `auto-fit` with a 180px floor means they stack again on a narrow window instead of
+ * squeezing to one word a line.
+ */
+.getting-started .steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 6px 18px;
+}
+
 /* ----------------------------------------------------------------- blocks */
 
 .page-head {
@@ -702,7 +794,16 @@ body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .cont
    tracks and leaves two thirds of the row blank. */
 .grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  /*
+   * Bounded tracks rather than `minmax(260px, 1fr)`, and the difference is what a lone card does.
+   * `1fr` makes one course as wide as the page — a 992px band with a title on the left and a button
+   * on the right, measured at 1280 — which is a list pretending to be a paragraph. A bounded track
+   * keeps every card the same shape however many there are, and the row's slack sits at the end
+   * instead of being distributed into the cards. `start` rather than `space-between`, so the slack
+   * lands in one place rather than in the gaps between cards.
+   */
+  grid-template-columns: repeat(auto-fit, minmax(260px, 320px));
+  justify-content: start;
   gap: 12px;
 }
 
@@ -1478,20 +1579,6 @@ textarea:focus {
   border-left: 3px solid var(--accent);
   color: var(--text-secondary);
   font-size: 13px;
-}
-
-.simulator {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 16px;
-  border-top: 1px dashed var(--border);
-  background: var(--bg-floating);
-  z-index: 20;
 }
 
 .fatal {
@@ -2405,12 +2492,6 @@ body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:not([data-open]) {
   animation: plan-rise 220ms ease-out;
 }
 
-/* The simulator bar spans the bottom edge, so the sheet starts above it — the same 56px the
-   sidebar and the content already reserve for it. */
-body:has(.simulator) .focus-plan[data-open] {
-  bottom: 72px;
-}
-
 @keyframes plan-rise {
   from {
     opacity: 0;
@@ -2421,10 +2502,6 @@ body:has(.simulator) .focus-plan[data-open] {
     opacity: 1;
     transform: none;
   }
-}
-
-body:has(fl-focus .focus-workspace[data-rail]) .simulator {
-  opacity: 0.76;
 }
 
 .focus-workspace[data-phase='paused'] .focus-clock__progress {
@@ -2520,10 +2597,6 @@ body:has(fl-focus .focus-workspace[data-rail]) .simulator {
 .focus-workspace:has(.focus-notice) {
   height: calc(100dvh - 48px);
   min-height: 0;
-}
-
-body:has(.simulator) .focus-workspace:has(.focus-notice) {
-  height: calc(100dvh - 48px - 56px);
 }
 
 .focus-workspace:has(.focus-notice) .focus-stage {

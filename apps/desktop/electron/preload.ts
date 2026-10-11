@@ -5,7 +5,6 @@ import {
   type AgentMemoryWindow,
   type DispatchEventResponse,
   type FocusLoopApi,
-  type LearningEvent,
 } from '@focusloop/shared-types';
 import { payload } from './ipc/payloads';
 
@@ -119,6 +118,11 @@ const api: FocusLoopApi = {
   setAmbientSound: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.setAmbientSound, payload.setAmbientSound(request.ambientSound)),
 
+  getModelSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getModelSettings, payload.none()),
+  setModelApiKey: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setModelApiKey, payload.setModelApiKey(request.apiKey)),
+  clearModelApiKey: () => ipcRenderer.invoke(IPC_CHANNELS.clearModelApiKey, payload.none()),
+
   getDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getDataInfo, payload.none()),
   openDataFolder: () => ipcRenderer.invoke(IPC_CHANNELS.openDataFolder, payload.none()),
   deleteAllData: (request) =>
@@ -127,13 +131,22 @@ const api: FocusLoopApi = {
   getInsights: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.getInsights, payload.insights(request.range)),
 
-  onEvent: (listener: (event: LearningEvent) => void) => {
+  /**
+   * The engine's own pushes (#204), whole.
+   *
+   * Everything but the event used to be dropped here, and the decision is not in the event: an
+   * intervention decided in the main process — a demo command, the bridge, a tick — reached the
+   * renderer as a state change with nothing to show for it, so the agent panel only ever appeared
+   * after an action the window itself had taken. The response crosses as it stands; the listener
+   * decides what of it to use.
+   */
+  onDispatch: (listener: (response: DispatchEventResponse) => void) => {
     const handler = (_event: unknown, response: DispatchEventResponse): void => {
-      listener(response.event);
+      listener(response);
     };
-    ipcRenderer.on(IPC_CHANNELS.onEvent, handler);
+    ipcRenderer.on(IPC_CHANNELS.onDispatch, handler);
     return () => {
-      ipcRenderer.removeListener(IPC_CHANNELS.onEvent, handler);
+      ipcRenderer.removeListener(IPC_CHANNELS.onDispatch, handler);
     };
   },
 };

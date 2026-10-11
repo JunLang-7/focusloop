@@ -1,9 +1,10 @@
 /**
  * Presentation helpers for the event log.
  *
- * The log is an audit tail, not a story: the demo simulator alone fires three
- * `HELP_REQUESTED` events for a single click, and drawing one bordered card per event
- * made those three identical cards the heaviest thing on the dashboard.
+ * The log is an audit tail, not a story: one demo command (the `distraction` /
+ * `confusion` / `overload` set the golden path drives) fires several events for a single
+ * action, and drawing one bordered card per event
+ * made those identical cards the heaviest thing on the dashboard.
  *
  * Pure functions only, so the folding is unit-tested instead of being eyeballed.
  */

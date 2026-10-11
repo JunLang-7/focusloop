@@ -30,7 +30,6 @@ import { ResumeCardComponent } from './components/resume-card.component';
 import { DataControlsComponent } from './components/data-controls.component';
 import { ProposalConfirmComponent } from './components/proposal-confirm.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
-import { SimulatorBarComponent } from './components/simulator-bar.component';
 
 /** The theme preference is a closed vocabulary too. */
 const THEME_KEYS: Record<ThemePreference, MessageKey> = {
@@ -59,7 +58,6 @@ const PEEK_CLOSE_DELAY_MS = 150;
     RouterLinkActive,
     ResumeCardComponent,
     AgentPanelComponent,
-    SimulatorBarComponent,
     DataControlsComponent,
     ProposalConfirmComponent,
   ],
@@ -163,12 +161,93 @@ const PEEK_CLOSE_DELAY_MS = 150;
             <span class="state-chip__dot"></span>{{ stateLabel() }}
           </div>
           @if (runtime(); as info) {
+            <!-- The model moved to its own entry below, which is also where it is changed. -->
             <p class="muted small footer__meta" data-testid="run-mode">
-              {{ info.providerModel }} · {{ runModeLabel(info) }} · v{{ info.appVersion }}
+              {{ runModeLabel(info) }} · v{{ info.appVersion }}
             </p>
           } @else {
             <p class="muted small">{{ t('app.connecting') }}</p>
           }
+
+          <!--
+            The model, one click from anywhere (#255).
+
+            It replaced a read-only line of meta text: the sidebar already said which model was in
+            use, and there was no way to change it short of exporting an environment variable before
+            launching — a developer's door in a learner's sidebar. This keeps the status where it was
+            and makes it the control, which is what "quick entry" has to mean for a setting whose whole
+            failure mode is being undiscoverable.
+          -->
+          <div class="model-entry" data-testid="model-entry">
+            <button
+              type="button"
+              class="btn btn--small model-entry__toggle"
+              data-testid="model-entry-toggle"
+              aria-controls="model-entry-form"
+              [attr.aria-expanded]="modelOpen()"
+              (click)="toggleModel()"
+            >
+              <span class="model-entry__state" [attr.data-state]="modelState()">
+                {{ t(modelLabelKey()) }}
+              </span>
+              <!--
+                The provider's own id, kept on screen rather than behind the disclosure. It moved here
+                from the footer's meta line when this entry was built, and it has to stay visible: the
+                golden-path suite reads it to prove no real provider was ever reached, and "which
+                model" is the question the entry exists to answer.
+              -->
+              <span class="muted small model-entry__name">{{ model()?.providerModel }}</span>
+            </button>
+
+            @if (modelOpen()) {
+              <div class="model-entry__form" id="model-entry-form">
+                <p class="muted small" data-testid="model-entry-note">
+                  {{ t(modelNoteKey()) }}
+                </p>
+                @if (!canStoreKey()) {
+                  <p class="muted small" data-testid="model-entry-unavailable">
+                    {{ t('app.model.noKeychain') }}
+                  </p>
+                } @else {
+                  <label class="field">
+                    <span>{{ t('app.model.key') }}</span>
+                    <input
+                      type="password"
+                      autocomplete="off"
+                      spellcheck="false"
+                      data-testid="model-key-input"
+                      [placeholder]="t('app.model.keyPlaceholder')"
+                      [value]="modelKeyDraft()"
+                      (input)="onModelKeyInput($event)"
+                      (keydown.enter)="saveModelKey()"
+                    />
+                  </label>
+                  <div class="row">
+                    <button
+                      type="button"
+                      class="btn btn--small btn--primary"
+                      data-testid="model-key-save"
+                      [disabled]="modelKeyDraft().trim() === '' || modelBusy()"
+                      (click)="saveModelKey()"
+                    >
+                      {{ t('app.model.save') }}
+                    </button>
+                    @if (hasStoredKey()) {
+                      <button
+                        type="button"
+                        class="btn btn--small"
+                        data-testid="model-key-clear"
+                        [disabled]="modelBusy()"
+                        (click)="clearModelKey()"
+                      >
+                        {{ t('app.model.clear') }}
+                      </button>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
 
           <div class="locale" role="group" [attr.aria-label]="t('app.language.switch')">
             <span class="muted small">{{ t('app.language') }}</span>
@@ -268,7 +347,6 @@ const PEEK_CLOSE_DELAY_MS = 150;
       is not a confirmation — so this sits outside the focus-route block the resume card is in.
     -->
     <fl-proposal-confirm />
-    <fl-simulator-bar />
   `,
 })
 export class AppComponent implements OnInit, OnDestroy {
@@ -299,6 +377,48 @@ export class AppComponent implements OnInit, OnDestroy {
   protected readonly themes = THEME_PREFERENCES;
   protected readonly themeKeys = THEME_KEYS;
   protected readonly today = this.stateService.todayInsights;
+
+  /** The model in use, and the way to change it (#255). */
+  protected readonly model = this.stateService.model;
+  protected readonly modelOpen = signal(false);
+  /** What is in the key field. Cleared on save, so a secret is not left on screen. */
+  protected readonly modelKeyDraft = signal('');
+  protected readonly modelBusy = signal(false);
+
+  /** Which of the three model states the entry shows, in the order the learner would ask about them. */
+  protected readonly modelState = computed<'offline' | 'degraded' | 'connected'>(() => {
+    const model = this.model();
+    if (model === null || model.offline) return 'offline';
+    return model.degraded ? 'degraded' : 'connected';
+  });
+
+  protected readonly modelLabelKey = computed(() => {
+    switch (this.modelState()) {
+      case 'connected':
+        return 'app.model.connected' as const;
+      case 'degraded':
+        return 'app.model.degraded' as const;
+      default:
+        return 'app.model.offline' as const;
+    }
+  });
+
+  /**
+   * What the entry says about the data path, which is the sentence this setting has to get right.
+   *
+   * Three answers because there are three truths: nothing is sent with no key; with a key the current
+   * step's text goes to the provider and nothing else does; and when an environment variable is in
+   * force, that is why the learner's own saved key is not the one being used.
+   */
+  protected readonly modelNoteKey = computed(() => {
+    const model = this.model();
+    if (model?.keySource === 'environment') return 'app.model.note.environment' as const;
+    if (model === null || model.offline) return 'app.model.note.offline' as const;
+    return 'app.model.note.online' as const;
+  });
+
+  protected readonly canStoreKey = computed(() => this.model()?.canStore ?? false);
+  protected readonly hasStoredKey = computed(() => this.model()?.keySource === 'stored');
 
   /**
    * Whether the sidebar is folded away. The focus screen drives its half of this from
@@ -516,6 +636,40 @@ export class AppComponent implements OnInit, OnDestroy {
 
   protected span(ms: number): string {
     return formatSpan(ms, this.t);
+  }
+
+  protected toggleModel(): void {
+    this.modelOpen.update((open) => !open);
+  }
+
+  protected onModelKeyInput(event: Event): void {
+    this.modelKeyDraft.set((event.target as HTMLInputElement).value);
+  }
+
+  /**
+   * Saves the key and forgets the draft.
+   *
+   * The field is cleared on the way out whatever happened, and that is not tidiness: the value is a
+   * secret, it is no longer needed once main has answered, and leaving it in a DOM input for the next
+   * person at the machine is exactly the sort of copy this feature exists to not make.
+   */
+  protected saveModelKey(): void {
+    const draft = this.modelKeyDraft().trim();
+    if (draft === '' || this.modelBusy()) return;
+    this.modelBusy.set(true);
+    void this.stateService.setModelApiKey(draft).finally(() => {
+      this.modelKeyDraft.set('');
+      this.modelBusy.set(false);
+    });
+  }
+
+  protected clearModelKey(): void {
+    if (this.modelBusy()) return;
+    this.modelBusy.set(true);
+    void this.stateService.clearModelApiKey().finally(() => {
+      this.modelKeyDraft.set('');
+      this.modelBusy.set(false);
+    });
   }
 
   /**

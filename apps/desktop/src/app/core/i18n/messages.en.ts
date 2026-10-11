@@ -153,6 +153,27 @@ const en = {
   'app.material.on': 'Shown',
   'app.material.off': 'Hidden',
 
+  // ----------------------------------------------------------- model access
+  // The model, and the honest sentence about what reaches it. Written as three notes rather than one
+  // because the three states have three different truths, and a single reassuring sentence would be
+  // false in two of them.
+  'app.model.change': 'Model',
+  'app.model.offline': 'No model key — local only',
+  'app.model.connected': 'Model connected',
+  'app.model.degraded': 'Model unreachable — using the offline fallback',
+  'app.model.key': 'Model API key',
+  'app.model.keyPlaceholder': 'Paste the key from your provider',
+  'app.model.save': 'Save key',
+  'app.model.clear': 'Remove key',
+  'app.model.noKeychain':
+    'This machine has no OS keychain, so FocusLoop will not store a key. Use FOCUSLOOP_DEEPSEEK_API_KEY instead.',
+  'app.model.note.offline':
+    'Without a key nothing leaves this machine: hints, examples and questions are answered by a built-in offline reply.',
+  'app.model.note.online':
+    'With a key, a hint, an example or your question sends that step’s text to the provider — nothing else, and never your database.',
+  'app.model.note.environment':
+    'A key from FOCUSLOOP_DEEPSEEK_API_KEY is in force and outranks anything saved here. Remove the environment variable to use a key saved in the app.',
+
   // ----------------------------------------------------------- course map
   // The whole course as one picture, and the exercise of putting it back from memory.
   'map.title': 'Course map',
@@ -393,13 +414,6 @@ const en = {
   'agent.action.NO_ACTION': 'No suggestion right now',
 
   // ----------------------------------------------------------- simulator
-  'sim.aria': 'Demo event simulator',
-  'sim.label': 'Simulator',
-  'sim.distraction': 'Distraction',
-  'sim.return': 'Return',
-  'sim.confusion': 'Confusion',
-  'sim.overload': 'Overload',
-  'sim.success': 'Success',
 
   // --------------------------------------------- domain-emitted messages
   // continuity — what to do next

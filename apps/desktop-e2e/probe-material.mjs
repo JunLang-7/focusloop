@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import { _electron as electron } from '@playwright/test';
 import { hermeticEnv } from './hermetic-env.mjs';
+import { fireDemoEvent } from './demo-events.mjs';
 
 const materialPath = process.argv
   .find((arg) => arg.startsWith('--material='))
@@ -173,8 +174,8 @@ try {
 
   // -------------------------------------------- interruption -> resume card
   await step('distraction then return shows the resume card', async () => {
-    await window.getByTestId('sim-distraction').click();
-    await window.getByTestId('sim-return').click();
+    await fireDemoEvent(window, 'distraction');
+    await fireDemoEvent(window, 'return');
     await window.getByTestId('resume-continue').waitFor({ timeout: 15_000 });
   });
   await shot('10-resume-card');

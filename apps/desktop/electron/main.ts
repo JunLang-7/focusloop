@@ -3,6 +3,12 @@ import { join } from 'node:path';
 import { broadcastTick, registerIpcHandlers } from './ipc/handlers';
 import { createEventRouter } from './event-router';
 import { createService, startBridge } from './service';
+import {
+  distractionSensorEnabled,
+  startDistractionSensor,
+  systemIdleSeconds,
+  type DistractionSensor,
+} from './distraction-sensor';
 import { createMainWindow, isDevelopment } from './window';
 import { surfaceWindow } from './window-focus';
 import { APP_NAME, configureAppIdentity } from './app-identity';
@@ -68,13 +74,33 @@ async function bootstrap(): Promise<void> {
     devServerUrl,
   });
 
+  /*
+   * The app's own source of distraction, on top of the extension's (#254).
+   *
+   * Started after the first window exists, though it does not need one: the listeners are on `app`,
+   * so a window opened later by `activate` is covered by the same subscription.
+   */
+  const sensor: DistractionSensor = distractionSensorEnabled()
+    ? startDistractionSensor(router, {
+        now: () => new Date().toISOString(),
+        idleSeconds: systemIdleSeconds,
+      })
+    : { sample: () => undefined, dispose: () => undefined };
+
   const ticker = setInterval(() => {
+    /*
+     * Sampled before the tick, and that order is the point: an idle report dispatched here sets
+     * `idleSince`, and the tick immediately after is what escalates it against the domain's own
+     * threshold. Sampling afterwards would delay the learner's interruption by one whole interval.
+     */
+    sensor.sample();
     broadcastTick(service, router);
   }, TICK_INTERVAL_MS);
   ticker.unref();
 
   app.on('window-all-closed', () => {
     clearInterval(ticker);
+    sensor.dispose();
     disposeIpc();
     service.dispose();
     if (process.platform !== 'darwin') app.quit();

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron } from '@playwright/test';
 import { hermeticEnv } from './hermetic-env.mjs';
+import { fireDemoEvent } from './demo-events.mjs';
 
 const DESKTOP_MAIN = resolve(import.meta.dirname, '..', 'desktop', 'dist', 'main', 'main.cjs');
 // Deliberately outside the repository: screenshots are a review aid, not source.
@@ -21,8 +22,9 @@ const app = await electron.launch({
 });
 
 /*
- * Viewport shots, not fullPage: a fullPage capture renders the fixed simulator bar at the bottom of
- * the stitched image and makes it look like it overlaps content.
+ * Viewport shots, not fullPage: nothing is pinned to the bottom edge any more, but the shots are
+ * still viewport-sized so every capture in this set frames the same region 鈥?a stitched full-page
+ * image would make each screen a different height and the set impossible to compare.
  *
  * Two identical frames in a row, rather than one `screenshot()`. A single call returns whatever the
  * compositor had, which is not necessarily the frame that matches the DOM as it is now — switching
@@ -80,7 +82,14 @@ try {
         });
         if (folded) {
           await window.getByTestId('sidebar-expand').hover();
-          await sidebar.click();
+          /*
+           * The brand block, not the middle of the column. A bare `click()` aims at the geometric
+           * centre, and while the sidebar is peeking that point is the footer — the same defect #221
+           * found in the suite, where the press landed on the language row, switched the interface to
+           * Chinese and left every later English lookup timing out. `y: 30` is the inert title area in
+           * both layouts, which is what makes it the safe place to press.
+           */
+          await sidebar.click({ position: { x: 116, y: 30 } });
           await window.waitForTimeout(260);
         }
         await sidebar.getByRole('link', { name }).click({ timeout: 2_000 });
@@ -135,20 +144,38 @@ try {
   await window.waitForTimeout(300);
   await shot(window, '01b-focus-active-en');
 
-  await window.getByTestId('complete-task').click();
-  await window.getByTestId('sim-overload').click();
+  /*
+   * The learner's own request, not the demo command, and that is the fix for a step that never worked:
+   * a rescue view is only built when the decision answers a request (see `applyPolicy`), so `overload`
+   * on its own records a BREAK and offers nothing on screen — the wait for `.agent` below sat out its
+   * full timeout. The stuck control is also only on screen while a task is running, so this happens
+   * before the task is completed rather than after.
+   */
+  await window.getByTestId('focus-stuck').click();
+  await window.getByTestId('stuck-too-big').click();
   await window.locator('.agent').waitFor();
   await window.waitForTimeout(300);
   await shot(window, '01c-focus-agent-en');
-  await window.locator('.agent').getByRole('button', { name: 'Not now' }).click();
-  await window.getByTestId('sim-distraction').click();
+  /*
+   * Answered with the notice's own control rather than folded, and rather than the "Not now" this used
+   * to click: inline, a BREAK offer renders only its accept button — "Not now" exists on the
+   * non-inline panel — and folding the notice would hide the resume card the next step captures,
+   * because the fold is remembered per session. Choosing "simplify" is what a learner does with a
+   * step that is too big, and it leaves the screen showing the result.
+   */
+  await window.getByTestId('notice-simplify').click();
+  await window.waitForTimeout(400);
+  await fireDemoEvent(window, 'distraction');
   await window.waitForTimeout(300);
-  await window.getByTestId('sim-return').click();
+  await fireDemoEvent(window, 'return');
   await window.getByTestId('resume-continue').waitFor();
   await window.waitForTimeout(400);
   await shot(window, '01d-resume-card-en');
   await window.getByTestId('resume-continue').click();
   await window.waitForTimeout(400);
+  // Now that the learner is back at work, finish the step: the dashboard below wants real activity.
+  await window.getByTestId('complete-task').click();
+  await window.waitForTimeout(200);
 
   await goTo('Dashboard');
   await window.getByTestId('insights-total').waitFor();

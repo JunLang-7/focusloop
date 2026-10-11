@@ -6,6 +6,7 @@ import {
   isThemePreference,
   isTutorMode,
   LEARNING_EVENT_TYPES,
+  MODEL_API_KEY_MAX_LENGTH,
   SESSION_END_REASONS,
   TUTOR_LIMITS,
   type ConfirmDeleteDataRequest,
@@ -23,6 +24,7 @@ import {
   type SessionEndReason,
   type SetAmbientSoundRequest,
   type SetLocaleRequest,
+  type SetModelApiKeyRequest,
   type SetThemeRequest,
   type SetShowMaterialTextRequest,
   type SimulatorCommand,
@@ -271,6 +273,28 @@ export function parseSetAmbientSound(channel: string, value: unknown): SetAmbien
     fail(channel, `ambientSound must be a boolean, received ${typeof ambientSound}`);
   }
   return { ambientSound };
+}
+
+/**
+ * The model key (#255), and the one validator here that handles a secret.
+ *
+ * Bounded and non-empty, and deliberately not shape-checked any further: guessing at what a provider's
+ * key looks like would reject the next format, and the provider is the thing that can actually tell
+ * whether a key works. What this does have to guarantee is that the value is a string of a sane length,
+ * because it arrives from the renderer and is written to disk.
+ */
+export function parseSetModelApiKey(channel: string, value: unknown): SetModelApiKeyRequest {
+  const record = asRecord(channel, value);
+  const apiKey = record['apiKey'];
+  if (typeof apiKey !== 'string') {
+    fail(channel, `apiKey must be a string, received ${typeof apiKey}`);
+  }
+  const trimmed = apiKey.trim();
+  if (trimmed === '') fail(channel, 'apiKey must not be empty');
+  if (trimmed.length > MODEL_API_KEY_MAX_LENGTH) {
+    fail(channel, `apiKey must be at most ${MODEL_API_KEY_MAX_LENGTH} characters`);
+  }
+  return { apiKey: trimmed };
 }
 
 export function parseInsightsRequest(channel: string, value: unknown): InsightsRequest {

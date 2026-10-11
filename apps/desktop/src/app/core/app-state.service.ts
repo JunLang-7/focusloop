@@ -26,6 +26,7 @@ import type {
   ProposalDeclineResult,
   ProposalExecuteResult,
   MaterialDocument,
+  ModelSettings,
   ResumeCardView,
   RescueView,
   TutorAnswer,
@@ -90,6 +91,14 @@ export class AppStateService {
   }
 
   readonly runtime = signal<RuntimeInfo | null>(null);
+  /**
+   * The model in use, and whether a key is configured (#255).
+   *
+   * Its own signal rather than a field of `runtime`: `runtime` is read once at launch and describes the
+   * build, while this is a setting the learner changes while the app is running — and the surface that
+   * changes it has to see the new value arrive rather than keep showing what was true at start-up.
+   */
+  readonly model = signal<ModelSettings | null>(null);
   readonly courses = signal<readonly Course[]>([]);
   /**
    * The parsed documents behind imported courses. A course keeps concept summaries and tasks; the
@@ -210,14 +219,16 @@ export class AppStateService {
 
   async refresh(): Promise<void> {
     await this.run(async () => {
-      const [runtime, courses, materials, snapshot, dashboard] = await Promise.all([
+      const [runtime, courses, materials, snapshot, dashboard, model] = await Promise.all([
         this.api.getRuntimeInfo(),
         this.api.listCourses(),
         this.api.listMaterials(),
         this.api.getCurrentSession(),
         this.api.getDashboard(),
+        this.api.getModelSettings(),
       ]);
       this.runtime.set(runtime);
+      this.model.set(model);
       this.courses.set(courses);
       this.materials.set(materials);
       this.snapshot.set(snapshot);
@@ -304,6 +315,26 @@ export class AppStateService {
     await this.run(async () => {
       const settings = await this.api.setAmbientSound({ ambientSound });
       this.ambientSound.set(settings.ambientSound);
+    });
+  }
+
+  /**
+   * Saves a key and takes the answer as the new state (#255).
+   *
+   * The answer, not the input: main is the side that knows whether the key could be stored at all (an
+   * OS without a keychain refuses) and which key is actually in force (an environment variable outranks
+   * a stored one). Echoing the request back would tell the learner their key was accepted when it may
+   * have gone nowhere.
+   */
+  async setModelApiKey(apiKey: string): Promise<void> {
+    await this.run(async () => {
+      this.model.set(await this.api.setModelApiKey({ apiKey }));
+    });
+  }
+
+  async clearModelApiKey(): Promise<void> {
+    await this.run(async () => {
+      this.model.set(await this.api.clearModelApiKey());
     });
   }
 
@@ -759,10 +790,20 @@ export class AppStateService {
     return cleared;
   }
 
+  /**
+   * What the engine did without being asked: an event from the bridge, a tick, a demo command.
+   *
+   * The response is applied the same way a renderer action's own response is (`applyResponse`), and
+   * that is the point: the decision used to ride back only to the caller, so an intervention taken in
+   * the main process was applied, stored, and visible to nobody — the panel appeared only after the
+   * window itself had acted. One push, one path: whoever caused the event, the learner sees what the
+   * agent decided about it (#204).
+   */
   subscribeToEvents(): () => void {
-    return this.api.onEvent((event) => {
-      if (event.type === 'AGENT_PROPOSAL_PROPOSED') {
-        this.pendingProposal.set(event.payload.proposal);
+    return this.api.onDispatch((response) => {
+      this.applyResponse(response);
+      if (response.event.type === 'AGENT_PROPOSAL_PROPOSED') {
+        this.pendingProposal.set(response.event.payload.proposal);
       }
       void this.reloadSnapshot();
     });

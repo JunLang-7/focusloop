@@ -200,12 +200,20 @@ export interface FocusLoopEngineOptions {
  */
 export class FocusLoopEngine {
   private readonly store: FocusLoopStore;
-  private readonly providers: ProviderSelection;
+  /**
+   * The provider selection, replaceable rather than fixed.
+   *
+   * The learner can configure a model at any time from the app itself (#255), and a key that only
+   * took effect after a restart would be a setting the app pretended to have. Replacing the
+   * selection and the runtime together is what makes it real; both are private so the only way in is
+   * `setProviders`, which does the two assignments that have to agree.
+   */
+  private providers: ProviderSelection;
   /**
    * The one door to providers: serialisable request data, in-process abort
    * options, text vs structured modes. Skills never talk to `AIProvider` directly.
    */
-  private readonly runtime: AgentRuntime;
+  private runtime: AgentRuntime;
   /**
    * The tool contract (AG8.1): registered reads, validated in this process.
    *
@@ -242,6 +250,19 @@ export class FocusLoopEngine {
 
   initialize(): void {
     this.store.initialize();
+  }
+
+  /**
+   * Swaps the provider selection, live (#255).
+   *
+   * Both fields move together and in one place, because a runtime holding the old selection while
+   * `this.providers` reports the new one would make the app describe a model it is not using — the
+   * exact class of lie the model settings surface exists to avoid. Nothing else needs to change: the
+   * runtime reads the selection per call rather than caching anything from it.
+   */
+  setProviders(providers: ProviderSelection): void {
+    this.providers = providers;
+    this.runtime = new AgentRuntime(providers);
   }
 
   /** Idempotent: safe on every boot. */

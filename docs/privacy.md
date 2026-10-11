@@ -51,6 +51,23 @@ sidebar footer shows this directory under **Your data**, with **Open folder** an
 everything** beside it. The path there is read from Electron's `app.getPath('userData')`, so it is the
 directory the running app is using rather than a path copied into this document.
 
+### What it observes, without asking for any permission
+
+Being able to notice that you have gone is the whole point of the app, and it does that from two
+things the operating system already exposes to it:
+
+- **whether its own window is in the foreground**, so switching to a browser, a PDF or a notes app is
+  recorded as leaving and coming back;
+- **how long the machine has been untouched**, so a screen nobody is using is told apart from one
+  somebody is reading.
+
+Neither reads a page, a keystroke, a window title or a screenshot, and neither leaves the machine:
+what is stored is the same learning event as before — an event type, a timestamp and how long you were
+away. The browser extension adds tab-level detail on top of this and is optional. This is why the
+promise above is "no camera, no microphone, no eye tracking, no screen recording" and not "no
+observation": the app knows _that_ you left, which is the minimum needed to help you come back, and
+nothing about where you went.
+
 **Delete everything** says what will be lost, asks for a second press, and then removes the file and
 returns the app to a first-run state without a restart. If another program has the database open, the
 app says so instead of reporting a success it did not have.
@@ -103,8 +120,9 @@ Transport is equally constrained:
 FocusLoop ships with `MockAIProvider`: deterministic, offline, no key. It is the default and it is
 enough for the entire demo.
 
-If you set `FOCUSLOOP_DEEPSEEK_API_KEY`, the app will additionally use DeepSeek for optional
-enrichment (for example, generating an example for a hint). In that case:
+If you set `FOCUSLOOP_DEEPSEEK_API_KEY` — or save a key from the footer's model entry — the app will
+additionally use DeepSeek for optional enrichment (for example, generating an example for a hint). In
+that case:
 
 - only the text of the single request is transmitted — and for the optional hint/example line on a
   rescue card, that request is named here so nothing is vague: it contains the current step's title
@@ -112,8 +130,13 @@ enrichment (for example, generating an example for a hint). In that case:
   imported material). This is what the import screen's hint means by "unless you configure a model
   key"; without a key no such request is made at all;
 - your learning events, checkpoints, session history and database are **never** sent;
-- the key is read from the environment only — it is never written to the repository, never persisted
-  to the database, and never included in an error message or a log;
+- the key is never written to the repository and never persisted to the database. An environment
+  variable is read and never stored; a key saved in the app is stored **encrypted by the operating
+  system's keychain** (`safeStorage`) in its own file beside the database, and if the machine has no
+  keychain the app says so and refuses to store it rather than keeping it in the clear. Either way the
+  key is never returned to the interface, never included in an error message and never logged;
+- the entry in the footer that shows which model is in use reads its answer from the running provider,
+  so it cannot claim a key is in force when none is;
 - if the request fails for any reason — offline, timeout, rate limit, bad response — FocusLoop
   silently degrades to the mock provider and tells the UI that it did.
 

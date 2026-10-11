@@ -24,6 +24,7 @@ import {
   parseSessionId,
   parseSetLocale,
   parseSetAmbientSound,
+  parseSetModelApiKey,
   parseSetShowMaterialText,
   parseSetTheme,
   parseSimulatorCommand,
@@ -249,6 +250,26 @@ export function createHandlers(service: FocusLoopService, router: EventRouter) {
       channel: IPC_CHANNELS.setAmbientSound,
       parse: parseSetAmbientSound,
       handle: (request) => engine.setAmbientSound(request.ambientSound),
+    }),
+    /*
+     * The model key (#255), which goes to the service rather than the engine: it is a file the app
+     * keeps, and swapping the provider is a wiring concern. The engine is told the *result* through
+     * `setProviders`, and never sees the key itself.
+     */
+    defineHandler({
+      channel: IPC_CHANNELS.getModelSettings,
+      parse: parseNoArgs,
+      handle: () => service.getModelSettings(),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.setModelApiKey,
+      parse: parseSetModelApiKey,
+      handle: (request) => service.setModelApiKey(request.apiKey),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.clearModelApiKey,
+      parse: parseNoArgs,
+      handle: () => service.clearModelApiKey(),
     }),
     /*
      * The data controls go to the service rather than to the engine.

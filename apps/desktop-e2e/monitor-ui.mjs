@@ -11,6 +11,7 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { _electron as electron } from '@playwright/test';
 import { hermeticEnv } from './hermetic-env.mjs';
+import { fireDemoEvent } from './demo-events.mjs';
 
 const DESKTOP_MAIN = resolve(import.meta.dirname, '..', 'desktop', 'dist', 'main', 'main.cjs');
 const userDataDir = mkdtempSync(join(tmpdir(), 'focusloop-monitor-'));
@@ -145,15 +146,15 @@ try {
   });
 
   await when('an interruption arrives and is dismissed', async () => {
-    await window.getByTestId('sim-overload').click();
+    await fireDemoEvent(window, 'overload');
     await window.locator('.agent').waitFor();
     await window.locator('.agent').getByRole('button', { name: 'Not now' }).click();
   });
 
   await when('a resume card arrives and is accepted', async () => {
-    await window.getByTestId('sim-distraction').click();
+    await fireDemoEvent(window, 'distraction');
     await window.waitForTimeout(300);
-    await window.getByTestId('sim-return').click();
+    await fireDemoEvent(window, 'return');
     await window.getByTestId('resume-continue').waitFor();
     await window.getByTestId('resume-continue').click();
     await window.waitForTimeout(400);

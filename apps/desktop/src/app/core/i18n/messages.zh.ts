@@ -130,6 +130,26 @@ export const zh: Record<MessageKey, string> = {
   'app.material.on': '显示',
   'app.material.off': '隐藏',
 
+  // ---------------------------------------------------------------- 模型接入
+  // 三种状态三种真话：没有密钥时什么都不外发；配置了密钥时说清楚送出的是什么；环境变量在
+  // 生效时说明为什么这里保存的密钥不起作用。一句话糊过去在两种情况下都是假话。
+  'app.model.change': '模型',
+  'app.model.offline': '未配置模型密钥 — 仅本地',
+  'app.model.connected': '已接入模型',
+  'app.model.degraded': '模型不可用 — 正在用离线回退',
+  'app.model.key': '模型 API 密钥',
+  'app.model.keyPlaceholder': '粘贴服务商给你的密钥',
+  'app.model.save': '保存密钥',
+  'app.model.clear': '移除密钥',
+  'app.model.noKeychain':
+    '这台机器没有系统钥匙串，FocusLoop 不会保存密钥。请改用 FOCUSLOOP_DEEPSEEK_API_KEY 环境变量。',
+  'app.model.note.offline':
+    '没有密钥时不会有任何内容离开这台电脑：提示、示例与提问都由内置的离线回答给出。',
+  'app.model.note.online':
+    '配置密钥后，提示、示例或你的提问会把这一个步骤的文字发给服务商——仅此而已，永远不含你的数据库。',
+  'app.model.note.environment':
+    '当前生效的是 FOCUSLOOP_DEEPSEEK_API_KEY 环境变量里的密钥，优先级高于这里保存的。想用应用内保存的密钥，请先移除该环境变量。',
+
   // ---------------------------------------------------------------- 课程地图
   'map.title': '课程地图',
   'map.hint': '这门课由什么组成，按你会遇到的顺序排列。',
@@ -354,13 +374,6 @@ export const zh: Record<MessageKey, string> = {
   'agent.action.NO_ACTION': '暂时没有建议',
 
   // ----------------------------------------------------------- simulator
-  'sim.aria': '演示事件模拟器',
-  'sim.label': '模拟器',
-  'sim.distraction': '分心',
-  'sim.return': '返回',
-  'sim.confusion': '卡住',
-  'sim.overload': '过载',
-  'sim.success': '答对',
 
   // --------------------------------------------- domain-emitted messages
   // continuity — what to do next

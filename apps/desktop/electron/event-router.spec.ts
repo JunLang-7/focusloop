@@ -71,7 +71,7 @@ describe('the event router', () => {
      * engine offered in it is the half that went missing in #204.
      */
     expect(first.send).toHaveBeenCalledWith(
-      IPC_CHANNELS.onEvent,
+      IPC_CHANNELS.onDispatch,
       expect.objectContaining({
         state: 'INTERRUPTED',
       }),
