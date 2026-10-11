@@ -113,9 +113,9 @@ than being repeated. The idempotency mechanism differs by what the tool already 
   store's replay detection — `appendEvent` reporting current truth instead of appending twice — is
   the second belt under the key.
 - **Renderer-local tools** (`pauseTask`, `extendTask`) have no store write today, so there is
-  nothing to double — until they gain an IPC surface in phase 2, at which point the key sits on the
-  **tool**, not the command: `addMinute` twice is two minutes, which is exactly the kind of double
-  the tool layer must absorb.
+  nothing to double — and §3b settles that they will not gain a model-facing IPC surface, so the
+  double this paragraph worried about (`addMinute` twice is two minutes) stays where it already is:
+  in the renderer's own control, where a second press is the learner's second press.
 
 ### 3a. Amendment: preference-write (AG6.7, #236)
 
@@ -144,6 +144,34 @@ way back this grade relies on (ADR 0001). Opaque proposal identity/status and de
 
 This cell is driven by a learner's suggestion button; it does not add a provider call, an unmetered
 skill, or a registry bypass for model-written claims. Proposal status/events are its audit record.
+
+### 3b. Amendment: the timer tools are learner-only (#237, AG8.3a)
+
+`pauseTask` and `extendTask` keep the **reversible** level §3 gave them — the grade was never the
+problem: a pause resumes, and an extension expires with the session. What is decided here is that
+**the model may invoke neither**, so no path to their effect is built:
+
+| Tool         | Level                | Model-facing contract                                                                                                                       |
+| ------------ | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pauseTask`  | **reversible-write** | **None.** The learner's own control in `focus-timer.ts`; the agent's one interruption stays the policy-gated `startBreak` row.              |
+| `extendTask` | **reversible-write** | **None.** The learner's own control; an extension is the learner changing a promise they made to themselves, and the model may not move it. |
+
+- **A pause nobody asked for is an interruption**, and §2's invariant leaves that decision with the
+  deterministic policy rather than with the model. Asking "may I stop what you are doing?" does not
+  avoid the interruption — the asking is it.
+- **An extension edits the learner's own commitment.** "Five minutes" is the line that helps them
+  stop; a model that can move it — even through a confirmation — makes the promise negotiable by the
+  party that benefits from more time.
+- **The need is already served.** `startBreak` (reversible, policy-gated, quick-confirmed) is the
+  door for "I need to stop for a moment", and what the agent offers a stuck learner is AG2's smaller
+  next step (`MICRO_START`, `SIMPLIFY`), not a louder interruption.
+- **Enforced, not agreed.** Both names stay out of the registry, so a call naming either is refused
+  `unknown-tool` like any other unregistered name, and `tool-registry.spec.ts` pins that absence —
+  registering one later fails CI instead of arriving as a quiet addition.
+
+Consequences: no `FOCUS_TIMER_PAUSED`/`FOCUS_TIMER_EXTENDED` event, no new IPC command, no new
+proposal kind, and §2's kind vocabulary is unchanged. The "future IPC surface" §3 mentioned for
+these two rows is **spent in the negative**.
 
 ### 4. Invariants the levels ride on
 

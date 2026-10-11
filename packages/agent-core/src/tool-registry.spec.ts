@@ -268,6 +268,25 @@ describe('the engine registry carries both halves (AG8.3)', () => {
     ]);
   });
 
+  it('keeps the two learner-only timer tools unregistered, and refuses them as unknown (AG8.3a, #237)', () => {
+    /*
+     * The decision recorded in ADR 0003 §3b, as a test rather than as a sentence: `pauseTask` and
+     * `extendTask` are the learner's own controls, because a pause nobody asked for is an
+     * interruption (which stays with the policy) and an extension edits a promise the learner made
+     * to themselves. The failure this guards is a future caller registering one of them quietly —
+     * that is a red suite here, not a review comment nobody re-reads.
+     */
+    const registry = createAgentRegistry();
+    expect(registry.names()).not.toContain('pauseTask');
+    expect(registry.names()).not.toContain('extendTask');
+
+    for (const tool of ['pauseTask', 'extendTask'] as const) {
+      const result = registry.execute({ sessionId: 's1', tool, args: {} }, DEPS);
+      expect(result.ok).toBe(false);
+      if (!result.ok) expect(result.reason).toBe('unknown-tool');
+    }
+  });
+
   it('refuses a write on the direct path, without ever running an effect', () => {
     const registry = createAgentRegistry();
     // Writes have no direct handler by contract: their effect belongs to the confirmed execution.
