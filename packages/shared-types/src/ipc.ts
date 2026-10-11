@@ -74,6 +74,7 @@ export const IPC_CHANNELS = {
   listOutcomes: 'focusloop:outcome:list',
   resolveIntervention: 'focusloop:intervention:resolve',
   getPendingRescue: 'focusloop:intervention:pending-rescue',
+  generateRescueText: 'focusloop:intervention:generate-rescue-text',
   resolveRescue: 'focusloop:intervention:resolve-rescue',
   simulateEvent: 'focusloop:simulator:dispatch',
   getSimulatorAvailability: 'focusloop:simulator:available',
@@ -354,6 +355,12 @@ export interface FocusLoopApi {
   listOutcomes(sessionId: string): Promise<readonly InterventionOutcome[]>;
   resolveIntervention(request: ResolveInterventionRequest): Promise<InterventionOutcome | null>;
   getPendingRescue(sessionId: string): Promise<RescueView | null>;
+  /**
+   * One budgeted generation pass for the active HINT/EXAMPLE card (#205): returns the view with a
+   * `model-generated` grounding, or `null` when nothing changes — the renderer keeps the grounded
+   * quote. Offline, a failure and an invalid line all arrive as `null`; none of them is an error.
+   */
+  generateRescueText(sessionId: string): Promise<RescueView | null>;
   resolveRescue(request: ResolveRescueRequest): Promise<ResolveRescueResponse>;
 
   getSimulatorAvailability(): Promise<SimulatorAvailability>;

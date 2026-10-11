@@ -185,6 +185,11 @@ export function createHandlers(service: FocusLoopService, router: EventRouter) {
       handle: (sessionId) => engine.getPendingRescue(sessionId),
     }),
     defineHandler({
+      channel: IPC_CHANNELS.generateRescueText,
+      parse: parseSessionId,
+      handle: (sessionId) => engine.suggestRescueText(sessionId),
+    }),
+    defineHandler({
       channel: IPC_CHANNELS.resolveRescue,
       parse: parseResolveRescue,
       handle: (request) => engine.resolveRescue(request),

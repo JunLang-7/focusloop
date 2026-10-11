@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-grounding-generated-empty-falls-back",
+  "capability": "AG2",
+  "kind": "adversarial",
+  "description": "An empty reply is refused by the acceptance layer: the card shows the grounded quote it already had — the fallback is the quote, never an empty card.",
+  "input": {
+    "action": "HINT",
+    "generated": ""
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "source",
+      "value": "concept-summary"
+    },
+    {
+      "type": "equals",
+      "path": "text",
+      "value": "A rotation restructures three nodes."
+    },
+    {
+      "type": "equals",
+      "path": "grounded",
+      "value": true
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "source",
+      "value": "model-generated"
+    }
+  ]
+}

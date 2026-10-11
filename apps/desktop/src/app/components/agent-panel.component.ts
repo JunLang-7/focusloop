@@ -147,6 +147,9 @@ export class AgentPanelComponent {
         return this.i18n.t('agent.rescue.from.concept-key-point');
       case 'material-sentence':
         return this.i18n.t('agent.rescue.from.material-sentence');
+      // #205: the one source that is not the learner's own material — named on the card itself.
+      case 'model-generated':
+        return this.i18n.t('agent.rescue.from.model-generated');
     }
   }
 

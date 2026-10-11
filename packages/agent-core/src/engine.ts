@@ -81,6 +81,7 @@ import {
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
 import { buildRescueGrounding } from './rescue-grounding';
+import { acceptRescueSuggestion, buildRescueSuggestionPrompt } from './rescue-suggestion';
 import { createAgentRegistry, type ToolRegistry } from './tool-registry';
 import {
   deriveExplanationCandidate,
@@ -1310,6 +1311,36 @@ export class FocusLoopEngine {
     if (record === null) return view;
     const grounding = buildRescueGrounding(view.plan.action, this.contextFor(record).context);
     return grounding === null ? view : { ...view, plan: { ...view.plan, grounding } };
+  }
+
+  /**
+   * The generation pass over an active HINT/EXAMPLE card (#205): one explicit, budgeted call
+   * through the runtime — never a call per read.
+   *
+   * Returns `null` for every "do not change the screen" answer, and those are the majority on
+   * purpose: no card, no plan, a card with no line to write (BREAK), the offline default (no call
+   * is made at all), a provider that failed, or a reply that is empty or over the card's bound.
+   * In every one of those the renderer keeps the grounded quote exactly as it is — the fallback
+   * is the existing card, never an empty one. When a line is accepted, only the grounding field
+   * changes: steps, plan source and every store stay untouched, which is what display-only means
+   * here (asserted, not assumed).
+   */
+  async suggestRescueText(sessionId: string): Promise<RescueView | null> {
+    const view = this.getPendingRescue(sessionId);
+    if (view === null || view.plan === null) return null;
+    if (view.plan.action !== 'HINT' && view.plan.action !== 'EXAMPLE') return null;
+    // The offline default never spends a call: the mock's output is documented never to be shown.
+    if (this.providers.primary.offline) return null;
+    const record = this.store.getSession(sessionId);
+    if (record === null) return null;
+    const built = buildRescueSuggestionPrompt(view.plan.action, this.contextFor(record).context);
+    if (built === null) return null;
+    // Through the runtime's finite default budgets — the same door `enrich` has always used.
+    const completion = await this.enrich(built.prompt, built.system);
+    if (completion.degraded) return null;
+    const grounding = acceptRescueSuggestion(completion.text);
+    if (grounding === null) return null;
+    return { ...view, plan: { ...view.plan, grounding } };
   }
 
   /** The decision and seed a stored rescue intervention is rebuilt from. */

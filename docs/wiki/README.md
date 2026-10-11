@@ -28,7 +28,7 @@
 | 能力                         | 在 `main` 上的状态 | 证据                                                                             | 下一交付重点                                                                                      |
 | ---------------------------- | ------------------ | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | AG1 Learning Context         | E2E 验证           | `63acc28` (#99)；投影穷举 `d938bb8` (#188)                                       | 投影与敏感 payload 回归均已合并；`AgentContextOmission.detail` 仍是英文句子（§4.F3）              |
-| AG2 Stuck Rescue             | E2E 验证           | `534bc1c` (#100)；`2677645` (#181)、`cd6e886` (#183)、`b0fabd8` (#184)           | MICRO_START/SIMPLIFY 真正改写、HINT/EXAMPLE 有 grounding；provider 变体在 #205                    |
+| AG2 Stuck Rescue             | E2E 验证           | `534bc1c` (#100)；`2677645` (#181)、`cd6e886` (#183)、`b0fabd8` (#184)           | MICRO_START/SIMPLIFY 真正改写、HINT/EXAMPLE 有 grounding；provider 变体已交付（#205）             |
 | AG3 Contextual Tutor         | 已合并             | `107a30f` (#101)                                                                 | 领域层已只返回闭合码；`AgentContextOmission.detail` 仍是英文句子，按同一规则修                    |
 | AG4 Task Adaptation          | 设计完成           | 方案页 AG4                                                                       | AdaptiveTask、提案/确认、持久化与恢复；依赖已改为 AG8                                             |
 | AG5 Cognitive Resume         | E2E 验证           | `6df7e08` 基线 + `9d2e55d` (#196)、`d9f1783` (#203)、`78555af` (#206)            | 三档、指标分列、长档关键想法均已合并（§4.C3）                                                     |

@@ -65,6 +65,8 @@ const api: FocusLoopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.resolveIntervention, payload.resolveIntervention(request)),
   getPendingRescue: (sessionId) =>
     ipcRenderer.invoke(IPC_CHANNELS.getPendingRescue, payload.sessionId(sessionId)),
+  generateRescueText: (sessionId) =>
+    ipcRenderer.invoke(IPC_CHANNELS.generateRescueText, payload.sessionId(sessionId)),
   resolveRescue: (request) => ipcRenderer.invoke(IPC_CHANNELS.resolveRescue, request),
 
   getSimulatorAvailability: () =>

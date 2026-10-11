@@ -42,6 +42,7 @@ import type {
 
 import type { FocusNoticeFold } from './focus-notice';
 import type { MessageKey } from './i18n/messages.en';
+import { shouldSuggestRescueText } from './rescue-suggestion';
 
 declare global {
   interface Window {
@@ -101,7 +102,23 @@ export class AppStateService {
   readonly dashboard = signal<DashboardSummary | null>(null);
   readonly decision = signal<InterventionDecision | null>(null);
   readonly interventionId = signal<string | null>(null);
-  readonly rescue = signal<RescueView | null>(null);
+  /** The card as the engine hands it over; `rescue` below overlays the generated line (#205). */
+  private readonly rescueBase = signal<RescueView | null>(null);
+  /**
+   * A generated line for one intervention — in-memory by design: display-only, it survives event
+   * pushes (the overlay below) and dies with the app, so nothing generated is ever written.
+   */
+  private readonly rescueSuggestion = signal<RescueView | null>(null);
+  /** One generation call per card, whatever else happens — the pass is a call, not a loop. */
+  private readonly rescueGenerationAttempted = new Set<string>();
+  /** The card on screen: the engine's view with a generated line overlaid while it still belongs. */
+  readonly rescue = computed<RescueView | null>(() => {
+    const base = this.rescueBase();
+    const suggested = this.rescueSuggestion();
+    return suggested !== null && base !== null && suggested.interventionId === base.interventionId
+      ? suggested
+      : base;
+  });
   readonly rescuePauseRequest = signal(0);
   /**
    * A structural proposal waiting for the learner (#209).
@@ -205,9 +222,10 @@ export class AppStateService {
       this.materials.set(materials);
       this.snapshot.set(snapshot);
       this.dashboard.set(dashboard);
-      this.rescue.set(
+      this.rescueBase.set(
         snapshot === null ? null : await this.api.getPendingRescue(snapshot.session.id),
       );
+      this.maybeSuggestRescueText();
       this.resumeCard.set(
         snapshot === null ? null : await this.api.getResumeCard(snapshot.session.id),
       );
@@ -381,7 +399,8 @@ export class AppStateService {
     this.snapshot.set(null);
     this.recentEvents.set([]);
     this.resumeCard.set(null);
-    this.rescue.set(null);
+    this.rescueBase.set(null);
+    this.rescueSuggestion.set(null);
     this.dashboard.set(null);
     this.courses.set([]);
     this.materials.set([]);
@@ -435,7 +454,8 @@ export class AppStateService {
       });
       this.resumeCard.set(null);
       this.decision.set(null);
-      this.rescue.set(null);
+      this.rescueBase.set(null);
+      this.rescueSuggestion.set(null);
       await this.refreshDerived();
     });
   }
@@ -570,7 +590,8 @@ export class AppStateService {
       ) {
         this.rescueContinueRequest.update((count) => count + 1);
       }
-      this.rescue.set(response.rescue);
+      this.rescueBase.set(response.rescue);
+      this.maybeSuggestRescueText();
       this.decision.set(null);
       this.interventionId.set(null);
       /*
@@ -807,11 +828,48 @@ export class AppStateService {
     void this.reloadSnapshot();
   }
 
+  /**
+   * Asks for a generated line once per card, and only when a provider is configured (#205).
+   *
+   * Every decline — offline default, config not known yet, a card with nothing to write — keeps
+   * the grounded quote already on screen; a failed or invalid reply arrives as the API's `null`
+   * and does the same. Nothing here can empty a card.
+   */
+  private maybeSuggestRescueText(): void {
+    const base = this.rescueBase();
+    if (
+      base === null ||
+      !shouldSuggestRescueText({
+        rescue: base,
+        providerOffline: this.runtime()?.providerOffline,
+        attempted: this.rescueGenerationAttempted,
+      })
+    ) {
+      return;
+    }
+    const sessionId = this.snapshot()?.session.id;
+    if (sessionId === undefined || sessionId === '') return;
+    this.rescueGenerationAttempted.add(base.interventionId);
+    const interventionId = base.interventionId;
+    void this.api
+      .generateRescueText(sessionId)
+      .then((view) => {
+        // Land only on the same card: a later rescue supersedes the line rather than inheriting it.
+        if (view !== null && this.rescueBase()?.interventionId === interventionId) {
+          this.rescueSuggestion.set(view);
+        }
+      })
+      .catch(() => {
+        // The offline floor: an error keeps the grounded quote already on screen — silently.
+      });
+  }
+
   private applyResponse(response: DispatchEventResponse | null): void {
     if (response === null) return;
     this.decision.set(response.decision);
     this.interventionId.set(response.interventionId);
-    this.rescue.set(response.rescue);
+    this.rescueBase.set(response.rescue);
+    this.maybeSuggestRescueText();
     if (response.resumeCard !== null) this.resumeCard.set(response.resumeCard);
   }
 
@@ -821,7 +879,8 @@ export class AppStateService {
     this.dashboard.set(await this.api.getDashboard());
     if (snapshot !== null) {
       this.resumeCard.set(await this.api.getResumeCard(snapshot.session.id));
-      this.rescue.set(await this.api.getPendingRescue(snapshot.session.id));
+      this.rescueBase.set(await this.api.getPendingRescue(snapshot.session.id));
+      this.maybeSuggestRescueText();
       this.recentEvents.set(await this.api.listEvents(snapshot.session.id));
     } else {
       /*
@@ -830,7 +889,8 @@ export class AppStateService {
        * look wrong, it blocks the screen it is covering.
        */
       this.resumeCard.set(null);
-      this.rescue.set(null);
+      this.rescueBase.set(null);
+      this.rescueSuggestion.set(null);
       this.recentEvents.set([]);
     }
     await this.refreshToday();

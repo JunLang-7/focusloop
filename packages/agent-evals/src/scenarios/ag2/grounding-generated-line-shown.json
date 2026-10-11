@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-grounding-generated-line-shown",
+  "capability": "AG2",
+  "kind": "happy",
+  "description": "A generated line inside the card's bound replaces the quote — and is marked model-generated, so it can never pass as the learner's own material.",
+  "input": {
+    "action": "HINT",
+    "generated": "Trace one turn and name the angle."
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "source",
+      "value": "model-generated"
+    },
+    {
+      "type": "equals",
+      "path": "text",
+      "value": "Trace one turn and name the angle."
+    },
+    {
+      "type": "equals",
+      "path": "grounded",
+      "value": true
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "source",
+      "value": "concept-summary"
+    }
+  ]
+}

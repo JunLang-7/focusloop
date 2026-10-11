@@ -95,7 +95,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 | E 环境  | 可选 DeepSeek Provider         | 已合并     | `packages/llm-provider`                                                                                                 | `main` 的正常 UI 流程不调用它                                                                            |
 | E 环境  | Agent Context Inspector（AG1） | **已移除** | 原 `63acc28` (#99)，移除见 §E7                                                                                          | 面板、三个 IPC 通道与 outbound 缓冲一并删除；`AgentContext` 本身不变                                     |
 | F Agent | AG1 Learning Context           | E2E 验证   | `63acc28` (#99)；投影穷举 `d938bb8` (#188)                                                                              | 投影与敏感 payload 回归均已合并，见 §4.F1                                                                |
-| F Agent | AG2 Stuck Rescue               | E2E 验证   | `534bc1c` (#100)；`2677645` (#181)、`cd6e886` (#183)、`b0fabd8` (#184)                                                  | MICRO_START/SIMPLIFY 真正改写、HINT/EXAMPLE 有 grounding；provider 变体在 #205                           |
+| F Agent | AG2 Stuck Rescue               | E2E 验证   | `534bc1c` (#100)；`2677645` (#181)、`cd6e886` (#183)、`b0fabd8` (#184)                                                  | MICRO_START/SIMPLIFY 真正改写、HINT/EXAMPLE 有 grounding；provider 变体已交付（#205）                    |
 | F Agent | AG3 Contextual Tutor           | 已合并     | `107a30f` (#101)                                                                                                        | 领域层已只返回闭合码；`AgentContextOmission.detail` 仍是英文句子                                         |
 | F Agent | AG4 Task Adaptation            | 设计完成   | 方案页 AG4；读时派生改写已合并（#171/#172）                                                                             | 无持久化 AdaptiveTask，计划级改写待 AG8 phase 2                                                          |
 | F Agent | AG5 Cognitive Resume           | E2E 验证   | `6df7e08` 基线 + `9d2e55d` (#196)、`d9f1783` (#203)、`78555af` (#206)                                                   | 三档、指标分列、长档关键想法均已合并，见 §4.C3                                                           |
@@ -450,10 +450,10 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 3. **何时发生**：原因 + 状态 + 确定性策略。
 4. **永不做什么**：不猜原因；不自动改计划；不静默升级打扰频率。
 5. **数据与边界**：原因、建议、结果都作为事件落本机。
-6. **状态与证据**：已合并 — `534bc1c` (#100)；Rescue 计划与成功评估器同样已合并（`ae1d690`，PR #124）；`MICRO_START` 接受后真正缩小任务（#171）、`SIMPLIFY` 接受后真正拆成步骤（#172）：确认 + 幂等提案，课程只在读时派生。
+6. **状态与证据**：已合并 — `534bc1c` (#100)；Rescue 计划与成功评估器同样已合并（`ae1d690`，PR #124）；`MICRO_START` 接受后真正缩小任务（#171）、`SIMPLIFY` 接受后真正拆成步骤（#172）：确认 + 幂等提案，课程只在读时派生。HINT/EXAMPLE 的可选 provider 生成行（#205）：卡面标注 `model-generated`，无 key 不出机器，失败/超限回落 grounded quote，隐私句与数据路径同改。
 7. **已知限制**：其余动作要真正改写任务前需要 AG4/AG8 的动作契约。
 8. **依赖**：F1；可执行动作依赖 AG8。
-9. **怎么验证**：`intervention-policy` 单测 + AG2 JSON 场景 34 个（18 rescue + 8 rewrite + 8 grounding，已合并，`packages/agent-evals`）+ `golden path`。
+9. **怎么验证**：`intervention-policy` 单测 + AG2 JSON 场景 12 个（`rescue`/`rewrite`/干预 ×3/grounding ×6，grounding 含生成行三态 #205，`packages/agent-evals`）+ `rescue-suggestion.spec`（离线地板、预算单次、失败回落、零写入）+ `golden path`。
 
 #### F3 AG3 Contextual Tutor — 已合并（#101）
 
@@ -575,11 +575,12 @@ failure }`、`ProviderHealth`。
 3. **何时发生**：开发/CI 时运行固定场景。
 4. **永不做什么**：不从生产应用上报评测数据；场景不得含真实用户数据。
 5. **数据与边界**（`main`）：`packages/agent-evals`——版本化场景、受限路径解析、确定性 runner、结果与隐私
-   断言。JSON 场景按能力分目录，共 **39** 个：AG1 ×8（含隐私类 3）、AG2 ×9（含 grounding 类 3、干预恰当性类 3）、
+   断言。JSON 场景按能力分目录，共 **42** 个：AG1 ×8（含隐私类 3）、AG2 ×12（含 grounding 类 6、干预恰当性类 3）、
    AG3 ×3（follow-up）、AG5 ×9、AG8 ×9（工具调用安全：只读直通、越权、畸形参数、会话错配、确认绕过、
    伪造幂等键、重放）、AG9 ×1；每类 ≥3 个场景，覆盖正常 / 边界 / 失败或越权。
 6. **状态与证据**：**已合并** — runner 与 AG1 投影场景 `656bb70`（#118）、AG9 provider-failure `dc6b0de`（#165）、
    rewrite/grounding cases `3bbcdae`（#186）；follow-up、干预恰当性、grounding、隐私四类场景补齐（#211）；
+   grounding 生成行三态（#205）；
    AG8 工具调用安全九场景（越权 / 畸形 / 伪造 / 会话错配 / 确认绕过 / 重放，#212）。
 7. **已知限制**：仍是 deterministic、同步、JSON-only runner，不含真实模型评测。
    **遥测口径已选定 (A)**：评测报告仅在开发者本机或 CI 中生成；生产应用不做遥测、

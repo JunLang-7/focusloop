@@ -13,14 +13,23 @@ export function isRescueAction(value: unknown): value is RescueAction {
 
 export type RescuePhase = 'offered' | 'active';
 
-/** Where a rescue's grounding text was taken from. */
-export type RescueGroundingSource = 'concept-summary' | 'concept-key-point' | 'material-sentence';
+/**
+ * Where a rescue's grounding text came from.
+ *
+ * `model-generated` is the one mark that is not a place in the learner's own material: it is #205's
+ * provider-backed line, and the card shows it precisely so a quote and a generated line can never
+ * look the same.
+ */
+export type RescueGroundingSource =
+  'concept-summary' | 'concept-key-point' | 'material-sentence' | 'model-generated';
 
 /**
- * A passage from the learner's own concept or material that a HINT or EXAMPLE card quotes (AG2.5/2.6).
+ * The passage a HINT or EXAMPLE card shows (AG2.5/2.6, extended by #205).
  *
- * Taken, never generated: it is bounded text the agent context already carried, so it is as offline
- * and as checkable as the context itself. A card without one falls back to the fixed steps.
+ * Usually taken — bounded text the agent context already carried, as offline and as checkable as
+ * the context itself. When a provider is configured, the card may instead show a generated line,
+ * always marked `model-generated` so the distinction is on the card itself. A card with neither
+ * falls back to the fixed steps.
  */
 export interface RescueGrounding {
   readonly source: RescueGroundingSource;

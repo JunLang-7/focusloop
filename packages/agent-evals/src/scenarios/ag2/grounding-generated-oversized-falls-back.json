@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "ag2-grounding-generated-oversized-falls-back",
+  "capability": "AG2",
+  "kind": "edge",
+  "description": "A line past the card's 600-character bound is refused like an empty one: EXAMPLE falls back to its taken key point, marked concept-key-point.",
+  "input": {
+    "action": "EXAMPLE",
+    "generatedOverBound": true
+  },
+  "expected": [
+    {
+      "type": "equals",
+      "path": "source",
+      "value": "concept-key-point"
+    },
+    {
+      "type": "equals",
+      "path": "text",
+      "value": "a rotation keeps the order"
+    },
+    {
+      "type": "equals",
+      "path": "grounded",
+      "value": true
+    }
+  ],
+  "forbidden": [
+    {
+      "type": "forbidden-value",
+      "path": "source",
+      "value": "model-generated"
+    }
+  ]
+}

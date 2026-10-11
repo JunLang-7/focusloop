@@ -74,7 +74,7 @@ Home
 
 ### AG2 Stuck Rescue — 已合并（六类原因与记录、Rescue 计划与成功评估器均已合并）
 
-- 当前证据：六类 `StuckReason`；UI picker；reason→action 确定性映射；`MICRO_START/SIMPLIFY/HINT/EXAMPLE/BREAK` 等 intervention；cooldown、预算、升级规则与 outcome 记录均有测试；`MICRO_START` 与 `SIMPLIFY` 已真正改写任务（#171、#172，确认 + 幂等提案，课程只在读时派生）。
+- 当前证据：六类 `StuckReason`；UI picker；reason→action 确定性映射；HINT/EXAMPLE 的可选 provider 生成行（#205：卡面标 `model-generated`、离线地板、失败回落、隐私数据路径同改）；`MICRO_START/SIMPLIFY/HINT/EXAMPLE/BREAK` 等 intervention；cooldown、预算、升级规则与 outcome 记录均有测试；`MICRO_START` 与 `SIMPLIFY` 已真正改写任务（#171、#172，确认 + 幂等提案，课程只在读时派生）。
 - 差距：`HINT/EXAMPLE/BREAK/RESUME` 仍是 intervention descriptor/文案，未生成可执行临时步骤；救援成功的定义未形成统一窗口指标；“换一种解释/例子”与 AG3 Tutor 的复用边界需固定。
 - 验收标准：六类原因逐一触发预期 action；主动打断只能由 deterministic policy 决定；所有展示均可接受/拒绝并记录；接受后能进入具体下一步；在规定窗口内以“开始/完成下一微步、无重复求助”计算 outcome；离线仍可完成每类基础救援。
 - 依赖：AG1；AG8 的动作合同（对可执行救援）；AG10 scenario harness。

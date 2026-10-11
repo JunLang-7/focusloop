@@ -106,7 +106,11 @@ enough for the entire demo.
 If you set `FOCUSLOOP_DEEPSEEK_API_KEY`, the app will additionally use DeepSeek for optional
 enrichment (for example, generating an example for a hint). In that case:
 
-- only the text of the single request is transmitted;
+- only the text of the single request is transmitted — and for the optional hint/example line on a
+  rescue card, that request is named here so nothing is vague: it contains the current step's title
+  and the same passage the card would quote offline (your concept summary, or a sentence of your
+  imported material). This is what the import screen's hint means by "unless you configure a model
+  key"; without a key no such request is made at all;
 - your learning events, checkpoints, session history and database are **never** sent;
 - the key is read from the environment only — it is never written to the repository, never persisted
   to the database, and never included in an error message or a log;
