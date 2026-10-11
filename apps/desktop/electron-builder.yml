@@ -1,11 +1,12 @@
 appId: dev.focusloop.desktop
 productName: FocusLoop
+executableName: FocusLoop
 copyright: FocusLoop contributors
 
 directories:
   output: release
-  # `resources/` holds the committed icon, so it is source rather than build output. `build/` is
-  # gitignored in this repository, which is why the mark does not live there.
+  # `resources/` holds committed icons, not build output.
+  # `build/` is gitignored, which is why the mark does not live there.
   buildResources: resources
 
 files:
@@ -15,12 +16,18 @@ files:
 extraMetadata:
   main: dist/main/main.cjs
 
-# The window reads its own icon at runtime, so the packaged app must carry it beside the asar.
+# The window reads its icon at runtime, so carry it beside the asar.
 extraResources:
   - from: resources/icon.ico
     to: icon.ico
   - from: resources/icon.png
     to: icon.png
+
+mac:
+  icon: resources/icon.icns
+
+linux:
+  icon: resources/icon.png
 
 win:
   target:
@@ -29,16 +36,15 @@ win:
         - x64
   icon: resources/icon.ico
   artifactName: FocusLoop-Setup.${ext}
-  # The v0.1 demo installer is unsigned. `signAndEditExecutable: false` skips the whole
-  # edit-the-executable step, which also means FocusLoop.exe would keep Electron's own icon and
-  # version metadata; electron-builder requires the winCodeSign toolchain for that step, which
-  # extracts symlinks and therefore needs administrator rights on Windows.
+  # The v0.1 demo installer is unsigned. `signAndEditExecutable: false`
+  # skips executable editing too, leaving Electron's icon and metadata.
+  # That step requires winCodeSign, whose symlinks need admin rights on Windows.
   #
-  # `signExecutable: false` is the narrower switch: code signing is skipped, while rcedit still
-  # applies the icon and the metadata. It still needs the same toolchain, so if a release run cannot
-  # fetch or extract it, fall back to `signAndEditExecutable: false` — the installer, the uninstaller
-  # and Add/Remove Programs read the icons set under `nsis` below, and only the executable's own
-  # embedded icon (what a shortcut pointing at the exe shows) is lost.
+  # `signExecutable: false` skips signing while rcedit applies our icon and
+  # metadata. If the toolchain cannot be fetched or extracted, fall back to
+  # `signAndEditExecutable: false`. The installer, uninstaller and
+  # Add/Remove Programs still use the `nsis` icons below, but shortcuts to
+  # the executable lose its embedded icon.
   signExecutable: false
 
 nsis:
@@ -46,8 +52,7 @@ nsis:
   perMachine: false
   allowToChangeInstallationDirectory: true
   deleteAppDataOnUninstall: false
-  # Stated rather than inherited: these are the icons the installer, the installer's header and the
-  # entry in Add/Remove Programs show.
+  # Explicit icons for the installer, its header and Add/Remove Programs.
   installerIcon: resources/icon.ico
   uninstallerIcon: resources/icon.ico
   installerHeaderIcon: resources/icon.ico

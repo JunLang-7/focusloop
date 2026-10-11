@@ -1,3 +1,11 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo_name_dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="docs/assets/logo_name_light.png" />
+    <img src="docs/assets/logo_name_light.png" alt="FocusLoop" width="600" />
+  </picture>
+</p>
+
 # FocusLoop
 
 **A local-first learning-continuity agent for people who find attention and task initiation hard.**
@@ -34,6 +42,32 @@ no hot reload — after changing source, stop the app and run the command again.
 Because you are running from source, the **Demo Event Simulator** appears along the bottom of the
 window whenever a focus session is active. It is the supported stand-in for the browser extension,
 so the whole demo works without installing anything else.
+
+### Use the FocusLoop name in the operating system
+
+The runtime name is **FocusLoop** on Windows, macOS and Linux. Windows also uses our application
+ID for taskbar/shortcut grouping. When running from source, the executable is still the stock
+Electron runtime: Task Manager on Windows and the Dock/Finder on macOS may display **Electron**.
+Use a packaged app to give the executable or bundle the FocusLoop name and icon.
+
+**Windows:** build and install `apps/desktop/release/FocusLoop-Setup.exe`. Its executable, shortcuts
+and installed application are named **FocusLoop**:
+
+```bash
+pnpm --filter @focusloop/desktop run package
+```
+
+**macOS:** build the unsigned local app bundle:
+
+```bash
+pnpm --filter @focusloop/desktop run package:mac:dir
+```
+
+Open `apps/desktop/release/mac-arm64/FocusLoop.app` on Apple Silicon, or
+`apps/desktop/release/mac/FocusLoop.app` on Intel. This is a packaged app, so the demo simulator is
+hidden. On both platforms, packaged apps use a separate default profile from the source-run
+Electron profile; renaming the runtime preserves existing development data. You can export
+learning data from the development app and import it into the packaged app.
 
 ### Start it without typing the command
 

@@ -83,15 +83,21 @@ instead. That is the only way to exercise the NSIS installer without pushing a t
 
 ## The application icon
 
-`apps/desktop/resources/icon.ico` and `icon.png` are committed source, not build output. The window
-hands the right one to `BrowserWindow` (the taskbar entry and the Alt-Tab thumbnail), and
-electron-builder embeds the ICO in the NSIS installer and the uninstaller, which is what the install
-flow, the Start menu's uninstall target and Add/Remove Programs read.
-`apps/desktop/electron-builder.yml` names both paths explicitly, and `electron/app-icon.spec.ts`
-fails if that reference, the files, or this section disappear.
+`apps/desktop/resources/icon.ico`, `icon.png` and `icon.icns` are committed assets, not build output.
+They are generated from `docs/assets/pure_logo.png`. The window hands the right icon to
+`BrowserWindow` (the taskbar entry and the Alt-Tab thumbnail), and explicitly sets the macOS Dock
+icon when running from source. electron-builder uses the ICNS for macOS, the PNG for Linux, and
+embeds the ICO in the Windows executable, NSIS installer and uninstaller.
+`apps/desktop/electron-builder.yml` names the paths explicitly, and `electron/app-icon.spec.ts`
+fails if those references, the files, or this section disappear. The renderer bundles the same PNG
+for its expanded/collapsed sidebar logo and favicon; the README uses the light/dark wordmarks in
+`docs/assets/`. The sidebar's `wordmark-light.png` and `wordmark-dark.png` are cropped from the
+transparent `docs/assets/logo_name_pure.png`, preserving its lettering and blue "Loop" while using
+white "Focus" on dark backgrounds.
 
-Both files are drawn in code — no image tooling, no network — so a reviewer can read the geometry
-instead of trusting a binary. Regenerate them after changing the mark:
+Regenerate the icons and sidebar wordmarks after changing the source artwork. The script uses the desktop app's
+installed Electron image tooling, without extra dependencies or network access (on headless Linux,
+prefix the command with `xvfb-run`):
 
 ```bash
 node apps/desktop/scripts/make-icons.mjs

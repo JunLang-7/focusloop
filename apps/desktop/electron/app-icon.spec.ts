@@ -8,6 +8,7 @@ const desktopDirectory = process.cwd();
 const resources = join(desktopDirectory, 'resources');
 
 const showOptions: Record<string, unknown>[] = [];
+const dockIcons: string[] = [];
 
 vi.mock('electron', () => {
   class StubBrowserWindow {
@@ -40,6 +41,7 @@ vi.mock('electron', () => {
       isPackaged: false,
       getPath: () => join(tmpdir(), 'focusloop-icon-spec'),
       getAppPath: () => process.cwd(),
+      dock: { setIcon: (icon: string) => dockIcons.push(icon) },
     },
     nativeTheme: { shouldUseDarkColors: false },
     screen: { getAllDisplays: () => [{ workArea: { x: 0, y: 0, width: 1280, height: 800 } }] },
@@ -114,6 +116,19 @@ describe('the application icon', () => {
     ).toBe(join('/app/resources', 'icon.png'));
   });
 
+  it('resolves from the project when Electron is launched with the compiled entry file', () => {
+    for (const platform of ['win32', 'darwin', 'linux'] as const) {
+      expect(
+        appIconPath({
+          isPackaged: false,
+          resourcesPath: '/other',
+          appPath: join('/app', 'dist', 'main'),
+          platform,
+        }),
+      ).toBe(join('/app', 'resources', appIconFile(platform)));
+    }
+  });
+
   it('ships a multi-size ICO whose entries are real images', () => {
     const buffer = readFileSync(join(resources, 'icon.ico'));
     expect(buffer.readUInt16LE(0)).toBe(0);
@@ -141,6 +156,26 @@ describe('the application icon', () => {
     expect(buffer[25]).toBe(6); // colour type: RGBA
   });
 
+  it('ships PNG-backed macOS icons up to 1024 pixels', () => {
+    const buffer = readFileSync(join(resources, 'icon.icns'));
+    expect(buffer.subarray(0, 4).toString('ascii')).toBe('icns');
+    expect(buffer.readUInt32BE(4)).toBe(buffer.length);
+    const sizes: number[] = [];
+    let offset = 8;
+    while (offset < buffer.length) {
+      const length = buffer.readUInt32BE(offset + 4);
+      expect(length).toBeGreaterThan(8);
+      expect(offset + length).toBeLessThanOrEqual(buffer.length);
+      const image = buffer.subarray(offset + 8, offset + length);
+      expect(image.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+      sizes.push(image.readUInt32BE(16));
+      expect(image.readUInt32BE(20)).toBe(image.readUInt32BE(16));
+      offset += length;
+    }
+    expect(offset).toBe(buffer.length);
+    expect(sizes).toEqual([16, 32, 64, 128, 256, 512, 1024, 32, 64, 256, 512]);
+  });
+
   it('is referenced by packaging, so a config change cannot silently drop it', () => {
     const manifest = readFileSync(join(desktopDirectory, 'electron-builder.yml'), 'utf8');
     expect(manifest).toContain('buildResources: resources');
@@ -148,6 +183,8 @@ describe('the application icon', () => {
       (match) => match[1]!,
     );
     expect(referenced).toContain('resources/icon.ico');
+    expect(referenced).toContain('resources/icon.icns');
+    expect(referenced).toContain('resources/icon.png');
     for (const path of referenced) {
       expect(existsSync(join(desktopDirectory, path))).toBe(true);
     }
@@ -180,5 +217,10 @@ describe('the application icon', () => {
       appIconPath({ isPackaged: false, resourcesPath: '', appPath: desktopDirectory }),
     );
     expect(existsSync(icon as string)).toBe(true);
+    if (process.platform === 'darwin') {
+      expect(dockIcons.at(-1)).toBe(icon);
+    } else {
+      expect(dockIcons).toHaveLength(0);
+    }
   });
 });

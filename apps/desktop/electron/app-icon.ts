@@ -1,4 +1,4 @@
-import { join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
 
 /**
  * Where the application icon lives.
@@ -17,14 +17,19 @@ export interface AppIconLocation {
   readonly isPackaged: boolean;
   /** `process.resourcesPath`: where `extraResources` land in a packaged app. */
   readonly resourcesPath: string;
-  /** `app.getAppPath()`: the application directory, which is the project directory in development. */
+  /** `app.getAppPath()`: the project directory, or dist/main when launched via main.cjs. */
   readonly appPath: string;
   readonly platform?: NodeJS.Platform;
 }
 
 export function appIconPath(location: AppIconLocation): string {
   const file = appIconFile(location.platform ?? process.platform);
-  return location.isPackaged
-    ? join(location.resourcesPath, file)
-    : join(location.appPath, 'resources', file);
+  if (location.isPackaged) return join(location.resourcesPath, file);
+  // `electron dist/main/main.cjs` treats the entry's directory as the app path,
+  // unlike `electron .`. Both launch styles must resolve the same committed icon.
+  const directory =
+    basename(location.appPath) === 'main' && basename(dirname(location.appPath)) === 'dist'
+      ? join(location.appPath, '..', '..')
+      : location.appPath;
+  return join(directory, 'resources', file);
 }

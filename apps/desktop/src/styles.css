@@ -276,20 +276,38 @@ body:has(fl-focus .focus-workspace[data-rail])
 }
 
 .brand__mark {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-end));
-  color: var(--on-accent);
-  font-weight: 700;
+  display: block;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
 }
 
 .brand__text {
   display: flex;
+  flex: 1;
+  min-width: 0;
   flex-direction: column;
+  gap: 3px;
   line-height: 1.15;
+}
+
+.brand__wordmark {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.brand__wordmark--dark {
+  display: none;
+}
+
+html[data-theme='dark'] .brand__wordmark--light {
+  display: none;
+}
+
+html[data-theme='dark'] .brand__wordmark--dark {
+  display: block;
 }
 
 .brand__text small {
@@ -309,8 +327,9 @@ body:has(fl-focus .focus-workspace[data-rail])
 .sidebar__toggle {
   display: grid;
   place-items: center;
-  width: 26px;
-  height: 26px;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
   margin-left: auto;
   padding: 0;
   border: 0;
@@ -321,8 +340,8 @@ body:has(fl-focus .focus-workspace[data-rail])
 }
 
 .sidebar__toggle svg {
-  width: 16px;
-  height: 16px;
+  width: 23px;
+  height: 23px;
   fill: none;
   stroke: currentColor;
   stroke-width: 1.25;
@@ -536,22 +555,24 @@ body:has(.simulator) .content {
   left: 16px;
   display: none;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: 0;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--accent), var(--accent-end));
-  color: var(--on-accent);
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.02em;
-  box-shadow: var(--shadow-md);
+  background: transparent;
   cursor: pointer;
 }
 
+.sidebar-fab img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+}
+
 .sidebar-fab:hover {
-  filter: brightness(1.08);
+  background: var(--bg-soft);
 }
 
 .shell.is-collapsed .sidebar-fab,

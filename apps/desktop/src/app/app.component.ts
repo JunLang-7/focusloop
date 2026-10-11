@@ -77,9 +77,18 @@ const PEEK_CLOSE_DELAY_MS = 150;
         (click)="pinIfPeeking()"
       >
         <div class="brand">
-          <span class="brand__mark">FL</span>
+          <img class="brand__mark" src="assets/icon.png" alt="" width="40" height="40" />
           <div class="brand__text">
-            <strong>FocusLoop</strong>
+            <img
+              class="brand__wordmark brand__wordmark--light"
+              src="assets/wordmark-light.png"
+              alt="FocusLoop"
+            />
+            <img
+              class="brand__wordmark brand__wordmark--dark"
+              src="assets/wordmark-dark.png"
+              alt="FocusLoop"
+            />
             <small>{{ t('app.tagline') }}</small>
           </div>
           <button
@@ -246,7 +255,7 @@ const PEEK_CLOSE_DELAY_MS = 150;
         (mouseleave)="peekEnd()"
         (click)="expand()"
       >
-        <span aria-hidden="true">FL</span>
+        <img src="assets/icon.png" alt="" width="40" height="40" />
       </button>
     </div>
 

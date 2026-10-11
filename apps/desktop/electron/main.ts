@@ -1,10 +1,13 @@
-import { BrowserWindow, app } from 'electron';
+import { BrowserWindow, Menu, app } from 'electron';
 import { join } from 'node:path';
 import { broadcastTick, registerIpcHandlers } from './ipc/handlers';
 import { createEventRouter } from './event-router';
 import { createService, startBridge } from './service';
 import { createMainWindow, isDevelopment } from './window';
 import { surfaceWindow } from './window-focus';
+import { APP_NAME, configureAppIdentity } from './app-identity';
+
+configureAppIdentity(app);
 
 /** Renderer output lives under dist/renderer/browser. */
 const RENDERER_DIRECTORY = join(__dirname, '..', 'renderer', 'browser');
@@ -15,6 +18,34 @@ const PRELOAD_PATH = join(__dirname, 'preload.cjs');
 const TICK_INTERVAL_MS = Number(process.env['FOCUSLOOP_TICK_INTERVAL_MS'] ?? 5_000);
 
 async function bootstrap(): Promise<void> {
+  app.setAboutPanelOptions({ applicationName: APP_NAME });
+  if (process.platform === 'darwin') {
+    // The stock development binary still has Electron's bundle name. Use explicit labels
+    // for our menu; the Dock/Finder name requires the packaged FocusLoop.app bundle.
+    Menu.setApplicationMenu(
+      Menu.buildFromTemplate([
+        {
+          label: APP_NAME,
+          submenu: [
+            { role: 'about', label: 'About FocusLoop' },
+            { type: 'separator' },
+            { role: 'services' },
+            { type: 'separator' },
+            { role: 'hide', label: 'Hide FocusLoop' },
+            { role: 'hideOthers' },
+            { role: 'unhide' },
+            { type: 'separator' },
+            { role: 'quit', label: 'Quit FocusLoop' },
+          ],
+        },
+        { role: 'fileMenu' },
+        { role: 'editMenu' },
+        { role: 'viewMenu' },
+        { role: 'windowMenu' },
+      ]),
+    );
+  }
+
   const service = createService();
   service.store.setMeta('last_boot_at', new Date().toISOString());
 

@@ -39,6 +39,14 @@ export async function createMainWindow(options: CreateWindowOptions): Promise<Br
     DEFAULT_WINDOW,
   );
 
+  const icon = appIconPath({
+    isPackaged: app.isPackaged,
+    resourcesPath: process.resourcesPath,
+    appPath: app.getAppPath(),
+  });
+  // BrowserWindow's icon does not set the macOS Dock icon, especially when running from source.
+  if (process.platform === 'darwin') app.dock?.setIcon(icon);
+
   const window = new BrowserWindow({
     width: restored.width,
     height: restored.height,
@@ -54,11 +62,7 @@ export async function createMainWindow(options: CreateWindowOptions): Promise<Br
     title: 'FocusLoop',
     // The taskbar entry and the Alt-Tab thumbnail, since Windows uses the window's icon when it has
     // one rather than the executable's.
-    icon: appIconPath({
-      isPackaged: app.isPackaged,
-      resourcesPath: process.resourcesPath,
-      appPath: app.getAppPath(),
-    }),
+    icon,
     autoHideMenuBar: true,
     webPreferences: {
       preload: options.preloadPath,

@@ -20,7 +20,11 @@
             "browser": "src/main.ts",
             "polyfills": ["zone.js"],
             "tsConfig": "tsconfig.app.json",
-            "assets": [{ "glob": "**/*", "input": "src/assets", "output": "assets" }],
+            "assets": [
+              { "glob": "**/*", "input": "src/assets", "output": "assets" },
+              { "glob": "icon.png", "input": "resources", "output": "assets" },
+              { "glob": "wordmark-*.png", "input": "resources", "output": "assets" }
+            ],
             "styles": ["src/styles.css"],
             "scripts": []
           },
