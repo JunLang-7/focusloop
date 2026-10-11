@@ -23,6 +23,7 @@ import type {
   Locale,
   AgentProposal,
   ProposalConfirmResult,
+  ProposalDeclineResult,
   ProposalExecuteResult,
   MaterialDocument,
   ResumeCardView,
@@ -40,6 +41,7 @@ import type {
 } from '@focusloop/shared-types';
 
 import type { FocusNoticeFold } from './focus-notice';
+import type { MessageKey } from './i18n/messages.en';
 
 declare global {
   interface Window {
@@ -126,6 +128,7 @@ export class AppStateService {
   readonly preferences = signal<LearnerPreferenceListResult | null>(null);
   /** This session's suggestion candidates (AG6.6) — derived with evidence, stored nowhere. */
   readonly preferenceCandidates = signal<LearnerPreferenceCandidatesResult | null>(null);
+  readonly preferenceNotice = signal<MessageKey | null>(null);
   /**
    * The tutor's last result, all three outcomes included, **and the step it was about**.
    *
@@ -389,6 +392,8 @@ export class AppStateService {
     this.todayInsights.set(null);
     this.weeklyReflection.set(null);
     this.preferenceCandidates.set(null);
+    this.preferenceNotice.set(null);
+    this.pendingProposal.set(null);
     this.focusNoticeFold.set({ sessionId: null, folded: false });
   }
 
@@ -693,7 +698,13 @@ export class AppStateService {
     const sessionId = this.snapshot()?.session.id;
     if (sessionId === undefined || sessionId === '') return null;
     const result = await this.api.deletePreference({ id, sessionId });
-    await Promise.all([this.loadPreferences(), this.loadMemorySummary()]);
+    // Forget also scrubs confirmation snapshots; reload the event cache and reflection quotes.
+    await Promise.all([
+      this.loadPreferences(),
+      this.loadMemorySummary(),
+      this.reloadSnapshot(),
+      this.reloadInsightsQuietly(),
+    ]);
     return result;
   }
 
@@ -734,6 +745,39 @@ export class AppStateService {
       }
       void this.reloadSnapshot();
     });
+  }
+
+  /** Ask to store a suggestion. Only its identity crosses IPC; main supplies the frozen claim. */
+  async proposePreference(candidateId: string): Promise<void> {
+    const sessionId = this.snapshot()?.session.id;
+    if (sessionId === undefined || this.pendingProposal() !== null || this.busy()) return;
+    await this.run(async () => {
+      this.preferenceNotice.set(null);
+      const response = await this.api.proposeStructuralChange({
+        sessionId,
+        kind: 'reversible-write',
+        payload: { preferenceCandidateId: candidateId },
+        createdBy: 'ag6.suggestion',
+        idempotencyKey: candidateId,
+      });
+      if (response.proposal === null)
+        this.preferenceNotice.set('proposal.refusal.unknown-proposal');
+      else this.pendingProposal.set(response.proposal);
+      await this.loadPreferenceCandidates();
+    });
+  }
+
+  async declineProposal(proposal: AgentProposal): Promise<ProposalDeclineResult> {
+    const result = await this.api.declineProposal({
+      proposalId: proposal.id,
+      sessionId: proposal.sessionId,
+      expectedHash: proposal.proposalHash,
+    });
+    if (result.ok && 'preference' in proposal.payload) {
+      this.preferenceNotice.set('app.reflection.declined');
+      await this.loadPreferenceCandidates();
+    }
+    return result;
   }
 
   /** Confirm a pending proposal, bound to the hash the dialog showed (#209). */

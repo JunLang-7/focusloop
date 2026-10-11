@@ -452,6 +452,9 @@ const DONUT_RADIUS = 42;
         read lighter than what confirming it will store. No rows below the sample: the engine
         never derives them, and nothing here invents one.
       -->
+      @if (preferenceNotice(); as notice) {
+        <p class="muted small" role="status" data-testid="suggestion-notice">{{ t(notice) }}</p>
+      }
       @if (suggestions().length > 0) {
         <p class="eyebrow">{{ t('app.reflection.suggestions') }}</p>
         <ul data-testid="suggestion-list">
@@ -462,6 +465,15 @@ const DONUT_RADIUS = 42;
               <span class="muted small">{{
                 t(suggestion.evidenceKey, suggestion.evidenceParams)
               }}</span>
+              <button
+                type="button"
+                class="btn"
+                data-testid="suggestion-confirm"
+                [disabled]="stateBusy()"
+                (click)="proposePreference(suggestion.id)"
+              >
+                {{ t('app.reflection.confirm') }}
+              </button>
             </li>
           }
         </ul>
@@ -525,6 +537,12 @@ export class DashboardPage {
     (this.summary()?.interventionOutcomes ?? []).filter((row) => row.total > 0),
   );
   protected readonly range = this.state.insightRange;
+  protected readonly preferenceNotice = this.state.preferenceNotice;
+  protected readonly stateBusy = this.state.busy;
+
+  protected async proposePreference(candidateId: string): Promise<void> {
+    await this.state.proposePreference(candidateId);
+  }
   /**
    * Newest run first. Reversing first means the log reads top-down as most-recent-first,
    * which is the only order an audit tail is useful in.

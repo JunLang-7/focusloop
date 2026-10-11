@@ -77,6 +77,10 @@ export interface ProposalExecuteOk {
 export type ProposalConfirmResult = ProposalConfirmOk | ProposalRefusal;
 export type ProposalExecuteResult = ProposalExecuteOk | ProposalRefusal;
 
+/** A persisted learner decision, not merely closing the dialog (AG6.7). */
+export type ProposalDeclineResult =
+  { readonly ok: true; readonly status: 'refused'; readonly proposalId: string } | ProposalRefusal;
+
 /** What `confirm` / `execute` look like over IPC — always a result object, never a throw. */
 export interface ConfirmProposalRequest {
   readonly proposalId: string;

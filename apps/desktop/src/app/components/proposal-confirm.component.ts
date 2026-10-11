@@ -22,8 +22,9 @@ import {
  * The confirmation screen for a structural proposal (#209).
  *
  * The dialog shows the proposal that arrived on the event push and offers exactly two ways out:
- * confirm — which binds to the hash on screen and then executes — or decline, which does nothing
- * at all. Declining leaves the proposal unconfirmed in the store to expire on its own; there is no
+ * confirm — which binds to the hash on screen and then executes — or decline. For a preference,
+ * decline is persisted on the proposal so the same claim does not reappear; generic proposals
+ * retain their existing close-and-expire behaviour. Neither decline stores a preference. There is no
  * third path, because `executeProposal` refuses anything `confirmProposal` has not passed, and a
  * refusal (expired, state changed, hash mismatch) is shown as the reason it names rather than as a
  * generic failure.
@@ -136,7 +137,7 @@ export class ProposalConfirmComponent implements OnDestroy {
   protected onKeydown(event: KeyboardEvent): void {
     if (event.key === 'Escape') {
       event.preventDefault();
-      this.dismiss();
+      void this.dismiss();
       return;
     }
     if (event.key !== 'Tab') return;
@@ -182,9 +183,23 @@ export class ProposalConfirmComponent implements OnDestroy {
     this.working.set(false);
   }
 
-  /** Decline: close the dialog and change nothing. The proposal expires unconfirmed on its own. */
-  protected dismiss(): void {
-    if (this.working()) return;
+  /** A preference decline is a persisted decision, not a second storage path. */
+  protected async dismiss(): Promise<void> {
+    const proposal = this.proposal();
+    if (this.working() || proposal === null) return;
+    if ('preference' in proposal.payload) {
+      this.working.set(true);
+      try {
+        const result = await this.state.declineProposal(proposal);
+        if (!result.ok) {
+          this.refusal.set(refusalMessageKey(result));
+          return;
+        }
+      } finally {
+        this.working.set(false);
+      }
+    }
     this.state.pendingProposal.set(null);
+    this.state.refreshAfterOwnAction();
   }
 }

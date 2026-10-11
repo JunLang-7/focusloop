@@ -1845,6 +1845,116 @@ test('an active focus commitment survives leaving and returning to the route', a
   await expect(window.getByRole('heading', { name: 'No session running' })).toBeVisible();
 });
 
+test('a suggestion is stored only after the on-screen confirmation; a stale confirmation says why', async () => {
+  const active = await window.evaluate(() => globalThis.focusloop.getCurrentSession());
+  if (active !== null) {
+    await window.evaluate(async (sessionId) => {
+      await globalThis.focusloop.endSession({ sessionId, reason: 'user' });
+    }, active.session.id);
+  }
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await window.getByTestId('start-task').first().click();
+  const current = await window.evaluate(() => globalThis.focusloop.getCurrentSession());
+  expect(current).not.toBeNull();
+  const sessionId = current!.session.id;
+  // Fixture observations only: the test never inserts learner_preferences. The write being tested
+  // must come from the actual suggestion button and confirmation dialog, across the real IPC.
+  const seed = (minutes: number, count: number): void => {
+    const db = new DatabaseSync(join(userDataDir, 'focusloop.sqlite'));
+    try {
+      const insert = db.prepare(`INSERT INTO agent_proposals
+        (id, session_id, kind, payload, proposed_at, expires_at, proposal_hash,
+         state_fingerprint, idempotency_key, created_by, status, executed_at, event_id)
+        VALUES (?, ?, 'reversible-write', ?, ?, ?, 'fixture', 'fixture', ?, 'e2e', 'executed', ?, ?)`);
+      for (let n = 0; n < count; n += 1) {
+        const id = `preference-e2e-${minutes}-${n}`;
+        const at = new Date().toISOString();
+        insert.run(
+          id,
+          sessionId,
+          JSON.stringify({
+            rewrite: { taskId: current!.session.currentTaskId, estimatedMinutes: minutes },
+          }),
+          at,
+          '2126-01-01T00:00:00.000Z',
+          id,
+          at,
+          id,
+        );
+      }
+    } finally {
+      db.close();
+    }
+  };
+  const refresh = async (): Promise<void> => {
+    await window.evaluate(async (sessionId) => {
+      const snapshot = await globalThis.focusloop.getCurrentSession();
+      await globalThis.focusloop.dispatchEvent({
+        sessionId,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: snapshot!.session.currentTaskId! },
+      });
+    }, sessionId);
+    await clickSidebarLink('Home');
+    await clickSidebarLink('Dashboard');
+  };
+  seed(2, 3);
+  await refresh();
+  const suggestion = window.getByTestId('suggestion-row').first();
+  await expect(suggestion).toContainText('3 samples');
+  await expect(suggestion.getByTestId('suggestion-confirm')).toBeVisible();
+  await suggestion.getByTestId('suggestion-confirm').click();
+  const dialog = window.getByTestId('proposal-confirm-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(window.getByTestId('proposal-change')).toContainText('samples: 3');
+  await expect(window.getByTestId('proposal-level')).toHaveText('Needs a quick confirmation');
+  const before = await window.evaluate((id) => globalThis.focusloop.listPreferences(id), sessionId);
+  expect(before.ok && before.preferences.length).toBe(0);
+  await window.getByTestId('proposal-confirm').click();
+  await expect(dialog).toBeHidden();
+  await expect(window.getByTestId('memory-preference-row')).toHaveCount(1);
+  await expect(window.getByTestId('memory-preference-row')).toContainText('3 samples');
+  await expect(window.getByTestId('suggestion-row')).toHaveCount(0);
+
+  seed(1, 1);
+  await refresh();
+  await window.getByTestId('suggestion-confirm').first().click();
+  await expect(dialog).toBeVisible();
+  await window.evaluate(async (id) => {
+    await globalThis.focusloop.dispatchEvent({
+      sessionId: id,
+      type: 'TASK_STARTED',
+      source: 'user',
+      payload: { taskId: 'rbt-t2' },
+    });
+  }, sessionId);
+  await window.getByTestId('proposal-confirm').click();
+  await expect(window.getByTestId('proposal-refusal')).toContainText('changed');
+  const after = await window.evaluate((id) => globalThis.focusloop.listPreferences(id), sessionId);
+  expect(after.ok && after.preferences.length).toBe(1);
+  await window.getByTestId('proposal-dismiss').click();
+  await expect(dialog).toBeHidden();
+
+  seed(3, 1);
+  await refresh();
+  await window.getByTestId('suggestion-confirm').first().click();
+  await expect(dialog).toBeVisible();
+  await window.getByTestId('proposal-dismiss').click();
+  await expect(dialog).toBeHidden();
+  await refresh();
+  await expect(window.getByTestId('suggestion-row')).toHaveCount(0);
+  const declined = await window.evaluate(
+    (id) => globalThis.focusloop.listPreferences(id),
+    sessionId,
+  );
+  expect(declined.ok && declined.preferences.length).toBe(1);
+  await window.evaluate(async (id) => {
+    await globalThis.focusloop.endSession({ sessionId: id, reason: 'user' });
+  }, sessionId);
+});
+
 /*
  * Last in this file, and it has to be: this is the one test that deletes everything the tests above spent
  * the run storing, so anything after it *in this file* would be asserting against a first-run app. Every

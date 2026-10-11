@@ -30,6 +30,7 @@ import type {
   ConfirmProposalRequest,
   ExecuteProposalRequest,
   ProposalConfirmResult,
+  ProposalDeclineResult,
   ProposalExecuteResult,
 } from './proposal';
 
@@ -67,6 +68,7 @@ export const IPC_CHANNELS = {
   weeklyReflection: 'focusloop:reflection:weekly',
   proposeStructuralChange: 'focusloop:agent:propose',
   confirmProposal: 'focusloop:agent:confirm-proposal',
+  declineProposal: 'focusloop:agent:decline-proposal',
   executeProposal: 'focusloop:agent:execute-proposal',
   askTutor: 'focusloop:tutor:ask',
   listOutcomes: 'focusloop:outcome:list',
@@ -431,6 +433,8 @@ export interface FocusLoopApi {
     request: ProposeStructuralChangeRequest,
   ): Promise<ProposeStructuralChangeResponse>;
   confirmProposal(request: ConfirmProposalRequest): Promise<ProposalConfirmResult>;
+  /** Saves the learner's decline on the existing proposal; no preference is written. */
+  declineProposal(request: ConfirmProposalRequest): Promise<ProposalDeclineResult>;
   executeProposal(request: ExecuteProposalRequest): Promise<ProposalExecuteResult>;
 
   /**

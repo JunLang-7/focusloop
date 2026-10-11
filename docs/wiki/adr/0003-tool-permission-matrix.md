@@ -117,6 +117,34 @@ than being repeated. The idempotency mechanism differs by what the tool already 
   **tool**, not the command: `addMinute` twice is two minutes, which is exactly the kind of double
   the tool layer must absorb.
 
+### 3a. Amendment: preference-write (AG6.7, #236)
+
+The original fourteen tools predate learner-derived preferences. This adds a **domain command cell**,
+not a fourth permission level or a new model tool:
+
+| Command            | Level                | Existing way back                                                                            | Contract                                                                                                                                                                                           |
+| ------------------ | -------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `preference-write` | **reversible-write** | AG7.6 `deletePreference`: physical deletion, including the confirmation snapshots added here | `proposeStructuralChange({ preferenceCandidateId })` → main re-derives and freezes value + evidence → the existing hash-bound screen → confirm → execution transaction → `insertLearnerPreference` |
+
+Why reversible: the learner can inspect and physically forget the claim. The proposal/event
+snapshots must be scrubbed in that same delete transaction; a surviving copy would defeat the
+way back this grade relies on (ADR 0001). Opaque proposal identity/status and deletion audit remain.
+
+- Only a candidate id arrives from the renderer; client-authored preference values cannot propose.
+- The screen shows scope, bounded value, sample count and **both** window endpoints separately,
+  so truncating a value cannot hide the evidence the learner confirms.
+- The identity is `preference:<sessionId>:<candidateId>`. Candidate ids fingerprint scope + value,
+  not read time; stored preference ids include the session to prevent cross-session collisions.
+- A decline records `refused / declined` on that proposal. Pending, declined, expired, invalidated
+  and executed decisions suppress the same claim on subsequent suggestion reads. A changed claim
+  gets a new identity; clearing session memory removes the decision records as ADR 0001 specifies.
+- Confirm/execute reuses the envelope's expiry, state fingerprint, hash and replay checks. The
+  preference insert runs **inside** its execution transaction; a failed insert rolls back the row,
+  event and executed status together. Confirm-only and every refusal store no preference.
+
+This cell is driven by a learner's suggestion button; it does not add a provider call, an unmetered
+skill, or a registry bypass for model-written claims. Proposal status/events are its audit record.
+
 ### 4. Invariants the levels ride on
 
 - **Validation lives in main**: input schema, permission level, and current-session preconditions
