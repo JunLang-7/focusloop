@@ -39,9 +39,11 @@ pnpm --filter @focusloop/desktop run start
 That compiles the Angular renderer and the Electron main process, then opens the window. There is
 no hot reload — after changing source, stop the app and run the command again.
 
-Because you are running from source, the **Demo Event Simulator** appears along the bottom of the
-window whenever a focus session is active. It is the supported stand-in for the browser extension,
-so the whole demo works without installing anything else.
+Because you are running from source, the app uses Electron's default profile directory rather than
+the packaged app's `FocusLoop` one. Nothing else differs: the developer event bar that used to sit
+along the bottom of the window is gone, and every interruption in the demo is a real one — the app
+notices its own window losing focus, so switching to another window for twenty seconds is all it
+takes.
 
 ### Use the FocusLoop name in the operating system
 
@@ -64,10 +66,10 @@ pnpm --filter @focusloop/desktop run package:mac:dir
 ```
 
 Open `apps/desktop/release/mac-arm64/FocusLoop.app` on Apple Silicon, or
-`apps/desktop/release/mac/FocusLoop.app` on Intel. This is a packaged app, so the demo simulator is
-hidden. On both platforms, packaged apps use a separate default profile from the source-run
-Electron profile; renaming the runtime preserves existing development data. You can export
-learning data from the development app and import it into the packaged app.
+`apps/desktop/release/mac/FocusLoop.app` on Intel. On both platforms, packaged apps use a separate
+default profile from the source-run Electron profile; renaming the runtime preserves existing
+development data. You can export learning data from the development app and import it into the
+packaged app.
 
 ### Start it without typing the command
 
@@ -158,9 +160,9 @@ a central business server · Redis/Postgres/NestJS · collaboration · reinforce
 00:30  See the 5 micro tasks
 00:45  Start Focus Session
 01:10  Complete the first task
-01:30  Simulator: Distraction
-01:45  FocusLoop does NOT nag
-02:00  Simulator: Return
+01:30  Switch to another window and stay there for ~25 seconds
+01:45  FocusLoop does NOT nag: nothing appears while you are away
+02:00  Switch back
 02:05  Resume Card appears
 02:15  "Continue: Recall the ordering invariant" — done / open / next step
 02:35  Continue
@@ -169,8 +171,12 @@ a central business server · Redis/Postgres/NestJS · collaboration · reinforce
 03:15  Dashboard: interruption count, resume latency, outcomes
 ```
 
-The **Demo Event Simulator** is a supported product feature, not a test hack: it keeps the golden
-path demonstrable without the browser extension installed. It is hidden in packaged builds.
+Every step above is a real interaction: the app notices its own window losing focus, so no
+developer bar and no extension are needed. The bar that used to provide the same events on demand
+was removed in v0.1 — it was the one surface a learner must never see, and it put a row of debug
+buttons under every screen. The `simulate` command it called survives as an internal seam: the
+browser extension, the end-to-end suite and the UI capture script all reach the engine through it,
+and nothing renders it.
 
 ---
 
@@ -200,7 +206,7 @@ flowchart LR
   EXT[MV3 extension] -->|loopback WebSocket + token| BRIDGE[Bridge server]
   IPC --> ENGINE[FocusLoopEngine]
   BRIDGE --> ENGINE
-  SIM[Demo Event Simulator] --> ENGINE
+  EVENT[The app's own window and idle sensor] --> ENGINE
   ENGINE --> STATE[learning-state]
   ENGINE --> CONT[continuity]
   ENGINE --> POL[intervention-policy]
@@ -272,9 +278,14 @@ On PowerShell the same thing is:
 $env:FOCUSLOOP_DEEPSEEK_API_KEY="..."; pnpm --filter @focusloop/desktop run start
 ```
 
-Keys are read from the environment only. They are never written to the repository, never persisted
-to the database, and never logged. If the provider fails (offline, timeout, rate limit, bad
-response) FocusLoop degrades to the mock provider and tells the UI why.
+Keys come from one of two places, and the app tells you which one is in force. The environment
+variable above wins if it is set; otherwise you can save a key in the app itself, from the model
+entry in the sidebar footer, where it is encrypted by the operating system keychain
+(`safeStorage`) into a single file beside the database. On a machine with no usable keychain the
+entry says so instead of pretending to save. A key is never written to the repository, never
+written to the database, never logged, and never handed to the renderer — the interface that saves
+it cannot read it back. If the provider fails (offline, timeout, rate limit, bad response)
+FocusLoop degrades to the mock provider and tells the UI why.
 
 ---
 

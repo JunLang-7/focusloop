@@ -305,8 +305,8 @@ the store, and let the window decide which ones contribute.
 
 ### The event log is folded, and only where it can be
 
-The log is an audit tail, and left raw it is mostly noise: the demo simulator alone fires three
-`HELP_REQUESTED` events for one click, which used to draw three identical cards. `events-view.ts`
+The log is an audit tail, and left raw it is mostly noise: the demo command alone fires three
+`HELP_REQUESTED` events for one press, which used to draw three identical cards. `events-view.ts`
 folds a run of consecutive events sharing a type _and_ a source into one row, rendered in the
 learner's words with the exact vocabulary on each part's `title` — `You asked for help ×3`, and
 `HELP_REQUESTED` on hover (see [#8](https://github.com/nianpingy-cpu/focusloop/issues/8)).
@@ -498,8 +498,8 @@ sequenceDiagram
 - The message schema is closed: `{ protocol, type, token, eventId, at, payload }` where `payload`
   may contain `origin` (sanitised to scheme + host), `awayMs`, `idleMs` and `clientVersion`.
 - The event id is remembered in a bounded ring, so a reconnect storm cannot double-count.
-- If the bridge cannot start (port taken), the app still runs and says so; the simulator covers the
-  demo.
+- If the bridge cannot start (port taken), the app still runs and says so; the app's own sensor still
+  records the learner leaving and returning, so the demo does not depend on the bridge.
 
 ## Determinism and testability
 

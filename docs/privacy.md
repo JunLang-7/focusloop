@@ -89,7 +89,10 @@ Uninstalling leaves the file in place on purpose, so a reinstall does not lose y
 
 ## The browser bridge
 
-The extension is optional. The golden path works without it, via the Demo Event Simulator.
+The extension is optional. The golden path works without it: the app notices its own window losing
+focus and the operating system's idle time by itself, so a learner who switches to a browser, a PDF
+or a notes app is recorded as leaving and coming back with nothing installed at all. What the
+extension adds is tab-level detail on top of that.
 
 What it does collect: **tab activation and idle state only** — "the active tab changed", "the user
 became idle", "the user came back after 30 seconds".
