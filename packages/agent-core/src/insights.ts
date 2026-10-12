@@ -155,6 +155,31 @@ export function buildStateTimeline(
   return segments;
 }
 
+/**
+ * How long one session was studied, by the only rule the app can stand behind.
+ *
+ * The sum of `buildStateTimeline`'s credited segments, which is the same number the dashboard's
+ * "recorded time" is built from — so a session's own figure and the range figure cannot disagree.
+ *
+ * This exists because the session's elapsed time was the window's wall clock (`startedAt` → `now`),
+ * and a session is not ended by closing the app. Left open overnight, and again over a weekend, the
+ * focus screen reported the whole span: a learner who had studied for twenty minutes was told they
+ * had been at it for two weeks, in a `minutes:seconds` field that rendered it as `21219:30`. The
+ * learner's own dashboard said something else, because it had the rule and the progress strip did
+ * not. Callers with an event log use this; the wall clock is what is left when there is nothing to
+ * witness (see `buildDashboardSummary`), never the other way round.
+ */
+export function recordedSessionMs(
+  source: InsightsSessionSource,
+  now: string,
+  config: Partial<StateEngineConfig> = {},
+): number {
+  return buildStateTimeline(source.session, source.events, now, config).reduce(
+    (total, segment) => total + (segment.toMs - segment.fromMs),
+    0,
+  );
+}
+
 /** Splits `[fromMs, toMs)` at local midnight so each piece belongs to one day. */
 function splitByLocalDay(fromMs: number, toMs: number): { date: string; ms: number }[] {
   const pieces: { date: string; ms: number }[] = [];

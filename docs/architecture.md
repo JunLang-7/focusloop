@@ -284,6 +284,15 @@ witnessed (`TAB_LEFT`, an idle report) keeps its whole stretch. The consequence 
 `totalMs` is the time the app can stand behind, **not** the wall-clock its sessions were open; the labels
 that read it say so, as does `docs/wiki/project-features.md` §D2.
 
+**3. One session is measured by the same rule as a window.** That rule was once only the dashboard's:
+the focus screen's `elapsed` and the dashboard's `session duration` were `startedAt` → `now`, and a
+session is not ended by closing the app. A session left open over a weekend reported the weekend — a
+learner who had worked for twenty minutes was shown `21219:30`, in a field that counted minutes past
+any length. Both now read `recordedSessionMs`: the credited segments of `buildStateTimeline`, summed.
+So `progress.elapsedMs` (the strip, and the Home screen's line under a running session) and
+`DashboardSummary.sessionDurationMs` are the time the app can stand behind, and a closed session still
+keeps its whole span, because pressing stop is itself a witness.
+
 Two further details are easy to get wrong and are pinned by tests:
 
 - **A window ends _at_ now, inclusive.** Treating `now` as an exclusive bound silently hides the most

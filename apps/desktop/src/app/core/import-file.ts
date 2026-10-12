@@ -75,10 +75,33 @@ export async function readImportFile(file: PickedFile): Promise<ImportFileOutcom
 }
 
 /**
+ * Whether a drag carries files — the only kind this zone accepts.
+ *
+ * Pure and here rather than inside the component because it is the whole of the drop zone's policy
+ * about drags. Without it any dragged text — a selection from another window, a link — raises the
+ * drop state and invites a drop that would do nothing, which is a drop target lying about itself.
+ */
+export function isFileDrag(types: readonly string[] | undefined): boolean {
+  return types !== undefined && Array.from(types).includes('Files');
+}
+
+/**
+ * A byte count as a person reads it, in the units the limit is stated in.
+ *
+ * Shared with `describeLimit` so the size on a picked file's row and the size the zone accepts are
+ * read the same way — a row saying `1024 KB` beside a limit saying `1 MB` would look like two
+ * different numbers rather than one file and its ceiling.
+ */
+export function describeBytes(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 KB';
+  const kilobytes = bytes / 1024;
+  return kilobytes >= 1024 ? `${Math.round(kilobytes / 1024)} MB` : `${Math.round(kilobytes)} KB`;
+}
+
+/**
  * The limit as a person reads it, derived from the limit itself so the two cannot drift apart in
  * translation.
  */
 export function describeLimit(limitBytes: number): string {
-  const kilobytes = limitBytes / 1024;
-  return kilobytes >= 1024 ? `${Math.round(kilobytes / 1024)} MB` : `${Math.round(kilobytes)} KB`;
+  return describeBytes(limitBytes);
 }

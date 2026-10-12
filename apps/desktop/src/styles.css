@@ -53,6 +53,11 @@
   --radius: 12px;
   --radius-sm: 8px;
   /*
+   * The plan sheet's ceiling, named once: the sheet and the scroll room reserved for it must agree, or
+   * a sheet ends up taller than the space kept for it. See the sheet itself for the rest.
+   */
+  --plan-sheet-max: min(62vh, 560px);
+  /*
    * The widest the content column grows before it stops and centres. Not a colour,
    * so it is not duplicated in the light block. A card stretched across a 2560px
    * window is harder to read than one capped at a comfortable measure.
@@ -1198,20 +1203,54 @@ textarea:focus {
   color: var(--text-muted);
 }
 
-/* ------------------------------------------------------------ file picker */
+/* ---------------------------------------------------------------- drop zone */
 
 /*
- * The picker is a label dressed as a button. An `<input type="file">` cannot be styled and cannot be
- * replaced, so it is stretched across the label and made transparent: the label is what a person
- * presses, and the input underneath is what the chooser — and a test — needs to find. It keeps a real
- * box instead of being hidden, because an element with no box is not in the accessibility tree and
- * cannot be reached by anything looking for it by role.
+ * The zone is a label with the file input stretched across it and made transparent. An `<input
+ * type="file">` cannot be styled and cannot be replaced, so the label is what a person presses and
+ * the input underneath is what the chooser — and a test — needs to find. It keeps a real box instead
+ * of being hidden, because an element with no box is not in the accessibility tree, cannot be reached
+ * by anything looking for it by role, and cannot be activated from the keyboard: Tab lands on it, and
+ * Enter or Space opens the chooser, without a line of script.
+ *
+ * The dashed edge and the accent that replaces it while a file is over the zone are the convention
+ * every upload surface shares (Uppy, Dropzone.js, react-dropzone, Ant Design's Dragger). A drop
+ * target that looks like every other card is a drop target nobody drops onto.
  */
-.pick {
-  position: relative;
+.dropzone {
+  margin-bottom: 14px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
 }
 
-.pick__input {
+.dropzone.is-dragging {
+  border-style: solid;
+  border-color: var(--accent-strong);
+  background: var(--bg-soft);
+}
+
+.dropzone__target {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 20px 16px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.dropzone__glyph {
+  color: var(--text-muted);
+  font-size: 20px;
+  line-height: 1.3;
+}
+
+.dropzone__prompt {
+  font-size: 14px;
+}
+
+.dropzone__input {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -1223,9 +1262,41 @@ textarea:focus {
 }
 
 /* The ring belongs on the thing that looks pressable, not on the invisible input inside it. */
-.pick:has(.pick__input:focus-visible) {
+.dropzone:has(.dropzone__input:focus-visible) {
   outline: 2px solid var(--accent-strong);
-  outline-offset: -1px;
+  outline-offset: 2px;
+}
+
+/*
+ * The file that is in the form. Name, weight, and the way out of it on one line, which is the row
+ * every file list in those libraries draws; the name truncates rather than pushing the button off the
+ * card, and keeps the whole of it in `title` for the one that is too long to read.
+ */
+.dropzone__file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  font-size: 13px;
+}
+
+.dropzone__file-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Under the zone, where the mistake was made — and it never replaces the zone itself. */
+.dropzone__notice {
+  margin: 0 0 14px;
+  color: var(--warn);
+  font-size: 13px;
 }
 
 /*
@@ -2473,6 +2544,10 @@ body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:not([data-open]) {
  * flow where it always did, and the sheet is what moves. Its open state belongs to the component
  * (`core/plan-visibility.ts`), which is what lets Escape, a click elsewhere and starting a step
  * lower it — as a `<details>` the summary was the only affordance that could (#71).
+ *
+ * `--plan-sheet-max` is the sheet's ceiling, named once because the room reserved for it below has to
+ * agree with it: two `min(62vh, 560px)` expressions in two places is how a sheet ends up taller than
+ * the space kept for it.
  */
 .focus-plan[data-open] {
   position: fixed;
@@ -2482,7 +2557,7 @@ body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:not([data-open]) {
   left: 16px;
   width: min(560px, calc(100vw - 32px));
   margin-inline: auto;
-  max-height: min(62vh, 560px);
+  max-height: var(--plan-sheet-max);
   overflow: auto;
   padding: 16px;
   border: 1px solid var(--border);
@@ -2490,6 +2565,26 @@ body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:not([data-open]) {
   background: var(--bg-elevated);
   box-shadow: var(--shadow-md);
   animation: plan-rise 220ms ease-out;
+}
+
+/*
+ * Room to scroll the step clear of the sheet, while the sheet is up.
+ *
+ * The sheet is anchored to the bottom edge and the column is laid out from the top, so the sheet's top
+ * edge lands across the step's own controls — on a 1157x732 window its summary and the step's "Start
+ * for 3 minutes" were painted through each other over 148x32 px, and the button could not be pressed.
+ * Neither half of the obvious fix holds on its own: shrinking the sheet to the room left under the
+ * step leaves 133px of a five-block plan, and reserving *layout* room moves nothing, because the step
+ * is packed from the top. What the column can do is scroll, and `focus.page.ts` scrolls it by the
+ * measured intersection — but only if there is that much left to scroll, which on a short window with
+ * a full plan there was not.
+ *
+ * So this is scroll room, not layout room: padding at the bottom of the scroller makes the column
+ * taller to scroll through, and takes nothing from where the step is drawn. Scrolling past the header
+ * is the cost, and it is the smaller one — the sheet was covering the button that starts the step.
+ */
+body:has(fl-focus .focus-plan[data-open]) .content {
+  padding-bottom: calc(var(--plan-sheet-max) + 40px);
 }
 
 @keyframes plan-rise {

@@ -12,8 +12,10 @@ import type {
   ResumePolicyConfig,
 } from '@focusloop/shared-types';
 import { RESCUE_ACTIONS } from '@focusloop/shared-types';
+import type { StateEngineConfig } from '@focusloop/learning-state';
 import { evaluateResumeOutcome } from '@focusloop/continuity';
 import { averageResumeLatencyMs, summarizeOutcomes } from '@focusloop/intervention-policy';
+import { recordedSessionMs } from './insights';
 
 export interface BuildDashboardInput {
   readonly session: LearningSession | null;
@@ -35,6 +37,11 @@ export interface BuildDashboardInput {
   /** The session's accepted rescues, already evaluated against its event log. */
   readonly rescues?: readonly EvaluatedRescue[];
   readonly resumePolicyConfig?: Partial<ResumePolicyConfig>;
+  /**
+   * The state engine's thresholds, so the session's own duration can be rebuilt the way the
+   * dashboard rebuilds every other duration. Only meaningful together with `events`.
+   */
+  readonly stateConfig?: Partial<StateEngineConfig>;
   readonly now: string;
 }
 
@@ -188,10 +195,28 @@ export function buildDashboardSummary(input: BuildDashboardInput): DashboardSumm
     };
   }
 
+  /*
+   * How long the session ran, which is not how long it was open.
+   *
+   * `startedAt` → `now` is the window the session spanned, and a session survives a restart by
+   * design, so the window keeps growing while the app is closed: the dashboard reported a fortnight
+   * for an evening's work. The rule the rest of this page already follows is `recordedSessionMs` —
+   * the time the app can stand behind — and with the event log in hand there is no reason for this
+   * one figure to be the exception. Without a log there is nothing to witness, so the wall clock
+   * stands, because the alternative would be reporting zero for a session the caller must know about.
+   */
   const startedMs = Date.parse(session.startedAt);
   const endedMs = session.endedAt === undefined ? Date.parse(now) : Date.parse(session.endedAt);
-  const durationMs =
+  const wallClockMs =
     Number.isFinite(startedMs) && Number.isFinite(endedMs) ? Math.max(0, endedMs - startedMs) : 0;
+  const durationMs =
+    input.events === undefined
+      ? wallClockMs
+      : recordedSessionMs(
+          { session, events: input.events, interruptionAt: [], outcomes: [] },
+          now,
+          input.stateConfig,
+        );
 
   return {
     sessionId: session.id,

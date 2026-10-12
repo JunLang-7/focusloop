@@ -768,8 +768,16 @@ describe('FocusLoopEngine', () => {
       });
       const after = ctx.engine.getCurrentSession();
       expect(after?.session.currentTaskId).toBe('rbt-t1');
-      // Only the wall clock moves: nothing was completed, skipped or reordered by taking a break.
-      expect(after?.progress).toEqual({ ...before?.progress, elapsedMs: 3 * 60_000 });
+      /*
+       * Nothing was completed, skipped or reordered by taking a break — and the elapsed time is no
+       * longer the wall clock, which is the one figure this assertion had to change for.
+       *
+       * Three minutes of nothing recorded is exactly the silence the app will not claim: it credits
+       * the state it was in for the idle threshold and stops. The break was suggested and accepted, so
+       * the learner's own account of those minutes is real — it is simply not evidence that they were
+       * studying, and the focus screen's "elapsed" is study time (see `recordedSessionMs`).
+       */
+      expect(after?.progress).toEqual({ ...before?.progress, elapsedMs: 2 * 60_000 });
     });
 
     it('quotes the concept on an accepted HINT and the material on an EXAMPLE, offline', () => {
@@ -1042,6 +1050,30 @@ describe('FocusLoopEngine', () => {
       expect(ended.state).toBe('READY');
       const dashboard = ctx.engine.getDashboard();
       expect(dashboard.sessionDurationMs).toBe(60_000);
+    });
+
+    /*
+     * The reported defect, in the shape it was reported: a session is not ended by closing the app, so
+     * a session left open over a weekend arrives here with a `startedAt` two weeks old. Both surfaces
+     * that show it — the focus screen's "elapsed" and the dashboard's "session duration" — used to
+     * report the whole window, which is how a learner was told their evening's work had taken 14 days.
+     */
+    it('reports the time studied, not the two weeks the session was left open for', () => {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      // The longest silence the app stands behind on its own, with no report to bound it.
+      ctx.clock.advance(120_000);
+      const studied = ctx.engine.getSessionProgress(session.id)?.elapsedMs;
+      expect(studied).toBe(120_000);
+
+      // The app is closed for a fortnight. Nothing is written, because there is nothing to write.
+      ctx.clock.advance(14 * 86_400_000);
+
+      const later = ctx.engine.getSessionProgress(session.id)?.elapsedMs ?? 0;
+      // The window moved by two weeks and the studied time did not move at all.
+      expect(later).toBe(studied);
+      expect(later).toBeLessThan(14 * 86_400_000);
+      // And the dashboard agrees with the focus screen, because both read the same rebuilt timeline.
+      expect(ctx.engine.getDashboard().sessionDurationMs).toBe(later);
     });
 
     it('reports the current session', () => {

@@ -1171,6 +1171,42 @@ test('the plan closes the way a panel closes, and never covers the step it start
 });
 
 /*
+ * The sheet is anchored to the bottom edge and the step is laid out from the top, so on an ordinary
+ * window the sheet's top edge lands across the step's own controls. Measured on 1157x732 before this
+ * was fixed: "Start for 3 minutes" and the sheet's summary were painted through each other over 148x32
+ * px of the button, and the step's time note shared its pixels with the first block's title.
+ *
+ * `elementFromPoint` is the assertion because the failure is a layering one: a covered button is not
+ * pressable, whatever the DOM order says, and a screenshot of it looks like a button that is there.
+ */
+test('the open plan never covers the step it describes', async () => {
+  await clickSidebarLink('Home');
+  await window.getByTestId('course-card').first().getByTestId('start-session').click();
+  await stateIs('READY');
+
+  await window.getByTestId('focus-plan-toggle').click();
+  await expect(window.locator('.plan')).toBeVisible();
+
+  const start = window.getByTestId('start-task').first();
+  await expect
+    .poll(() =>
+      start.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        const under = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+        return under === el || el.contains(under);
+      }),
+    )
+    .toBe(true);
+
+  // And pressing it does what it says, with the sheet open: the press lands, the step starts, and the
+  // sheet gets out of the way as it does for any step.
+  await start.click();
+  await stateIs('FOCUSED');
+  await expect(window.locator('.plan')).toBeHidden();
+  await expect(window.locator('.banner--error')).toHaveCount(0);
+});
+
+/*
  * Last as well: it finishes by completing a step, which leaves a different current task and a
  * different count behind than the tests above were written against.
  */
@@ -1336,6 +1372,53 @@ test('a file on the machine can be imported without typing any of it out', async
   await expect(notice).toBeVisible();
   await expect(name).toHaveValue('rotations.md');
   await expect(window.getByTestId('import-summary')).toBeVisible();
+});
+
+/*
+ * The other half of "a file goes here": a file dragged onto the zone.
+ *
+ * The zone is the card's whole way in, and a drop target that only responds to a click is half a drop
+ * target. The drag is assembled in the page, because there is no way to drag a path from outside the
+ * window — and the two things worth proving are the ones a person sees: the zone says it will take the
+ * file while it is over it, and the file that lands is read exactly as a chosen one is.
+ */
+test('a file dragged onto the zone is taken, and the zone says so before it is dropped', async () => {
+  await clickSidebarLink('Home');
+
+  const zone = window.getByTestId('import-dropzone');
+  const name = window.getByTestId('import-file-name');
+  const picked = window.getByTestId('import-picked');
+
+  await expect(zone).toBeVisible();
+  await expect(zone).not.toHaveClass(/is-dragging/);
+
+  const dataTransfer = await window.evaluateHandle(() => {
+    const transfer = new DataTransfer();
+    transfer.items.add(
+      new File(['# Stacks\n\nA stack keeps the most recent thing on top.\n'], 'stacks.md', {
+        type: 'text/markdown',
+      }),
+    );
+    return transfer;
+  });
+
+  await zone.dispatchEvent('dragover', { dataTransfer });
+  await expect(zone).toHaveClass(/is-dragging/);
+
+  await zone.dispatchEvent('drop', { dataTransfer });
+  await expect(zone).not.toHaveClass(/is-dragging/);
+
+  // The row names the file and its weight; the name field followed it, untyped.
+  await expect(picked).toBeVisible();
+  await expect(picked).toContainText('stacks.md');
+  await expect(picked).toContainText('KB');
+  await expect(name).toHaveValue('stacks.md');
+
+  // And removing it empties the form rather than leaving a name with no text behind it.
+  await window.getByTestId('import-clear-file').click();
+  await expect(picked).toBeHidden();
+
+  await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
 /*

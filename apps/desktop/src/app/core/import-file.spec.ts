@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   MATERIAL_FILE_MAX_BYTES,
+  describeBytes,
   describeLimit,
+  isFileDrag,
   readImportFile,
   type PickedFile,
 } from './import-file';
@@ -101,5 +103,36 @@ describe('describeLimit', () => {
 
   it('reads anything smaller as kilobytes', () => {
     expect(describeLimit(512 * 1024)).toBe('512 KB');
+  });
+});
+
+describe('describeBytes', () => {
+  it('reads a file the way the limit beside it is read', () => {
+    expect(describeBytes(12 * 1024)).toBe('12 KB');
+    expect(describeBytes(MATERIAL_FILE_MAX_BYTES)).toBe('1 MB');
+    expect(describeBytes(512 * 1024)).toBe('512 KB');
+  });
+
+  it('answers a size it cannot make sense of with zero rather than with NaN', () => {
+    expect(describeBytes(0)).toBe('0 KB');
+    expect(describeBytes(-1)).toBe('0 KB');
+    expect(describeBytes(Number.NaN)).toBe('0 KB');
+  });
+});
+
+describe('isFileDrag', () => {
+  /*
+   * The distinction the zone turns on: a dragged text selection also fires dragenter and dragover, and
+   * raising the drop state for one invites a drop that would do nothing.
+   */
+  it('accepts a drag that carries files and refuses one that does not', () => {
+    expect(isFileDrag(['Files'])).toBe(true);
+    expect(isFileDrag(['text/plain'])).toBe(false);
+    expect(isFileDrag([])).toBe(false);
+    expect(isFileDrag(undefined)).toBe(false);
+  });
+
+  it('accepts a file among other types, which is what a real drag reports', () => {
+    expect(isFileDrag(['text/plain', 'Files'])).toBe(true);
   });
 });

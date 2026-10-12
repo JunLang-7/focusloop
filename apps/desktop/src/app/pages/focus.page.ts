@@ -9,7 +9,7 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
-import type { ElementRef, OnDestroy } from '@angular/core';
+import type { ElementRef, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import type { MicroTask, MicroTaskKind, StuckReason } from '@focusloop/shared-types';
 import { STUCK_REASONS, applyTaskOrder } from '@focusloop/shared-types';
@@ -128,7 +128,11 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
 
           @if (phase() === 'ready') {
             @if (nextTask(); as upcoming) {
-              <section class="focus-task focus-task--ready" aria-labelledby="focus-ready-title">
+              <section
+                class="focus-task focus-task--ready"
+                #taskAnchor
+                aria-labelledby="focus-ready-title"
+              >
                 <p class="eyebrow">{{ t('focus.nextTask') }}</p>
                 <h2 id="focus-ready-title" data-testid="task-title">{{ upcoming.title }}</h2>
                 <p class="focus-task__instructions">{{ upcoming.instructions }}</p>
@@ -149,12 +153,16 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                 </div>
               </section>
             } @else {
-              <section class="focus-task focus-task--empty">
+              <section class="focus-task focus-task--empty" #taskAnchor>
                 <p class="muted">{{ t('focus.allDone') }}</p>
               </section>
             }
           } @else if (phase() === 'complete') {
-            <section class="focus-task focus-task--complete" aria-labelledby="focus-complete-title">
+            <section
+              class="focus-task focus-task--complete"
+              #taskAnchor
+              aria-labelledby="focus-complete-title"
+            >
               <p class="eyebrow">{{ t('focus.completeEyebrow') }}</p>
               <h2 id="focus-complete-title">{{ t('focus.completedTitle') }}</h2>
               @if (nextTask(); as upcoming) {
@@ -175,7 +183,11 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
               }
             </section>
           } @else if (task(); as currentTask) {
-            <section class="focus-task focus-task--active" aria-labelledby="focus-task-title">
+            <section
+              class="focus-task focus-task--active"
+              #taskAnchor
+              aria-labelledby="focus-task-title"
+            >
               <div class="focus-task__copy">
                 <p class="eyebrow">{{ t('focus.currentTask') }}</p>
                 <h2 id="focus-task-title" data-testid="task-title">{{ currentTask.title }}</h2>
@@ -402,7 +414,7 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
     }
   `,
 })
-export class FocusPage implements OnDestroy {
+export class FocusPage implements OnDestroy, OnInit {
   private readonly state = inject(AppStateService);
   private readonly focusTimer = inject(FocusTimerService);
   private readonly router = inject(Router);
@@ -421,6 +433,8 @@ export class FocusPage implements OnDestroy {
   private readonly gripRefs = viewChildren<ElementRef<HTMLButtonElement>>('planGrip');
   private readonly stuckTrigger = viewChild<ElementRef<HTMLButtonElement>>('stuckTrigger');
   private readonly stuckGroup = viewChild<ElementRef<HTMLElement>>('stuckGroup');
+  /** Whatever step is on screen, whichever phase it is in — the thing the plan sheet must not cover. */
+  private readonly taskAnchor = viewChild<ElementRef<HTMLElement>>('taskAnchor');
 
   protected readonly t = this.i18n.t;
   protected readonly snapshot = this.state.snapshot;
@@ -792,6 +806,43 @@ export class FocusPage implements OnDestroy {
     this.planOpenState.update((isOpen) => nextPlanOpen(isOpen, event));
   }
 
+  /**
+   * Raises the sheet without burying the step it belongs to.
+   *
+   * The sheet is anchored to the bottom edge (`bottom: 16px`), and the step sits in a column that is
+   * laid out from the top, so on a window of any ordinary height the sheet's top edge lands across the
+   * step's own controls. Measured on a 1157x732 window: "Start for 3 minutes" and the plan's summary
+   * were painted through each other over 148x32 px of the button, and pressing it hit the sheet.
+   *
+   * Neither obvious fix holds. Shrinking the sheet to the room left under the step leaves 133px of a
+   * five-block plan; reserving room in the column's *layout* changes nothing, because the step is
+   * packed from the top and padding below it moves nothing. So the window scrolls instead — the sheet
+   * is `position: fixed`, so lifting the step into the space above it leaves the sheet exactly where
+   * it was designed to be, and `styles.css` keeps scroll room free for that while the sheet is up.
+   * Scrolled by the measured intersection rather than by the sheet's height, so the step's title is not
+   * thrown off the screen on the way to clearing the sheet.
+   *
+   * `afterRenderEffect`, not `effect`: the sheet has to be in the DOM before it can be measured. A
+   * resize runs the same check, because the room under the anchor changes without the sheet moving.
+   */
+  private readonly uncoverTask = afterRenderEffect(() => {
+    if (!this.planOpen()) return;
+    untracked(() => this.uncoverTaskFromSheet());
+  });
+
+  private readonly onWindowResize = (): void => {
+    if (this.planOpen()) this.uncoverTaskFromSheet();
+  };
+
+  private uncoverTaskFromSheet(): void {
+    const sheet = this.planRoot()?.nativeElement;
+    const task = this.taskAnchor()?.nativeElement;
+    const scroller = task?.closest<HTMLElement>('.content') ?? null;
+    if (sheet === undefined || task === undefined || scroller === null) return;
+    const covered = task.getBoundingClientRect().bottom - (sheet.getBoundingClientRect().top - 8);
+    if (covered > 0) scroller.scrollTop += covered;
+  }
+
   protected async startQuick(taskId: string): Promise<void> {
     await this.start(taskId, DEFAULT_FOCUS_MINUTES);
   }
@@ -890,15 +941,25 @@ export class FocusPage implements OnDestroy {
     this.clearTimer();
     await this.state.endSession('user');
   }
+
   protected back(): void {
     void this.router.navigate(['/home']);
   }
+
+  ngOnInit(): void {
+    // The sheet's check has to run on a resize too: the room under the step changes without the sheet
+    // moving, and the tutor panel already listens for the same reason.
+    window.addEventListener('resize', this.onWindowResize);
+  }
+
   ngOnDestroy(): void {
     this.clearTimer();
     this.followRescueTimer.destroy();
     this.syncTimer.destroy();
     this.manageStuckFocus.destroy();
     this.restoreGripFocus.destroy();
+    this.uncoverTask.destroy();
+    window.removeEventListener('resize', this.onWindowResize);
   }
 
   protected openTasks(): readonly MicroTask[] {

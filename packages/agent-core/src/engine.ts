@@ -128,7 +128,12 @@ import {
   type ProviderSelection,
 } from '@focusloop/llm-provider';
 import { buildDashboardSummary, type EvaluatedRescue } from './dashboard';
-import { buildInsightsSummary, weekWindow, type InsightsSessionSource } from './insights';
+import {
+  buildInsightsSummary,
+  recordedSessionMs,
+  weekWindow,
+  type InsightsSessionSource,
+} from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
 import { generateCourse } from './micro-task-generator';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
@@ -846,6 +851,12 @@ export class FocusLoopEngine {
       endedAt: record.session.endedAt,
       totalTasks: course?.microTasks.length ?? 0,
       completedTaskIds: record.engineState.completedTaskIds,
+      /*
+       * The time the app can stand behind, not the window the session spanned. A session is not ended
+       * by closing the app, so `startedAt` → `now` reports the days the learner was away as study
+       * time, and that is what "elapsed" showed on the focus screen.
+       */
+      elapsedMs: this.recordedMs(record, this.clock()),
       now: this.clock(),
     });
   }
@@ -858,6 +869,7 @@ export class FocusLoopEngine {
       endedAt: record.session.endedAt,
       totalTasks: course?.microTasks.length ?? 0,
       completedTaskIds: record.engineState.completedTaskIds,
+      elapsedMs: this.recordedMs(record, this.clock()),
       now: this.clock(),
     });
     return {
@@ -874,6 +886,20 @@ export class FocusLoopEngine {
       throw new EngineError('session-not-found', `Unknown session: ${sessionId}`);
     }
     return record;
+  }
+
+  /** A session's studied time, from its own event log — see `recordedSessionMs`. */
+  private recordedMs(record: SessionRecord, now: string): number {
+    return recordedSessionMs(
+      {
+        session: record.session,
+        events: this.store.listEvents(record.session.id),
+        interruptionAt: [],
+        outcomes: [],
+      },
+      now,
+      this.stateConfig,
+    );
   }
 
   // ----------------------------------------------------------------- events
@@ -1572,6 +1598,7 @@ export class FocusLoopEngine {
       checkpoints: this.store.listCheckpoints(record.session.id),
       events,
       rescues: this.evaluatedRescues(record.session.id, events),
+      stateConfig: this.stateConfig,
       now: this.clock(),
     });
   }

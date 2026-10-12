@@ -4,7 +4,14 @@ import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { STATE_KEYS } from '../core/i18n/labels';
 import { formatDuration } from '../core/format';
-import { describeLimit, readImportFile, type ImportFileOutcome } from '../core/import-file';
+import {
+  MATERIAL_FILE_MAX_BYTES,
+  describeBytes,
+  describeLimit,
+  isFileDrag,
+  readImportFile,
+  type ImportFileOutcome,
+} from '../core/import-file';
 
 /** Screen 1 of 5: continue, browse courses, import material. */
 @Component({
@@ -89,28 +96,70 @@ import { describeLimit, readImportFile, type ImportFileOutcome } from '../core/i
       <div class="card">
         <p class="muted small">{{ t('home.import.hint') }}</p>
         <!--
-          The picker is the way in; typing the file out by hand is the fallback.
+          One zone, and it is the whole way in.
 
-          It used to be the only way in, which is why this card was mostly a textarea: importing a
-          file you already had meant opening it somewhere else, selecting all of it, and pasting it
-          back. A picker was also easier to leave out than to add — the file chooser belongs to the
-          operating system, so nothing in the renderer could be told to open it.
+          This used to be a button-shaped label sitting among other buttons, with the file's name typed
+          into a field below it, so nothing on the card said "a file goes here". Every upload surface
+          worth copying draws the same thing — Uppy's drag-drop, Dropzone.js, react-dropzone, Ant
+          Design's Dragger: a dashed area, a glyph, one line saying drop-or-choose, and a muted line
+          under it naming the formats and the size limit. The dash goes solid and takes the accent
+          while a file is over it, which is the only thing that makes a drop target visible at all.
+
+          The label is what a person presses and the input underneath is what the chooser — and a
+          test — needs to find. Keeping the real input in the tree, stretched across the zone and made
+          transparent, is also what makes the zone reachable from the keyboard.
         -->
-        <div class="row">
-          <label class="btn btn--primary pick">
-            {{ t('home.import.pick') }}
+        <div
+          class="dropzone"
+          [class.is-dragging]="dragging()"
+          data-testid="import-dropzone"
+          (dragenter)="onDragOver($event)"
+          (dragover)="onDragOver($event)"
+          (dragleave)="onDragLeave($event)"
+          (drop)="onDrop($event)"
+        >
+          <label class="dropzone__target">
+            <span class="dropzone__glyph" aria-hidden="true">⤒</span>
+            <span class="dropzone__prompt">{{
+              t(dragging() ? 'home.import.dropNow' : 'home.import.drop')
+            }}</span>
+            <span class="dropzone__hint muted small">{{
+              t('home.import.accepts', { limit: fileLimit })
+            }}</span>
             <input
-              class="pick__input"
+              class="dropzone__input"
               type="file"
               data-testid="import-pick-file"
-              accept=".txt,.md,.markdown,text/plain,text/markdown"
+              [attr.accept]="ACCEPTED_TYPES"
               (change)="onPickFile($event)"
             />
           </label>
-          @if (pickNotice(); as notice) {
-            <span class="muted small" data-testid="import-pick-notice">{{ notice }}</span>
-          }
         </div>
+
+        @if (picked(); as file) {
+          <!--
+            The file that is actually in the form: what it is called, what it weighs, and the way out
+            of it. A name field alone left "which file did it read?" to be inferred.
+          -->
+          <div class="dropzone__file" data-testid="import-picked">
+            <span class="dropzone__file-name" [title]="file.name">{{ file.name }}</span>
+            <span class="muted small">{{ file.size }}</span>
+            <button
+              type="button"
+              class="btn btn--small btn--ghost"
+              data-testid="import-clear-file"
+              (click)="clearPicked()"
+            >
+              {{ t('home.import.remove') }}
+            </button>
+          </div>
+        }
+
+        @if (pickNotice(); as notice) {
+          <!-- A refusal is stated under the zone, where the mistake was made, and changes nothing. -->
+          <p class="dropzone__notice" data-testid="import-pick-notice">{{ notice }}</p>
+        }
+
         <label class="field">
           <span>{{ t('home.import.fileName') }}</span>
           <input
@@ -120,6 +169,7 @@ import { describeLimit, readImportFile, type ImportFileOutcome } from '../core/i
             [value]="fileName()"
             (input)="onFileName($event)"
           />
+          <span class="muted small">{{ t('home.import.nameHint') }}</span>
         </label>
         <details class="paste-fallback">
           <summary>{{ t('home.import.pasteSummary') }}</summary>
@@ -182,6 +232,18 @@ export class HomePage {
   protected readonly content = signal(
     '# Rotations\n\nA rotation restructures three nodes while preserving the in-order sequence.\n\n## Left rotation\n\nA left rotation moves the pivot down and to the right.\n',
   );
+  /** True while a file is being dragged over the zone, which is the zone's only visible feedback. */
+  protected readonly dragging = signal(false);
+  /**
+   * The file the form is holding, once one has been read.
+   *
+   * `null` for a paste, which is a name typed by hand and nothing else — and staying null then is
+   * right: a row claiming a file would be claiming something the app never read.
+   */
+  protected readonly picked = signal<{ name: string; size: string } | null>(null);
+  /** The formats the chooser offers, and the size it accepts. Both stated on the zone itself. */
+  protected readonly ACCEPTED_TYPES = '.txt,.md,.markdown,text/plain,text/markdown';
+  protected readonly fileLimit = describeLimit(MATERIAL_FILE_MAX_BYTES);
 
   protected currentMeta(completed: number, total: number): string {
     return this.t('home.current.meta', {
@@ -226,13 +288,63 @@ export class HomePage {
      */
     input.value = '';
     if (file === undefined) return;
-    void readImportFile(file).then((result) => this.applyPickedFile(result));
+    void readImportFile(file).then((result) => this.applyPickedFile(result, file.size));
   }
 
-  private applyPickedFile(result: ImportFileOutcome): void {
+  /**
+   * A drag is only a file drag if it carries files — see `isFileDrag`. `dropEffect` is set for the
+   * same reason: the cursor has to say "copy" while a file is over the zone, or it says the drop is
+   * not allowed.
+   */
+  protected onDragOver(event: DragEvent): void {
+    if (!isFileDrag(event.dataTransfer?.types)) return;
+    // Required for `drop` to fire at all: the default action for a dragover is "not a target".
+    event.preventDefault();
+    if (event.dataTransfer !== null) event.dataTransfer.dropEffect = 'copy';
+    this.dragging.set(true);
+  }
+
+  protected onDragLeave(event: DragEvent): void {
+    /*
+     * `dragleave` fires on the way *into* a child as well, so leaving for something still inside the
+     * zone is not leaving the zone. Tested against `currentTarget`, which is the zone itself.
+     */
+    const zone = event.currentTarget as Node | null;
+    const next = event.relatedTarget as Node | null;
+    if (zone !== null && next !== null && zone.contains(next)) return;
+    this.dragging.set(false);
+  }
+
+  /** A dropped file goes through exactly the same read as a chosen one — same checks, same words. */
+  protected onDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.dragging.set(false);
+    const file = event.dataTransfer?.files?.[0];
+    if (file === undefined) return;
+    void readImportFile(file).then((result) => this.applyPickedFile(result, file.size));
+  }
+
+  /**
+   * Empties the form back to a paste-shaped one: a name is the learner's to type, and the text is
+   * gone with the file it came from. The name is left alone rather than cleared, because a name is
+   * the one thing here that can be worth keeping.
+   */
+  protected clearPicked(): void {
+    this.picked.set(null);
+    this.content.set('');
+    this.pickNotice.set(null);
+    this.importSummary.set(null);
+  }
+
+  /**
+   * `sizeBytes` is the file's own size rather than the length of what was read out of it: the two
+   * differ for anything that is not ASCII, and the row is reporting the file, not the string.
+   */
+  private applyPickedFile(result: ImportFileOutcome, sizeBytes: number): void {
     if (result.outcome === 'picked') {
       this.fileName.set(result.fileName);
       this.content.set(result.content);
+      this.picked.set({ name: result.fileName, size: describeBytes(sizeBytes) });
       this.importSummary.set(null);
       this.pickNotice.set(null);
       return;
