@@ -1,9 +1,6 @@
 import type { Routes } from '@angular/router';
 
-/**
- * Exactly five first-class surfaces. Anything more turns the demo into a
- * website.
- */
+/** Settings is a modal overlay; navigation routes remain learning surfaces only. */
 export const routes: Routes = [
   { path: '', pathMatch: 'full', redirectTo: 'home' },
   {

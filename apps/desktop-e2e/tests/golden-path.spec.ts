@@ -12,6 +12,7 @@ import {
 } from '@playwright/test';
 import { hermeticEnv } from '../hermetic-env.mjs';
 import { fireDemoEvent } from '../demo-events.mjs';
+import { openSidebar } from '../support/sidebar';
 
 const DESKTOP_MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs');
 
@@ -251,7 +252,7 @@ async function pinThroughPeek(): Promise<void> {
  * driven by things that move on their own: a commitment that becomes current folds the
  * sidebar even while a test is looking at it (which is what closing the resume card with
  * Escape invites a moment later), and a recall only holds until the next navigation away
- * from the focus screen hands the choice back to `auto`. "The navigation is reachable" is
+ * from the focus screen returns to the folded default. "The navigation is reachable" is
  * the property under test, and reaching for it again is what a learner would do.
  */
 async function clickSidebarLink(name: string): Promise<void> {
@@ -269,6 +270,15 @@ async function clickSidebarLink(name: string): Promise<void> {
     });
     if (folded) await pinThroughPeek();
     await sidebar.getByRole('link', { name }).click({ timeout: 2_000 });
+    const target =
+      name === 'Home' || name === '首页'
+        ? 'nav-home'
+        : name === 'Dashboard' || name === '数据面板'
+          ? 'nav-dashboard'
+          : 'nav-focus';
+    await expect(window.getByTestId(target)).toHaveAttribute('aria-current', 'page');
+    // Focus transitions return to the folded default; non-focus assertions may recall the summary.
+    if (target !== 'nav-focus') await openSidebar(window);
   }).toPass({ timeout: 20_000 });
 }
 
@@ -342,6 +352,7 @@ async function pressOnGrip(fromRow: number, key: string, times = 1): Promise<voi
  * than behind the disclosure, so this assertion keeps its teeth.
  */
 test('the suite exercises the offline mock, never a real provider', async () => {
+  await pinThroughPeek();
   const entry = window.getByTestId('model-entry');
   await expect(entry).toBeVisible();
   // The model name is locale-independent; the mode label is the English default of a fresh profile.
@@ -625,10 +636,12 @@ test('the theme can be switched and the choice survives a restart', async () => 
 
   await clickSidebarLink('Dashboard');
 
+  await window.getByTestId('nav-settings').click();
   await window.getByTestId('theme-light').click();
   await expect(window.locator('html')).toHaveAttribute('data-theme', 'light');
   await window.getByTestId('theme-dark').click();
   await expect(window.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await window.getByTestId('settings-close').click();
 
   // The preference, not the resolved theme, is what gets stored.
   await restartApp();
@@ -643,8 +656,11 @@ test('the theme can be switched and the choice survives a restart', async () => 
   await expect(window.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   // `Auto` resolves against the OS rather than pinning a theme.
+  await clickSidebarLink('Home');
+  await window.getByTestId('nav-settings').click();
   await window.getByTestId('theme-system').click();
   await expect(window.locator('html')).toHaveAttribute('data-theme', /^(light|dark)$/);
+  await window.getByTestId('settings-close').click();
 
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
@@ -659,7 +675,9 @@ test('the interface can be switched to Chinese, and the choice survives a restar
   ).toBeVisible();
 
   // 1. Switch to Chinese.
-  await window.getByTestId('locale-zh').click();
+  await window.getByTestId('nav-settings').click();
+  await window.getByTestId('general-language').selectOption('zh');
+  await window.getByTestId('settings-close').click();
   await expect(window.getByRole('heading', { name: '让你的学习一直连得上' })).toBeVisible();
   await expect(window.getByRole('link', { name: '首页' })).toBeVisible();
   await expect(window.getByRole('link', { name: '专注会话' })).toBeVisible();
@@ -717,7 +735,10 @@ test('the interface can be switched to Chinese, and the choice survives a restar
   await expect(window.locator('.banner--error')).toHaveCount(0);
 
   // 4. And back, so the next run starts from a known state.
-  await window.getByTestId('locale-en').click();
+  await clickSidebarLink('首页');
+  await window.getByTestId('nav-settings').click();
+  await window.getByTestId('general-language').selectOption('en');
+  await window.getByTestId('settings-close').click();
   await expect(
     window.getByRole('heading', { name: 'Keep your learning continuous' }),
   ).toBeVisible();
@@ -2003,8 +2024,10 @@ test('a suggestion is stored only after the on-screen confirmation; a stale conf
   expect(before.ok && before.preferences.length).toBe(0);
   await window.getByTestId('proposal-confirm').click();
   await expect(dialog).toBeHidden();
+  await window.getByTestId('nav-settings').click();
   await expect(window.getByTestId('memory-preference-row')).toHaveCount(1);
   await expect(window.getByTestId('memory-preference-row')).toContainText('3 samples');
+  await window.getByTestId('settings-close').click();
   await expect(window.getByTestId('suggestion-row')).toHaveCount(0);
 
   seed(1, 1);
@@ -2101,6 +2124,7 @@ test('the learner can find their data and delete all of it, without a restart', 
    * path that differs only in how it is spelled is not the defect this assertion is for; a path that
    * resolves somewhere else is, and it still fails here, spelled differently.
    */
+  await window.getByTestId('nav-settings').click();
   const shownPath = window.getByTestId('data-path');
   await expect(shownPath).toBeVisible();
   const shown = (await shownPath.innerText()).trim();
@@ -2127,8 +2151,11 @@ test('the learner can find their data and delete all of it, without a restart', 
     async () => (await globalThis.focusloop.getCurrentSession()) !== null,
   );
   if (!memorySessionRunning) {
+    await window.getByTestId('settings-close').click();
     await clickSidebarLink('Home');
     await window.getByTestId('course-card').first().getByTestId('start-session').click();
+    await clickSidebarLink('Dashboard');
+    await window.getByTestId('nav-settings').click();
   }
   await expect(window.getByTestId('memory-section')).toBeVisible();
   await expect(window.getByTestId('memory-rows')).toBeVisible();
@@ -2175,9 +2202,11 @@ test('the learner can find their data and delete all of it, without a restart', 
      * what makes this a read of the database rather than of a screen the failed delete never touched: the
      * page asks for its window again when it is created.
      */
+    await window.getByTestId('settings-close').click();
     await clickSidebarLink('Home');
     await clickSidebarLink('Dashboard');
     await expect(stored).toHaveText(before);
+    await window.getByTestId('nav-settings').click();
   }
 
   // 2. The first press is a question, not a decision.
@@ -2218,6 +2247,7 @@ test('the learner can find their data and delete all of it, without a restart', 
 
   await expect(dialog).toBeHidden();
   await expect(window.getByTestId('data-notice')).toContainText('has been deleted');
+  await window.getByTestId('settings-close').click();
 
   /*
    * The stored history is gone, in the two places the app reports it. The activity panel falls back to its
@@ -2225,6 +2255,7 @@ test('the learner can find their data and delete all of it, without a restart', 
    * summary, which is a separate reading of the same database, says nothing was recorded.
    */
   await expect(stored).toHaveCount(0);
+  if (await window.locator('.sidebar').isHidden()) await pinThroughPeek();
   await expect(window.getByText('Nothing recorded today.')).toBeVisible();
   await expect(window.locator('.banner--error')).toHaveCount(0);
 

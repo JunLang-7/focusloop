@@ -1,0 +1,143 @@
+/* Preference rows and appearance cards adapted from DeepSeek Harness (MIT).
+ * Sources: packages/client/locale/src/client/LanguageRow.module.css and
+ * packages/client/ui-theme/src/client/AppearanceRow.module.css.
+ * Copyright (c) 2026 DeepSeek. License: docs/licenses/deepseek-harness-MIT.txt. */
+:host {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.general {
+  width: 100%;
+  padding-right: 4px;
+}
+.general__row {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--border);
+}
+.general__row > div {
+  flex: 1;
+  min-width: 0;
+}
+.general h2,
+.general label {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--text);
+}
+.general p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.general select {
+  height: 36px;
+  padding: 0 14px;
+  min-width: 120px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  color-scheme: dark;
+  cursor: pointer;
+}
+:host-context([data-theme='light']) select {
+  color-scheme: light;
+}
+.general__appearance {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--border);
+}
+.theme-cards {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.theme-card {
+  flex: 1 1 140px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 32px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text);
+  cursor: pointer;
+}
+.theme-card:hover:not(.is-selected) {
+  background: var(--bg-soft);
+}
+.theme-card.is-selected {
+  background: var(--bg-soft);
+  border-color: var(--text-muted);
+}
+.theme-card svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.settings-switch {
+  flex: none;
+  width: 38px;
+  height: 22px;
+  padding: 3px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--border);
+  cursor: pointer;
+}
+.settings-switch span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 120ms ease;
+}
+.settings-switch[aria-checked='true'] {
+  background: var(--accent-strong);
+}
+.settings-switch[aria-checked='true'] span {
+  transform: translateX(16px);
+  background: var(--on-accent);
+}
+.general__data {
+  padding: 22px 0;
+}
+.general__data fl-data-controls {
+  display: block;
+  margin-top: 16px;
+}
+@media (max-width: 480px) {
+  .general__row {
+    gap: 12px;
+  }
+  .theme-card {
+    flex-basis: 80px;
+    padding: 16px 8px;
+  }
+}

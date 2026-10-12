@@ -2,23 +2,24 @@ import { app, shell } from 'electron';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { FocusLoopEngine } from '@focusloop/agent-core';
-import { createProviderSelection, DeepSeekProvider } from '@focusloop/llm-provider';
 import { openDatabase, FocusLoopStore } from '@focusloop/persistence';
 import type {
   DataInfo,
   DeleteDataResponse,
   ModelSettings,
+  LlmSettings,
+  SaveProviderRequest,
+  ActiveModelSelection,
+  TestModelResult,
+  DiscoverModelsRequest,
+  DiscoverModelsResult,
   OpenDataFolderResponse,
 } from '@focusloop/shared-types';
 import { startBridgeServer, type BridgeServerHandle } from './bridge/server';
 import type { EventEngine } from './event-router';
 import { databaseFiles, deleteFiles } from './data-files';
-import {
-  canStoreModelKey,
-  clearStoredModelKey,
-  readStoredModelKey,
-  storeModelKey,
-} from './model-key';
+import { LlmSettingsManager } from './llm-settings';
+import { providerKeyFiles } from './model-key';
 
 export interface FocusLoopService {
   readonly engine: FocusLoopEngine;
@@ -43,14 +44,13 @@ export interface FocusLoopService {
   deleteAllData(): Promise<DeleteDataResponse>;
   /** The model in use and where its key came from — never the key itself (#255). */
   getModelSettings(): ModelSettings;
-  /**
-   * Stores a key and switches to it, or reports what is in force instead.
-   *
-   * `null` means the key was not stored — this machine has no OS keychain, so the app will not keep a
-   * secret it cannot protect. The caller is told that rather than left to guess why nothing changed.
-   */
-  setModelApiKey(apiKey: string): ModelSettings;
-  clearModelApiKey(): ModelSettings;
+  getLlmSettings(): LlmSettings;
+  saveLlmProvider(request: SaveProviderRequest): LlmSettings;
+  removeLlmProvider(id: string): LlmSettings;
+  clearLlmProviderKey(id: string): LlmSettings;
+  selectLlmModel(selection: ActiveModelSelection | null): LlmSettings;
+  testLlmModel(selection: ActiveModelSelection): Promise<TestModelResult>;
+  discoverLlmModels(request: DiscoverModelsRequest): Promise<DiscoverModelsResult>;
 }
 
 let singleton: FocusLoopService | null = null;
@@ -58,7 +58,8 @@ let singleton: FocusLoopService | null = null;
 export interface CreateServiceOptions {
   readonly databasePath?: string;
   readonly userDataPath?: string;
-  readonly deepSeekApiKey?: string | undefined;
+  readonly providerEnv?: Record<string, string | undefined>;
+  readonly fetchImpl?: typeof fetch;
   readonly simulatorEnabled?: boolean;
   readonly bridgePort?: number;
   readonly startBridge?: boolean;
@@ -76,41 +77,14 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
   const store = new FocusLoopStore(openDatabase(databasePath));
   store.initialize();
 
-  /*
-   * Where the model key comes from, in precedence order (#255).
-   *
-   * The environment variable wins over a stored key, and that ordering is deliberate rather than
-   * incidental: it is how CI and a one-off run override whatever is configured, and it is why the
-   * settings surface reports its `keySource` instead of just saying "configured". A learner who saved
-   * a key while an environment variable was also set needs to be told which one is in force, or their
-   * own input appears to do nothing.
-   */
-  const environmentKey = options.deepSeekApiKey ?? process.env['FOCUSLOOP_DEEPSEEK_API_KEY'];
-  /*
-   * `let`, and it has to be: this is the key the provider is built from, so a `const` captured at
-   * start-up would leave `setModelApiKey` writing the file and then building a provider from the value
-   * it had before — a saved key that reports as configured and does nothing.
-   */
-  let storedKey = readStoredModelKey(userDataPath);
-  let keySource: ModelSettings['keySource'] =
-    environmentKey !== undefined && environmentKey.trim() !== ''
-      ? 'environment'
-      : storedKey === null
-        ? 'none'
-        : 'stored';
-
-  const providersFor = (key: string | null) =>
-    createProviderSelection(key === null ? null : new DeepSeekProvider({ apiKey: key }));
-  const activeKey = (): string | null =>
-    keySource === 'environment'
-      ? (environmentKey ?? null)
-      : keySource === 'stored'
-        ? storedKey
-        : null;
+  const llm = new LlmSettingsManager(store, userDataPath, {
+    ...(options.providerEnv === undefined ? {} : { env: options.providerEnv }),
+    ...(options.fetchImpl === undefined ? {} : { fetchImpl: options.fetchImpl }),
+  });
 
   const engine = new FocusLoopEngine({
     store,
-    providers: providersFor(activeKey()),
+    providers: llm.selection(),
     simulatorEnabled: options.simulatorEnabled ?? !app.isPackaged,
   });
   engine.seedBuiltInCourses();
@@ -124,13 +98,21 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
    */
   const modelSettings = (): ModelSettings => {
     const provider = engine.providerInfo();
+    const settings = llm.snapshot();
+    const active = settings.active;
     return {
       providerId: provider.id,
       providerModel: provider.model,
       offline: provider.offline,
       degraded: provider.degraded,
-      keySource,
-      canStore: canStoreModelKey(),
+      keySource: llm.activeSource(),
+      canStore: settings.canStore,
+      selection: active,
+      verified:
+        active !== null &&
+        settings.providers.some(
+          (p) => p.id === active.providerConfigId && p.verifiedModels.includes(active.modelId),
+        ),
     };
   };
   /*
@@ -151,7 +133,10 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
      * underneath a live connection leaves the connection writing to a file with no name left.
      */
     store.close();
-    const outcome = deleteFiles(databaseFiles(databasePath));
+    const outcome = deleteFiles([
+      ...databaseFiles(databasePath),
+      ...providerKeyFiles(userDataPath),
+    ]);
 
     /*
      * Asked here, before anything is opened again, and that order is load-bearing rather than tidy: the
@@ -201,6 +186,8 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
        */
       if (reopened) {
         engine.seedBuiltInCourses();
+        llm.reset();
+        engine.setProviders(llm.selection());
       }
       return {
         ok: true,
@@ -210,6 +197,8 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
         usable: reopened,
       };
     }
+
+    if (reopened) engine.setProviders(llm.selection());
 
     /*
      * The learner's data is still there, so the app has to keep working: the file that survived was reopened
@@ -239,29 +228,29 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
         deletion = null;
       })),
     getModelSettings: () => modelSettings(),
-    setModelApiKey: (apiKey: string) => {
-      const trimmed = apiKey.trim();
-      if (trimmed === '') return modelSettings();
-      /*
-       * Stored first, then switched. Writing the file and swapping the provider are two steps, and the
-       * order matters: a swap that happened before a failed write would have the app using a key it
-       * cannot remember, so a restart would silently take the model away again.
-       */
-      if (!storeModelKey(userDataPath, trimmed)) return modelSettings();
-      storedKey = trimmed;
-      if (keySource !== 'environment') keySource = 'stored';
-      engine.setProviders(providersFor(activeKey()));
-      return modelSettings();
+    getLlmSettings: () => llm.snapshot(),
+    saveLlmProvider: (request) => {
+      const settings = llm.save(request);
+      engine.setProviders(llm.selection());
+      return settings;
     },
-    clearModelApiKey: () => {
-      clearStoredModelKey(userDataPath);
-      storedKey = null;
-      // An environment variable is not the learner's to remove from here, so it stays in force and
-      // `keySource` keeps saying so — otherwise the surface would report "no key" while using one.
-      if (keySource === 'stored') keySource = 'none';
-      engine.setProviders(providersFor(activeKey()));
-      return modelSettings();
+    removeLlmProvider: (id) => {
+      const settings = llm.remove(id);
+      engine.setProviders(llm.selection());
+      return settings;
     },
+    clearLlmProviderKey: (id) => {
+      const settings = llm.clearKey(id);
+      engine.setProviders(llm.selection());
+      return settings;
+    },
+    selectLlmModel: (selection) => {
+      const settings = llm.select(selection);
+      engine.setProviders(llm.selection());
+      return settings;
+    },
+    testLlmModel: (selection) => llm.test(selection),
+    discoverLlmModels: (request) => llm.discover(request),
     dispose: () => {
       void service.bridge?.close();
       store.close();

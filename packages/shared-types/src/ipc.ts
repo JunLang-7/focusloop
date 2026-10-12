@@ -1,3 +1,14 @@
+import type {
+  ActiveModelSelection,
+  LlmSettings,
+  SaveProviderRequest,
+  ProviderIdRequest,
+  SelectModelRequest,
+  TestModelRequest,
+  TestModelResult,
+  DiscoverModelsRequest,
+  DiscoverModelsResult,
+} from './llm-settings';
 import type { Course } from './course';
 import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
@@ -85,8 +96,13 @@ export const IPC_CHANNELS = {
   setShowMaterialText: 'focusloop:settings:set-material-text',
   setAmbientSound: 'focusloop:settings:set-ambient-sound',
   getModelSettings: 'focusloop:model:settings',
-  setModelApiKey: 'focusloop:model:set-key',
-  clearModelApiKey: 'focusloop:model:clear-key',
+  getLlmSettings: 'focusloop:llm:settings',
+  saveLlmProvider: 'focusloop:llm:save-provider',
+  removeLlmProvider: 'focusloop:llm:remove-provider',
+  clearLlmProviderKey: 'focusloop:llm:clear-key',
+  selectLlmModel: 'focusloop:llm:select-model',
+  testLlmModel: 'focusloop:llm:test-model',
+  discoverLlmModels: 'focusloop:llm:discover-models',
   getDataInfo: 'focusloop:data:info',
   openDataFolder: 'focusloop:data:open-folder',
   deleteAllData: 'focusloop:data:delete-all',
@@ -122,17 +138,15 @@ export interface RuntimeInfo {
 export interface ModelSettings {
   readonly providerId: string;
   readonly providerModel: string;
-  /** True while no key is configured: the deterministic mock answers, and nothing leaves the machine. */
+  /** True while local-only is selected or the selected provider has no usable credential. */
   readonly offline: boolean;
   /** True when the last runtime call failed over to the fallback provider. */
   readonly degraded: boolean;
   readonly keySource: 'environment' | 'stored' | 'none';
   /** False when this machine has no OS keychain: a key cannot be stored, and the surface says so. */
   readonly canStore: boolean;
-}
-
-export interface SetModelApiKeyRequest {
-  readonly apiKey: string;
+  readonly selection: ActiveModelSelection | null;
+  readonly verified: boolean;
 }
 
 /**
@@ -410,16 +424,15 @@ export interface FocusLoopApi {
   setShowMaterialText(request: SetShowMaterialTextRequest): Promise<AppSettings>;
   setAmbientSound(request: SetAmbientSoundRequest): Promise<AppSettings>;
 
-  /**
-   * The model in use, and the way to change it (#255).
-   *
-   * `getModelSettings` never returns the key. `setModelApiKey` stores it encrypted by the OS keychain
-   * and takes effect immediately — a setting that needed a restart would be a setting the app only
-   * claims to have — and answers with the state that is now true rather than with an acknowledgement.
-   */
+  /** Runtime identity and non-secret provider configuration. */
   getModelSettings(): Promise<ModelSettings>;
-  setModelApiKey(request: SetModelApiKeyRequest): Promise<ModelSettings>;
-  clearModelApiKey(): Promise<ModelSettings>;
+  getLlmSettings(): Promise<LlmSettings>;
+  saveLlmProvider(request: SaveProviderRequest): Promise<LlmSettings>;
+  removeLlmProvider(request: ProviderIdRequest): Promise<LlmSettings>;
+  clearLlmProviderKey(request: ProviderIdRequest): Promise<LlmSettings>;
+  selectLlmModel(request: SelectModelRequest): Promise<LlmSettings>;
+  testLlmModel(request: TestModelRequest): Promise<TestModelResult>;
+  discoverLlmModels(request: DiscoverModelsRequest): Promise<DiscoverModelsResult>;
 
   /**
    * Where the local database is. Local-first, so this is the whole of it: one directory, one file, and

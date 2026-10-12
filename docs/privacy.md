@@ -123,9 +123,15 @@ Transport is equally constrained:
 FocusLoop ships with `MockAIProvider`: deterministic, offline, no key. It is the default and it is
 enough for the entire demo.
 
-If you set `FOCUSLOOP_DEEPSEEK_API_KEY` — or save a key from the footer's model entry — the app will
-additionally use DeepSeek for optional enrichment (for example, generating an example for a hint). In
-that case:
+The footer's model entry opens [LLM Providers](llm-providers.md). You can configure DeepSeek, OpenAI
+or an OpenAI-compatible endpoint, fetch its models and edit the model ID yourself. Saving configuration
+alone does not enable it: **Use this model** selects the provider/model for new requests. **Use local
+only** stops remote calls while retaining configuration. On a fresh profile, explicitly supplying
+`FOCUSLOOP_DEEPSEEK_API_KEY` or `FOCUSLOOP_OPENAI_API_KEY` opts into that preset instead.
+
+**Fetch models** explicitly contacts only the configured `/models` endpoint, sending the Key but no
+learner material. **Test connection** sends a fixed short prompt and can incur a small API charge; it
+never falls back to a mock success. Neither action enables a model. When a model is enabled:
 
 - only the text of the single request is transmitted — and for the optional hint/example line on a
   rescue card, that request is named here so nothing is vague: it contains the current step's title
@@ -135,17 +141,23 @@ that case:
 - your learning events, checkpoints, session history and database are **never** sent;
 - the key is never written to the repository and never persisted to the database. An environment
   variable is read and never stored; a key saved in the app is stored **encrypted by the operating
-  system's keychain** (`safeStorage`) in its own file beside the database, and if the machine has no
-  keychain the app says so and refuses to store it rather than keeping it in the clear. Either way the
+  system's keychain** (`safeStorage`) in a provider/endpoint-scoped file beside the database, and if
+  secure storage is unavailable (including Linux `basic_text`) the app refuses to store it rather than
+  keeping it in the clear. Changing the endpoint never reuses the old Key; redirects are refused. Either way the
   key is never returned to the interface, never included in an error message and never logged;
 - the entry in the footer that shows which model is in use reads its answer from the running provider,
   so it cannot claim a key is in force when none is;
 - if the request fails for any reason — offline, timeout, rate limit, bad response — FocusLoop
   silently degrades to the mock provider and tells the UI that it did.
 
-You can verify the second claim by reading `packages/llm-provider/src/deepseek-provider.ts`: the
+You can verify the second claim by reading `packages/llm-provider/src/openai-compatible-provider.ts`: the
 request body contains exactly `model`, `messages`, `stream` and the sampling options. That reading is
 also the only way to inspect what was sent: there is no on-screen "what left the process" view.
+
+The app's **Delete everything** action also removes app-owned encrypted Key files and provider
+configuration, reporting any files left behind, and resets selection to local-only. Deleting the SQLite
+file by hand does not remove separate encrypted Key files; use the application controls to remove them.
+Environment variables are never modified by FocusLoop.
 
 ## What the app can see, and what it does about it
 

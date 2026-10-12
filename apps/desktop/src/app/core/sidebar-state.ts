@@ -5,11 +5,11 @@
  * difference between "the user closed it" and "focus closed it", and only the first of
  * those should survive the focus session ending:
  *
- * - `auto` — the user has not spoken. The sidebar is visible, except while a focus
+ * - `auto` — automatic screen policy. The sidebar is visible, except while a focus
  *   commitment is running, when the whole shell yields to the single task.
  * - `collapsed` — the user closed it. It stays closed on every screen, focus included.
  * - `open` — the user recalled it through the floating button. It stays open even in
- *   focus mode, until the focus screen is left, and then falls back to `auto`.
+ *   focus mode, until navigation leaves focus, then returns to the collapsed default.
  *
  * The arithmetic is here, as pure functions, so the transitions are unit-tested instead
  * of being discovered by clicking around the shell. What is *not* decided here is which
@@ -19,8 +19,8 @@
 
 export type SidebarMode = 'auto' | 'collapsed' | 'open';
 
-/** The mode the shell boots in: nothing has been clicked yet. */
-export const SIDEBAR_INITIAL_MODE: SidebarMode = 'auto';
+/** Keep the activity sidebar folded on startup; main navigation remains visible. */
+export const SIDEBAR_INITIAL_MODE: SidebarMode = 'collapsed';
 
 /** The sidebar's own toggle was pressed: hide it everywhere. */
 export function collapseSidebar(_mode: SidebarMode): SidebarMode {
@@ -38,7 +38,7 @@ export function expandSidebar(_mode: SidebarMode): SidebarMode {
  * (once by collapsing, once by not reopening).
  */
 export function leaveFocusScreen(mode: SidebarMode): SidebarMode {
-  return mode === 'open' ? 'auto' : mode;
+  return mode === 'open' ? SIDEBAR_INITIAL_MODE : mode;
 }
 
 /**

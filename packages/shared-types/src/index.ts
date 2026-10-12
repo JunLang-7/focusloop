@@ -32,6 +32,7 @@ export * from './reflection';
 export * from './dashboard';
 export * from './insights';
 export * from './provider';
+export * from './llm-settings';
 export * from './runtime';
 export * from './ipc';
 export * from './bridge';

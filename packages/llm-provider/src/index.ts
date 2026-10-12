@@ -12,6 +12,8 @@
 export * from './errors';
 export * from './mock-provider';
 export * from './deepseek-provider';
+export * from './openai-compatible-provider';
+export * from './model-discovery';
 export * from './registry';
 export * from './runtime';
 export type { ProviderStreamEvent, StreamingProvider } from './streaming';

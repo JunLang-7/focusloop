@@ -16,7 +16,7 @@ test('expanded, collapsed and peeked sidebar branding loads in both themes', asy
     const page = await app.firstWindow();
     await page.waitForLoadState('domcontentloaded');
     // Wait for the initial navigation to finish before testing sidebar state changes.
-    await expect(page.locator('.nav a.is-active')).toBeVisible();
+    await expect(page.getByTestId('nav-home')).toHaveAttribute('aria-current', 'page');
     const identity = await app.evaluate(({ app: runtime, Menu }) => ({
       name: runtime.getName(),
       userData: runtime.getPath('userData'),
@@ -32,8 +32,12 @@ test('expanded, collapsed and peeked sidebar branding loads in both themes', asy
       expect(identity.about).toBe('About FocusLoop');
     }
     const logo = page.locator('.brand__mark');
+    await expect(page.locator('.sidebar')).toBeHidden();
     for (const theme of ['light', 'dark']) {
+      await page.getByTestId('sidebar-expand').click();
+      await page.getByTestId('nav-settings').click();
       await page.getByTestId(`theme-${theme}`).click();
+      await page.getByTestId('settings-close').click();
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
       await expect(logo).toBeVisible();
       await expect(logo).toHaveAttribute('src', 'assets/icon.png');
@@ -88,6 +92,8 @@ test('expanded, collapsed and peeked sidebar branding loads in both themes', asy
       await expect(expand).toBeHidden();
       await expect(logo).toBeVisible();
       await expect(wordmark).toBeVisible();
+      await page.getByTestId('sidebar-toggle').click();
+      await page.mouse.move(500, 200);
     }
     await expect(page.locator('link[rel="icon"]')).toHaveAttribute('href', 'assets/icon.png');
   } finally {

@@ -24,7 +24,11 @@ import {
   parseSessionId,
   parseSetLocale,
   parseSetAmbientSound,
-  parseSetModelApiKey,
+  parseSaveProvider,
+  parseProviderId,
+  parseSelectModel,
+  parseTestModel,
+  parseDiscoverModels,
   parseSetShowMaterialText,
   parseSetTheme,
   parseSimulatorCommand,
@@ -262,14 +266,39 @@ export function createHandlers(service: FocusLoopService, router: EventRouter) {
       handle: () => service.getModelSettings(),
     }),
     defineHandler({
-      channel: IPC_CHANNELS.setModelApiKey,
-      parse: parseSetModelApiKey,
-      handle: (request) => service.setModelApiKey(request.apiKey),
+      channel: IPC_CHANNELS.getLlmSettings,
+      parse: parseNoArgs,
+      handle: () => service.getLlmSettings(),
     }),
     defineHandler({
-      channel: IPC_CHANNELS.clearModelApiKey,
-      parse: parseNoArgs,
-      handle: () => service.clearModelApiKey(),
+      channel: IPC_CHANNELS.saveLlmProvider,
+      parse: parseSaveProvider,
+      handle: (request) => service.saveLlmProvider(request),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.removeLlmProvider,
+      parse: parseProviderId,
+      handle: (request) => service.removeLlmProvider(request.providerConfigId),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.clearLlmProviderKey,
+      parse: parseProviderId,
+      handle: (request) => service.clearLlmProviderKey(request.providerConfigId),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.selectLlmModel,
+      parse: parseSelectModel,
+      handle: (request) => service.selectLlmModel(request.selection),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.testLlmModel,
+      parse: parseTestModel,
+      handle: (request) => service.testLlmModel(request),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.discoverLlmModels,
+      parse: parseDiscoverModels,
+      handle: (request) => service.discoverLlmModels(request),
     }),
     /*
      * The data controls go to the service rather than to the engine.

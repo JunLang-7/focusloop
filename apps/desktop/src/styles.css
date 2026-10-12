@@ -1,3 +1,5 @@
+@import './scrollbars.css';
+
 /*
  * Themes.
  *
@@ -33,6 +35,12 @@
   --ok: #4ade80;
   --warn: #fbbf24;
   --danger: #f87171;
+  /* Scrollbar palette copied from DeepSeek Harness's design-platform.css (MIT).
+   * Copyright (c) 2026 DeepSeek. See docs/licenses/deepseek-harness-MIT.txt. */
+  --scrollbar-bg-l1: rgb(60 60 61);
+  --scrollbar-hover-l1: rgb(84 85 87);
+  --scrollbar-bg-l2: rgb(84 85 87);
+  --scrollbar-hover-l2: rgb(101 103 107);
   /*
    * Task kinds. A kind is a label, not a verdict, so these are deliberately not the semantic
    * ok/warn/danger trio: a quiz is not "bad" and reading is not "good". Hues are kept apart
@@ -92,6 +100,10 @@
   --ok: #16a34a;
   --warn: #d97706;
   --danger: #dc2626;
+  --scrollbar-bg-l1: rgb(229 229 229);
+  --scrollbar-hover-l1: rgb(212 212 212);
+  --scrollbar-bg-l2: rgb(229 229 229);
+  --scrollbar-hover-l2: rgb(212 212 212);
   --kind-read: #0284c7;
   --kind-practice: #7c3aed;
   --kind-quiz: #c2410c;
@@ -196,7 +208,9 @@ ol {
 .shell {
   display: grid;
   grid-template-columns: 232px minmax(0, 1fr);
-  height: 100vh;
+  height: 100dvh;
+  grid-template-rows: minmax(0, 1fr);
+  overflow: hidden;
   transition: grid-template-columns 180ms ease;
 }
 
@@ -210,6 +224,9 @@ ol {
   /* `min-width: 0` is what lets the grid track reach zero; without it the sidebar's
      min-content width would keep the column open while the shell folded. */
   min-width: 0;
+  min-height: 0;
+  height: 100%;
+  overscroll-behavior: contain;
   /*
    * Clipped sideways, scrollable downwards. The horizontal clip is part of the fold (a 0-width track
    * must not leak a sliver of label into the gutter), but the column carries the navigation, the
@@ -536,6 +553,8 @@ html[data-theme='dark'] .brand__wordmark--dark {
 .model-entry__state {
   display: inline-flex;
   align-items: center;
+  flex-shrink: 0;
+  white-space: nowrap;
   gap: 6px;
 }
 
@@ -560,6 +579,10 @@ html[data-theme='dark'] .brand__wordmark--dark {
 }
 
 .model-entry__state[data-state='connected']::before {
+  background: var(--ok);
+}
+
+.model-entry__state[data-state='configured']::before {
   background: var(--accent);
 }
 
@@ -567,24 +590,12 @@ html[data-theme='dark'] .brand__wordmark--dark {
   background: var(--danger);
 }
 
-.model-entry__form {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.model-entry__form .field {
-  margin: 0;
-}
-
-.model-entry__form .row {
-  gap: 6px;
-}
-
 .content {
   /* Named against the sidebar's column — see the note on `.sidebar`. */
   grid-area: 1 / 2;
+  min-height: 0;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 24px 28px 96px;
   display: flex;
   flex-direction: column;
@@ -600,6 +611,78 @@ html[data-theme='dark'] .brand__wordmark--dark {
   width: 100%;
   max-width: var(--measure);
   margin-inline: auto;
+}
+
+/* Preferences are one quiet entry, not a stack of controls in the sidebar. */
+.sidebar-settings {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.sidebar-settings:hover {
+  background: var(--bg-soft);
+  color: var(--text);
+}
+.sidebar-settings > span:not(.sidebar-settings__shortcut) {
+  min-width: 0;
+}
+.sidebar-settings svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+/* Quiet platform keycaps beside Settings, adapted from DeepSeek Harness's
+ * Tooltip ShortcutKeys presentation (MIT): separate macOS caps, one joined
+ * Ctrl+... block elsewhere. */
+.sidebar-settings__shortcut {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  color: var(--text-muted);
+  font-size: 11px;
+  line-height: 14px;
+  white-space: nowrap;
+}
+.sidebar-settings kbd {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 2px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--bg-soft);
+  color: inherit;
+  font: inherit;
+}
+.sidebar-settings__shortcut.is-joined {
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--bg-soft);
+}
+.sidebar-settings__shortcut.is-joined kbd {
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  background: transparent;
 }
 
 /*

@@ -6,9 +6,14 @@ test('removes provider credentials regardless of environment-key casing', () => 
     FOCUSLOOP_DEEPSEEK_API_KEY: 'upper-secret',
     focusloop_deepseek_api_key: 'lower-secret',
     FocusLoop_DeepSeek_Api_Key: 'mixed-secret',
+    FOCUSLOOP_OPENAI_API_KEY: 'openai-secret',
+    focusloop_openai_api_key: 'openai-lower-secret',
   });
 
   expect(Object.keys(env).some((key) => key.toUpperCase() === 'FOCUSLOOP_DEEPSEEK_API_KEY')).toBe(
+    false,
+  );
+  expect(Object.keys(env).some((key) => key.toUpperCase() === 'FOCUSLOOP_OPENAI_API_KEY')).toBe(
     false,
   );
   expect(env.FOCUSLOOP_DEV).toBe('1');

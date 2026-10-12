@@ -27,6 +27,12 @@ import type {
   ProposalExecuteResult,
   MaterialDocument,
   ModelSettings,
+  LlmSettings,
+  SaveProviderRequest,
+  ActiveModelSelection,
+  TestModelResult,
+  DiscoverModelsRequest,
+  DiscoverModelsResult,
   ResumeCardView,
   RescueView,
   TutorAnswer,
@@ -99,6 +105,7 @@ export class AppStateService {
    * changes it has to see the new value arrive rather than keep showing what was true at start-up.
    */
   readonly model = signal<ModelSettings | null>(null);
+  readonly llmSettings = signal<LlmSettings | null>(null);
   readonly courses = signal<readonly Course[]>([]);
   /**
    * The parsed documents behind imported courses. A course keeps concept summaries and tasks; the
@@ -318,24 +325,36 @@ export class AppStateService {
     });
   }
 
-  /**
-   * Saves a key and takes the answer as the new state (#255).
-   *
-   * The answer, not the input: main is the side that knows whether the key could be stored at all (an
-   * OS without a keychain refuses) and which key is actually in force (an environment variable outranks
-   * a stored one). Echoing the request back would tell the learner their key was accepted when it may
-   * have gone nowhere.
-   */
-  async setModelApiKey(apiKey: string): Promise<void> {
-    await this.run(async () => {
-      this.model.set(await this.api.setModelApiKey({ apiKey }));
-    });
+  async loadLlmSettings(): Promise<void> {
+    this.llmSettings.set(await this.api.getLlmSettings());
+    this.model.set(await this.api.getModelSettings());
   }
 
-  async clearModelApiKey(): Promise<void> {
-    await this.run(async () => {
-      this.model.set(await this.api.clearModelApiKey());
-    });
+  private async updateLlm(settings: LlmSettings): Promise<void> {
+    this.llmSettings.set(settings);
+    this.model.set(await this.api.getModelSettings());
+    this.runtime.set(await this.api.getRuntimeInfo());
+  }
+
+  async saveLlmProvider(request: SaveProviderRequest): Promise<void> {
+    await this.updateLlm(await this.api.saveLlmProvider(request));
+  }
+  async removeLlmProvider(providerConfigId: string): Promise<void> {
+    await this.updateLlm(await this.api.removeLlmProvider({ providerConfigId }));
+  }
+  async clearLlmProviderKey(providerConfigId: string): Promise<void> {
+    await this.updateLlm(await this.api.clearLlmProviderKey({ providerConfigId }));
+  }
+  async selectLlmModel(selection: ActiveModelSelection | null): Promise<void> {
+    await this.updateLlm(await this.api.selectLlmModel({ selection }));
+  }
+  async discoverLlmModels(request: DiscoverModelsRequest): Promise<DiscoverModelsResult> {
+    return this.api.discoverLlmModels(request);
+  }
+  async testLlmModel(selection: ActiveModelSelection): Promise<TestModelResult> {
+    const result = await this.api.testLlmModel(selection);
+    await this.loadLlmSettings();
+    return result;
   }
 
   /**

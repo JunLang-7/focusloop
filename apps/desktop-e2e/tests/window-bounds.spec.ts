@@ -194,9 +194,16 @@ test('the window reopens where it was closed, and maximised stays maximised', as
      * The window's own minimum, in the corner: a size that fits any display the app can run on, where a
      * larger one would be clamped on a small runner and could then equal the initial geometry.
      */
-    await first.evaluate(({ BrowserWindow }) => {
-      BrowserWindow.getAllWindows()[0]!.setBounds({ x: 30, y: 30, width: 960, height: 640 });
-    });
+    await first.evaluate(({ BrowserWindow, screen }, minimum) => {
+      const win = BrowserWindow.getAllWindows()[0]!;
+      const area = screen.getDisplayMatching(win.getBounds()).workArea;
+      // Stay inside the actual work area: macOS may have a menu bar taller than 30px.
+      win.setBounds({
+        x: area.x + Math.min(30, Math.max(0, area.width - minimum.width)),
+        y: area.y + Math.min(30, Math.max(0, area.height - minimum.height)),
+        ...minimum,
+      });
+    }, WINDOW_MINIMUM);
     /*
      * The resize is applied by the window manager, and this suite runs on macOS as well as Windows: read
      * the geometry only once it has actually changed, or `moved` could still be the default and the "did it

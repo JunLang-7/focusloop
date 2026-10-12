@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -378,106 +378,69 @@ describe('createService', () => {
   });
 });
 
-describe('the model key', () => {
-  /*
-   * The model surface's whole job is to be truthful about which key is in force (#255), so these tests
-   * are about the three answers rather than about the happy path alone: nothing configured, a key the
-   * learner saved, and a key the environment forced — the last one being the case where a learner saves
-   * a key and watches it do nothing.
-   */
-  it('reports no key, and the offline provider, on a fresh profile', () => {
-    const service = createService({ userDataPath: temporaryDirectory() });
-    try {
-      const settings = service.getModelSettings();
-      expect(settings.keySource).toBe('none');
-      expect(settings.offline).toBe(true);
-      expect(settings.canStore).toBe(true);
-    } finally {
-      service.dispose();
-    }
-  });
-
-  it('stores a key, switches the provider to it, and reports where it came from', () => {
+describe('provider settings service integration', () => {
+  it('saves without activating, switches live, persists and can return to local-only', () => {
     const directory = temporaryDirectory();
-    const service = createService({ userDataPath: directory });
-    try {
-      const settings = service.setModelApiKey('  sk-test-key  ');
-      expect(settings.keySource).toBe('stored');
-      expect(settings.offline).toBe(false);
-      // The provider actually in use, not a flag agreeing with the request.
-      expect(settings.providerId).toContain('deepseek');
-      expect(service.engine.providerInfo().offline).toBe(false);
-    } finally {
-      service.dispose();
-    }
-  });
-
-  it('remembers the key across a restart, without the environment', () => {
-    const directory = temporaryDirectory();
-    const first = createService({ userDataPath: directory });
-    first.setModelApiKey('sk-persisted');
+    const first = createService({ userDataPath: directory, providerEnv: {} });
+    const provider = first.getLlmSettings().providers[0]!;
+    first.saveLlmProvider({ provider, apiKey: 'sk-persisted' });
+    expect(first.getModelSettings()).toMatchObject({ offline: true, verified: false });
+    first.selectLlmModel({ providerConfigId: provider.id, modelId: 'deepseek-reasoner' });
+    expect(first.engine.providerInfo()).toMatchObject({
+      id: 'deepseek',
+      model: 'deepseek-reasoner',
+      offline: false,
+    });
     first.dispose();
-
-    const second = createService({ userDataPath: directory });
+    const second = createService({ userDataPath: directory, providerEnv: {} });
     try {
-      const settings = second.getModelSettings();
-      expect(settings.keySource).toBe('stored');
-      expect(settings.offline).toBe(false);
+      expect(second.getModelSettings()).toMatchObject({
+        providerModel: 'deepseek-reasoner',
+        keySource: 'stored',
+        verified: false,
+      });
+      second.selectLlmModel(null);
+      expect(second.engine.providerInfo().offline).toBe(true);
+      expect(second.getLlmSettings().providers[0]?.keySource).toBe('stored');
     } finally {
       second.dispose();
     }
   });
 
-  it('lets the environment win, and says so instead of pretending the saved key took effect', () => {
-    const directory = temporaryDirectory();
-    const service = createService({ userDataPath: directory, deepSeekApiKey: 'sk-from-env' });
+  it('surfaces connection testing without activating a provider', async () => {
+    const service = createService({
+      userDataPath: temporaryDirectory(),
+      providerEnv: {},
+      fetchImpl: async () =>
+        new Response(JSON.stringify({ choices: [{ message: { content: 'OK' } }] })),
+    });
     try {
-      expect(service.getModelSettings().keySource).toBe('environment');
-      // Saving is still allowed — it is stored for the next launch without the variable — but the
-      // answer keeps saying which key is actually in force, which is what stops the input looking broken.
-      expect(service.setModelApiKey('sk-saved-anyway').keySource).toBe('environment');
-      // And clearing does not turn the environment key off, because that is not the learner's to remove.
-      expect(service.clearModelApiKey().keySource).toBe('environment');
-      expect(service.getModelSettings().offline).toBe(false);
+      const provider = service.getLlmSettings().providers[0]!;
+      service.saveLlmProvider({ provider, apiKey: 'key' });
+      expect(
+        await service.testLlmModel({ providerConfigId: 'deepseek', modelId: 'deepseek-chat' }),
+      ).toMatchObject({ ok: true });
+      expect(service.engine.providerInfo().offline).toBe(true);
+      service.selectLlmModel({ providerConfigId: 'deepseek', modelId: 'deepseek-chat' });
+      expect(service.getModelSettings().verified).toBe(true);
+      service.clearLlmProviderKey('deepseek');
+      expect(service.getModelSettings()).toMatchObject({ offline: true, verified: false });
     } finally {
       service.dispose();
     }
   });
 
-  it('goes back to the offline provider when the key is removed', () => {
-    const service = createService({ userDataPath: temporaryDirectory() });
+  it('resets model selection when the local database is deleted', async () => {
+    const service = createService({ userDataPath: temporaryDirectory(), providerEnv: {} });
     try {
-      service.setModelApiKey('sk-temporary');
-      expect(service.getModelSettings().offline).toBe(false);
-      const settings = service.clearModelApiKey();
-      expect(settings.keySource).toBe('none');
-      expect(settings.offline).toBe(true);
-    } finally {
-      service.dispose();
-    }
-  });
-
-  it('refuses to keep a key where the OS has no keychain, rather than storing it in the clear', () => {
-    const directory = temporaryDirectory();
-    keychain.available = false;
-    const service = createService({ userDataPath: directory });
-    try {
-      expect(service.getModelSettings().canStore).toBe(false);
-      const settings = service.setModelApiKey('sk-cannot-be-protected');
-      // Not configured, and honest about it: the app would rather have no model than an unprotected secret.
-      expect(settings.keySource).toBe('none');
-      expect(settings.offline).toBe(true);
-      expect(existsSync(join(directory, 'model-key.bin'))).toBe(false);
-    } finally {
-      service.dispose();
-    }
-  });
-
-  it('ignores an empty key rather than switching to a provider that cannot authenticate', () => {
-    const service = createService({ userDataPath: temporaryDirectory() });
-    try {
-      expect(service.setModelApiKey('   ').keySource).toBe('none');
-      expect(service.getModelSettings().offline).toBe(true);
+      service.saveLlmProvider({ provider: service.getLlmSettings().providers[0]!, apiKey: 'key' });
+      service.selectLlmModel({ providerConfigId: 'deepseek', modelId: 'deepseek-chat' });
+      await service.deleteAllData();
+      expect(service.getLlmSettings().active).toBeNull();
+      expect(service.engine.providerInfo().offline).toBe(true);
+      expect(
+        readdirSync(service.getDataInfo().directory).filter((name) => name.startsWith('llm-key-')),
+      ).toEqual([]);
     } finally {
       service.dispose();
     }

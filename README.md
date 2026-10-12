@@ -104,6 +104,18 @@ The app notices its own window losing focus, so nothing has to be installed for 
 browser extension adds tab-level detail on top, and the footer's model entry is where a real model is
 configured. Both are optional, and both are described in [docs/privacy.md](./docs/privacy.md).
 
+### Configure an LLM provider
+
+Open **Settings** in the sidebar and select **Models**, or use the model-status shortcut.
+**⌘,** on macOS or **Ctrl+,** on Windows/Linux opens General, even with the sidebar folded;
+this shortcut works only inside the app. Pressing it again preserves the current tab and edits.
+Settings opens a small window with **General** and **Models** sections; language, appearance,
+original-material preferences and local data management live under General. Choose DeepSeek or
+OpenAI, or add an OpenAI-compatible provider with your own Base URL and API Key. **Fetch models**
+lets you select a model and auto-fill its editable ID; manual model IDs also work. **Save only**,
+optionally test, then **Save & use** to enable it. **Use local only** stops
+remote calls without removing configurations. See [LLM Providers](docs/llm-providers.md) for details.
+
 ### Run the checks
 
 ```bash
@@ -196,7 +208,7 @@ focusloop/
 │  ├─ material-parser/  .txt / .md → MaterialDocument
 │  ├─ agent-core/       Micro-task generation + the application service
 │  ├─ persistence/      SQLite schema, migrations and repositories
-│  └─ llm-provider/     Provider abstraction, MockAIProvider, optional DeepSeek adapter
+│  └─ llm-provider/     Provider abstraction, MockAIProvider, OpenAI-compatible adapters
 └─ tooling/
 ```
 
@@ -211,7 +223,7 @@ flowchart LR
   ENGINE --> CONT[continuity]
   ENGINE --> POL[intervention-policy]
   ENGINE --> STORE[persistence / SQLite]
-  ENGINE -.->|optional, key required| LLM[DeepSeek]
+  ENGINE -.->|optional, key required| LLM[Selected provider / model]
   ENGINE --> MOCK[Mock provider]
 ```
 

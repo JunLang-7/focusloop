@@ -1,0 +1,133 @@
+/* Settings rail/content geometry adapted from DeepSeek Harness (MIT).
+ * Source: packages/client/ui-settings-general/src/client/SettingsRoot.module.css.
+ * Copyright (c) 2026 DeepSeek. License: docs/licenses/deepseek-harness-MIT.txt. */
+:host {
+  display: contents;
+}
+.settings {
+  width: min(900px, calc(100vw - 48px));
+  height: min(740px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  padding: 0;
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+.settings[open] {
+  display: flex;
+  flex-direction: column;
+}
+.settings::backdrop {
+  background: var(--overlay);
+}
+.settings__header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 22px 26px 12px;
+}
+.settings__header h1 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+}
+.settings__close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  cursor: pointer;
+  color: var(--text);
+}
+.settings__close:hover {
+  background: var(--bg-soft);
+}
+.settings__close svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+.settings__body {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+.settings__nav {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 188px;
+  padding: 12px 12px 24px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.settings__nav button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 9px 16px 9px 12px;
+  border-radius: 12px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--text);
+  border: 0;
+  text-align: left;
+  cursor: pointer;
+}
+.settings__nav button:hover,
+.settings__nav button.is-active {
+  background: var(--bg-soft);
+}
+.settings__nav svg {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.settings__content {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 0 24px 24px;
+  overflow: hidden;
+}
+@media (max-width: 680px) {
+  .settings__header {
+    padding: 18px 16px 10px;
+  }
+  .settings__body {
+    flex-direction: column;
+  }
+  .settings__nav {
+    width: 100%;
+    flex-direction: row;
+    padding: 0 12px 12px;
+    overflow-x: auto;
+  }
+  .settings__content {
+    padding: 0 16px 16px;
+  }
+}

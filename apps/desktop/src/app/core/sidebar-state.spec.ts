@@ -25,7 +25,7 @@ describe('expandSidebar', () => {
 describe('leaveFocusScreen', () => {
   it('forgets a focus recall but keeps a deliberate collapse', () => {
     // The floating button was pressed during focus; leaving focus falls back to normal.
-    expect(leaveFocusScreen('open')).toBe('auto');
+    expect(leaveFocusScreen('open')).toBe('collapsed');
     // The user closed the sidebar themselves; that choice survives the session.
     expect(leaveFocusScreen('collapsed')).toBe('collapsed');
     expect(leaveFocusScreen('auto')).toBe('auto');
@@ -53,7 +53,7 @@ describe('isSidebarHidden', () => {
 });
 
 describe('SIDEBAR_INITIAL_MODE', () => {
-  it('boots without having spoken', () => {
-    expect(SIDEBAR_INITIAL_MODE).toBe('auto');
+  it('boots with the activity sidebar collapsed', () => {
+    expect(SIDEBAR_INITIAL_MODE).toBe('collapsed');
   });
 });

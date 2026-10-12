@@ -24,7 +24,14 @@ import {
   type SessionEndReason,
   type SetAmbientSoundRequest,
   type SetLocaleRequest,
-  type SetModelApiKeyRequest,
+  parseProviderConfig,
+  parseProviderConnection,
+  type DiscoverModelsRequest,
+  parseModelSelection,
+  type SaveProviderRequest,
+  type SelectModelRequest,
+  type TestModelRequest,
+  type ProviderIdRequest,
   type SetThemeRequest,
   type SetShowMaterialTextRequest,
   type SimulatorCommand,
@@ -275,26 +282,63 @@ export function parseSetAmbientSound(channel: string, value: unknown): SetAmbien
   return { ambientSound };
 }
 
-/**
- * The model key (#255), and the one validator here that handles a secret.
- *
- * Bounded and non-empty, and deliberately not shape-checked any further: guessing at what a provider's
- * key looks like would reject the next format, and the provider is the thing that can actually tell
- * whether a key works. What this does have to guarantee is that the value is a string of a sane length,
- * because it arrives from the renderer and is written to disk.
- */
-export function parseSetModelApiKey(channel: string, value: unknown): SetModelApiKeyRequest {
+export function parseSaveProvider(channel: string, value: unknown): SaveProviderRequest {
   const record = asRecord(channel, value);
+  let provider;
+  try {
+    provider = parseProviderConfig(record['provider']);
+  } catch (error) {
+    return fail(channel, error instanceof Error ? error.message : 'Invalid provider');
+  }
   const apiKey = record['apiKey'];
-  if (typeof apiKey !== 'string') {
-    fail(channel, `apiKey must be a string, received ${typeof apiKey}`);
+  if (
+    apiKey !== undefined &&
+    (typeof apiKey !== 'string' ||
+      !apiKey.trim() ||
+      apiKey.length > MODEL_API_KEY_MAX_LENGTH ||
+      /[\r\n]/.test(apiKey))
+  )
+    fail(channel, 'Invalid API key');
+  return { provider, ...(apiKey === undefined ? {} : { apiKey: (apiKey as string).trim() }) };
+}
+export function parseDiscoverModels(channel: string, value: unknown): DiscoverModelsRequest {
+  const record = asRecord(channel, value);
+  let provider;
+  try {
+    provider = parseProviderConnection(record['provider']);
+  } catch {
+    return fail(channel, 'Invalid provider connection');
   }
-  const trimmed = apiKey.trim();
-  if (trimmed === '') fail(channel, 'apiKey must not be empty');
-  if (trimmed.length > MODEL_API_KEY_MAX_LENGTH) {
-    fail(channel, `apiKey must be at most ${MODEL_API_KEY_MAX_LENGTH} characters`);
+  const apiKey = record['apiKey'];
+  if (
+    apiKey !== undefined &&
+    (typeof apiKey !== 'string' ||
+      !apiKey.trim() ||
+      apiKey.length > MODEL_API_KEY_MAX_LENGTH ||
+      /[\r\n]/.test(apiKey))
+  )
+    fail(channel, 'Invalid API key');
+  return { provider, ...(apiKey === undefined ? {} : { apiKey: (apiKey as string).trim() }) };
+}
+export function parseProviderId(channel: string, value: unknown): ProviderIdRequest {
+  const record = asRecord(channel, value);
+  const id = asString(channel, record, 'providerConfigId');
+  if (id.length > 80 || !/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(id))
+    fail(channel, 'Invalid provider ID');
+  return { providerConfigId: id };
+}
+export function parseTestModel(channel: string, value: unknown): TestModelRequest {
+  try {
+    return parseModelSelection(value);
+  } catch {
+    return fail(channel, 'Invalid model selection');
   }
-  return { apiKey: trimmed };
+}
+export function parseSelectModel(channel: string, value: unknown): SelectModelRequest {
+  const record = asRecord(channel, value);
+  return {
+    selection: record['selection'] === null ? null : parseTestModel(channel, record['selection']),
+  };
 }
 
 export function parseInsightsRequest(channel: string, value: unknown): InsightsRequest {

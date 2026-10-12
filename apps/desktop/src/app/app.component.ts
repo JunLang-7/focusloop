@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Component, HostListener, NgZone, computed, effect, inject, signal } from '@angular/core';
 import type { OnDestroy, OnInit } from '@angular/core';
 import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import type { Subscription } from 'rxjs';
@@ -10,45 +10,28 @@ import {
   leaveFocusScreen,
   type SidebarMode,
 } from './core/sidebar-state';
-import {
-  SUPPORTED_LOCALES,
-  THEME_PREFERENCES,
-  type LearningState,
-  type Locale,
-  type StateShare,
-  type ThemePreference,
-} from '@focusloop/shared-types';
+import type { LearningState, StateShare } from '@focusloop/shared-types';
 import { AppStateService } from './core/app-state.service';
 import { AmbientSoundService } from './core/ambient-sound.service';
-import { I18nService, LOCALE_LABELS, type MessageKey } from './core/i18n/i18n.service';
+import { I18nService, type MessageKey } from './core/i18n/i18n.service';
 import { STATE_KEYS } from './core/i18n/labels';
 import { applyLanguage } from './core/language';
 import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
 import { applyTheme, resolveTheme } from './core/theme';
 import { isFocusRoute } from './core/focus-notice';
+import { isSettingsShortcut } from './core/settings-shortcut';
+import { installScrollSpeed } from './core/scroll-speed';
 import { ResumeCardComponent } from './components/resume-card.component';
-import { DataControlsComponent } from './components/data-controls.component';
 import { ProposalConfirmComponent } from './components/proposal-confirm.component';
 import { AgentPanelComponent } from './components/agent-panel.component';
+import {
+  SettingsDialogComponent,
+  type SettingsSection,
+} from './components/settings-dialog.component';
 
-/** The theme preference is a closed vocabulary too. */
-const THEME_KEYS: Record<ThemePreference, MessageKey> = {
-  system: 'theme.system',
-  light: 'theme.light',
-  dark: 'theme.dark',
-};
-
-/**
- * How long the peeked sidebar lingers after the pointer leaves. Long enough that the
- * gap between the recall button and the sidebar's own controls does not flicker it
- * shut, short enough that "move away and it is gone" still reads as instant.
- */
 const PEEK_CLOSE_DELAY_MS = 150;
 
-/**
- * The shell every screen renders inside: navigation, the sidebar's ambient summary, the language and
- * theme controls, and the single subscription to events the main process pushes.
- */
+/** Sidebar navigation and status; preferences live in a separate native settings window. */
 @Component({
   selector: 'fl-app',
   standalone: true,
@@ -58,8 +41,8 @@ const PEEK_CLOSE_DELAY_MS = 150;
     RouterLinkActive,
     ResumeCardComponent,
     AgentPanelComponent,
-    DataControlsComponent,
     ProposalConfirmComponent,
+    SettingsDialogComponent,
   ],
   template: `
     <div
@@ -81,13 +64,11 @@ const PEEK_CLOSE_DELAY_MS = 150;
               class="brand__wordmark brand__wordmark--light"
               src="assets/wordmark-light.png"
               alt="FocusLoop"
-            />
-            <img
+            /><img
               class="brand__wordmark brand__wordmark--dark"
               src="assets/wordmark-dark.png"
               alt="FocusLoop"
-            />
-            <small>{{ t('app.tagline') }}</small>
+            /><small>{{ t('app.tagline') }}</small>
           </div>
           <button
             type="button"
@@ -97,46 +78,44 @@ const PEEK_CLOSE_DELAY_MS = 150;
             [title]="t(toggleKey())"
             (click)="toggle()"
           >
-            <!--
-              The sidebar glyph — a panel outline with its own edge drawn in — rather than
-              an arrow. An arrow has to point somewhere, and this control goes a different
-              way in each state; the label carries that direction (see toggleKey below)
-              while the icon stays the thing the button acts on.
-            -->
             <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
               <rect x="1.5" y="2.5" width="13" height="11" rx="2.5" />
               <path d="M6.25 2.5v11" />
             </svg>
           </button>
         </div>
-
-        <nav class="nav">
-          <a routerLink="/home" routerLinkActive="is-active">{{ t('app.nav.home') }}</a>
-          <a routerLink="/focus" routerLinkActive="is-active">{{ t('app.nav.focus') }}</a>
-          <a routerLink="/dashboard" routerLinkActive="is-active">{{ t('app.nav.dashboard') }}</a>
+        <nav class="nav" [attr.aria-label]="t('app.navigation')">
+          <a
+            routerLink="/home"
+            routerLinkActive="is-active"
+            ariaCurrentWhenActive="page"
+            data-testid="nav-home"
+            >{{ t('app.nav.home') }}</a
+          >
+          <a
+            routerLink="/focus"
+            routerLinkActive="is-active"
+            ariaCurrentWhenActive="page"
+            data-testid="nav-focus"
+            >{{ t('app.nav.focus') }}</a
+          >
+          <a
+            routerLink="/dashboard"
+            routerLinkActive="is-active"
+            ariaCurrentWhenActive="page"
+            data-testid="nav-dashboard"
+            >{{ t('app.nav.dashboard') }}</a
+          >
         </nav>
-
-        <!--
-          Three nav links cannot fill 500px, and a hole in the middle of the chrome
-          reads as unfinished. This is the one number that earns permanent space: how
-          today is going. It is always the "today" window, independently of whichever
-          window the dashboard has selected, and it is pinned above the state chip so
-          the bottom of the sidebar is a cluster rather than one lonely pill.
-        -->
         <section class="today">
           <div class="today__head">
-            <span class="muted small">{{ t('app.today') }}</span>
-            <strong class="today__total" data-testid="today-total">{{ totalLabel() }}</strong>
+            <span class="muted small">{{ t('app.today') }}</span
+            ><strong class="today__total" data-testid="today-total">{{ totalLabel() }}</strong>
           </div>
-
           @if (today(); as data) {
             @if (ribbon().length === 0) {
               <p class="muted small today__empty">{{ t('app.today.empty') }}</p>
             } @else {
-              <!--
-                One band per state that actually has time. The dashboard's donut answers
-                the same question in detail; this answers it at a glance.
-              -->
               <div class="today__ribbon" role="img" [attr.aria-label]="t('app.today.ribbon')">
                 @for (band of ribbon(); track band.state) {
                   <span
@@ -147,183 +126,73 @@ const PEEK_CLOSE_DELAY_MS = 150;
                   ></span>
                 }
               </div>
-
               <p class="muted small today__meta" data-testid="today-meta">
-                {{ tasksLabel(data.tasksCompleted) }} ·
-                {{ interruptionsLabel(data.interruptions) }}
+                {{ tasksLabel(data.tasksCompleted) }} · {{ interruptionsLabel(data.interruptions) }}
               </p>
             }
           }
         </section>
-
         <div class="sidebar__footer">
           <div class="state-chip" [attr.data-state]="state()">
             <span class="state-chip__dot"></span>{{ stateLabel() }}
           </div>
           @if (runtime(); as info) {
-            <!-- The model moved to its own entry below, which is also where it is changed. -->
             <p class="muted small footer__meta" data-testid="run-mode">
               {{ runModeLabel(info) }} · v{{ info.appVersion }}
             </p>
           } @else {
             <p class="muted small">{{ t('app.connecting') }}</p>
           }
-
-          <!--
-            The model, one click from anywhere (#255).
-
-            It replaced a read-only line of meta text: the sidebar already said which model was in
-            use, and there was no way to change it short of exporting an environment variable before
-            launching — a developer's door in a learner's sidebar. This keeps the status where it was
-            and makes it the control, which is what "quick entry" has to mean for a setting whose whole
-            failure mode is being undiscoverable.
-          -->
           <div class="model-entry" data-testid="model-entry">
             <button
               type="button"
               class="btn btn--small model-entry__toggle"
               data-testid="model-entry-toggle"
-              aria-controls="model-entry-form"
-              [attr.aria-expanded]="modelOpen()"
-              (click)="toggleModel()"
+              aria-haspopup="dialog"
+              [attr.aria-label]="t('settings.models')"
+              (click)="openSettings('models', $event)"
             >
-              <span class="model-entry__state" [attr.data-state]="modelState()">
-                {{ t(modelLabelKey()) }}
-              </span>
-              <!--
-                The provider's own id, kept on screen rather than behind the disclosure. It moved here
-                from the footer's meta line when this entry was built, and it has to stay visible: the
-                golden-path suite reads it to prove no real provider was ever reached, and "which
-                model" is the question the entry exists to answer.
-              -->
-              <span class="muted small model-entry__name">{{ model()?.providerModel }}</span>
+              <span class="model-entry__state" [attr.data-state]="modelState()">{{
+                t(modelLabelKey())
+              }}</span
+              ><span class="muted small model-entry__name">{{ model()?.providerModel }}</span>
             </button>
-
-            @if (modelOpen()) {
-              <div class="model-entry__form" id="model-entry-form">
-                <p class="muted small" data-testid="model-entry-note">
-                  {{ t(modelNoteKey()) }}
-                </p>
-                @if (!canStoreKey()) {
-                  <p class="muted small" data-testid="model-entry-unavailable">
-                    {{ t('app.model.noKeychain') }}
-                  </p>
-                } @else {
-                  <label class="field">
-                    <span>{{ t('app.model.key') }}</span>
-                    <input
-                      type="password"
-                      autocomplete="off"
-                      spellcheck="false"
-                      data-testid="model-key-input"
-                      [placeholder]="t('app.model.keyPlaceholder')"
-                      [value]="modelKeyDraft()"
-                      (input)="onModelKeyInput($event)"
-                      (keydown.enter)="saveModelKey()"
-                    />
-                  </label>
-                  <div class="row">
-                    <button
-                      type="button"
-                      class="btn btn--small btn--primary"
-                      data-testid="model-key-save"
-                      [disabled]="modelKeyDraft().trim() === '' || modelBusy()"
-                      (click)="saveModelKey()"
-                    >
-                      {{ t('app.model.save') }}
-                    </button>
-                    @if (hasStoredKey()) {
-                      <button
-                        type="button"
-                        class="btn btn--small"
-                        data-testid="model-key-clear"
-                        [disabled]="modelBusy()"
-                        (click)="clearModelKey()"
-                      >
-                        {{ t('app.model.clear') }}
-                      </button>
-                    }
-                  </div>
-                }
-              </div>
-            }
           </div>
-
-          <div class="locale" role="group" [attr.aria-label]="t('app.language.switch')">
-            <span class="muted small">{{ t('app.language') }}</span>
-            <div class="locale__options">
-              @for (option of locales; track option) {
-                <button
-                  type="button"
-                  class="btn btn--small locale__btn"
-                  [class.is-active]="option === locale()"
-                  [attr.aria-pressed]="option === locale()"
-                  [attr.data-testid]="'locale-' + option"
-                  (click)="choose(option)"
-                >
-                  {{ label(option) }}
-                </button>
+          <button
+            type="button"
+            class="sidebar-settings"
+            data-testid="nav-settings"
+            aria-haspopup="dialog"
+            [attr.aria-expanded]="settingsOpen()"
+            [attr.aria-label]="t('settings.title')"
+            [attr.aria-keyshortcuts]="settingsPlatform() === 'darwin' ? 'Meta+,' : 'Control+,'"
+            [title]="t('settings.title') + ' (' + settingsShortcutLabel() + ')'"
+            (click)="openSettings('general', $event)"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path
+                d="m9 3-.6 2-1.8 1-2-.5-2 3.5 1.4 1.5v2l-1.4 1.5 2 3.5 2-.5 1.8 1 .6 2h4l.6-2 1.8-1 2 .5 2-3.5-1.4-1.5v-2l1.4-1.5-2-3.5-2 .5-1.8-1L13 3Z"
+              />
+              <circle cx="11" cy="11" r="3" /></svg
+            >{{ t('settings.title')
+            }}<span
+              class="sidebar-settings__shortcut"
+              [class.is-joined]="settingsPlatform() !== 'darwin'"
+              aria-hidden="true"
+            >
+              @for (key of settingsShortcutKeys(); track $index) {
+                <kbd>{{ key }}</kbd>
               }
-            </div>
-          </div>
-
-          <div class="locale" role="group" [attr.aria-label]="t('app.theme.switch')">
-            <span class="muted small">{{ t('app.theme') }}</span>
-            <div class="locale__options">
-              @for (option of themes; track option) {
-                <button
-                  type="button"
-                  class="btn btn--small locale__btn"
-                  [class.is-active]="option === theme()"
-                  [attr.aria-pressed]="option === theme()"
-                  [attr.data-testid]="'theme-' + option"
-                  (click)="chooseTheme(option)"
-                >
-                  {{ t(themeKeys[option]) }}
-                </button>
-              }
-            </div>
-          </div>
-
-          <div class="locale" role="group" [attr.aria-label]="t('app.material.switch')">
-            <span class="muted small">{{ t('app.material') }}</span>
-            <div class="locale__options">
-              <button
-                type="button"
-                class="btn btn--small locale__btn"
-                [class.is-active]="showMaterialText()"
-                [attr.aria-pressed]="showMaterialText()"
-                data-testid="material-text-toggle"
-                (click)="toggleMaterialText()"
-              >
-                {{ t(showMaterialText() ? 'app.material.on' : 'app.material.off') }}
-              </button>
-            </div>
-          </div>
-
-          <!--
-            Where the learner's data is, and the way to delete it (#10). In the footer with the other
-            preferences: the feature exists so that nobody has to go hunting through %APPDATA% for a file
-            a document told them about.
-          -->
-          <fl-data-controls />
+            </span>
+          </button>
         </div>
       </aside>
-
       <main class="content">
         @if (lastError(); as error) {
           <div class="banner banner--error" role="alert">{{ error }}</div>
         }
         <router-outlet />
       </main>
-
-      <!--
-        The recall button. It is a grid child but position: fixed takes it out of flow,
-        so the collapsed grid cannot move it. Visibility is CSS-driven — the same
-        body:has(...) wiring that hides the sidebar decides when this exists — so the
-        shell never needs to know which phase the focus screen is in. Hovering it peeks
-        the sidebar out as an overlay; clicking it pins the sidebar open.
-      -->
       <button
         type="button"
         class="sidebar-fab"
@@ -337,159 +206,92 @@ const PEEK_CLOSE_DELAY_MS = 150;
         <img src="assets/icon.png" alt="" width="40" height="40" />
       </button>
     </div>
-
     @if (!onFocusRoute()) {
-      <fl-agent-panel />
-      <fl-resume-card />
+      <fl-agent-panel /><fl-resume-card />
     }
-    <!--
-      A proposal can be raised while the learner is anywhere, and a confirmation they cannot reach
-      is not a confirmation — so this sits outside the focus-route block the resume card is in.
-    -->
     <fl-proposal-confirm />
+    @if (settingsOpen()) {
+      <fl-settings-dialog [initialSection]="settingsInitialSection()" (closed)="closeSettings()" />
+    }
   `,
 })
 export class AppComponent implements OnInit, OnDestroy {
   private readonly stateService = inject(AppStateService);
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
-
-  /**
-   * Where the shell is, as a signal.
-   *
-   * The router's own URL is not reactive; this mirrors it so the shell can gate what it lays over a screen
-   * by route (see `isFocusRoute`). Set on the navigation that actually completed, which is the
-   * URL the screen is showing rather than the one that was requested.
-   */
-  private readonly currentUrl = signal(this.router.url);
+  private readonly zone = inject(NgZone);
+  private uninstallScrollSpeed: (() => void) | null = null;
+  protected readonly currentUrl = signal(this.router.url);
   protected readonly onFocusRoute = computed(() => isFocusRoute(this.currentUrl()));
-
+  protected readonly settingsOpen = signal(false);
+  protected readonly settingsInitialSection = signal<SettingsSection>('general');
+  private settingsOpener: HTMLElement | null = null;
   private unsubscribe: (() => void) | null = null;
   private routerSubscription: Subscription | null = null;
   private peekTimer: ReturnType<typeof setTimeout> | null = null;
-
   protected readonly state = this.stateService.state;
   protected readonly runtime = this.stateService.runtime;
+  protected readonly settingsPlatform = computed(() => {
+    const platform = this.runtime()?.platform;
+    if (platform !== undefined && platform.length > 0) return platform;
+    const userAgent = navigator.userAgent;
+    if (/Mac|iPhone|iPad/.test(userAgent)) return 'darwin';
+    if (/Windows/.test(userAgent)) return 'win32';
+    return 'linux';
+  });
+  protected readonly settingsShortcutKeys = computed<readonly string[]>(() =>
+    this.settingsPlatform() === 'darwin' ? ['⌘', ','] : ['Ctrl', '+', ','],
+  );
+  protected readonly settingsShortcutLabel = computed(() => this.settingsShortcutKeys().join(''));
   protected readonly lastError = this.stateService.lastError;
   protected readonly locale = this.stateService.locale;
-  protected readonly locales = SUPPORTED_LOCALES;
   protected readonly theme = this.stateService.theme;
-  protected readonly themes = THEME_PREFERENCES;
-  protected readonly themeKeys = THEME_KEYS;
   protected readonly today = this.stateService.todayInsights;
-
-  /** The model in use, and the way to change it (#255). */
   protected readonly model = this.stateService.model;
-  protected readonly modelOpen = signal(false);
-  /** What is in the key field. Cleared on save, so a secret is not left on screen. */
-  protected readonly modelKeyDraft = signal('');
-  protected readonly modelBusy = signal(false);
-
-  /** Which of the three model states the entry shows, in the order the learner would ask about them. */
-  protected readonly modelState = computed<'offline' | 'degraded' | 'connected'>(() => {
-    const model = this.model();
-    if (model === null || model.offline) return 'offline';
-    return model.degraded ? 'degraded' : 'connected';
-  });
-
+  protected readonly modelState = computed<'offline' | 'degraded' | 'connected' | 'configured'>(
+    () => {
+      const model = this.model();
+      if (model === null || model.offline) return 'offline';
+      if (model.degraded) return 'degraded';
+      return model.verified ? 'connected' : 'configured';
+    },
+  );
   protected readonly modelLabelKey = computed(() => {
     switch (this.modelState()) {
       case 'connected':
         return 'app.model.connected' as const;
+      case 'configured':
+        return 'app.model.configured' as const;
       case 'degraded':
         return 'app.model.degraded' as const;
       default:
         return 'app.model.offline' as const;
     }
   });
-
-  /**
-   * What the entry says about the data path, which is the sentence this setting has to get right.
-   *
-   * Three answers because there are three truths: nothing is sent with no key; with a key the current
-   * step's text goes to the provider and nothing else does; and when an environment variable is in
-   * force, that is why the learner's own saved key is not the one being used.
-   */
-  protected readonly modelNoteKey = computed(() => {
-    const model = this.model();
-    if (model?.keySource === 'environment') return 'app.model.note.environment' as const;
-    if (model === null || model.offline) return 'app.model.note.offline' as const;
-    return 'app.model.note.online' as const;
-  });
-
-  protected readonly canStoreKey = computed(() => this.model()?.canStore ?? false);
-  protected readonly hasStoredKey = computed(() => this.model()?.keySource === 'stored');
-
-  /**
-   * Whether the sidebar is folded away. The focus screen drives its half of this from
-   * the DOM (`body:has(...)` in the stylesheet), so the shell only stores what the user
-   * asked for and never needs to know which phase the focus timer is in.
-   */
   protected readonly sidebar = signal<SidebarMode>(SIDEBAR_INITIAL_MODE);
-
-  /**
-   * Whether the folded sidebar is currently peeking out as an overlay. Pure pointer
-   * state — it exists only while the mouse is on (or just left) the recall button, so
-   * it is never stored, never persisted, and meaningless to keyboard users, whose route
-   * to the sidebar is clicking the button to pin it open.
-   */
   protected readonly peeking = signal(false);
-
-  /** Only the states today actually contains, largest first. */
   protected readonly ribbon = computed(() => visibleShares(this.today()?.stateShares ?? []));
-
-  /**
-   * The sidebar's own header button is a toggle, not a collapse button: docked it folds the
-   * sidebar away, and folded it pins the hovered panel open. The label follows the mode, so
-   * the button cannot announce the opposite of what a press does — a button that says
-   * "collapse" in a panel that only goes the other way is how the peek reads as broken. The
-   * icon is the sidebar itself, which is the same thing in both directions.
-   */
   protected readonly toggleKey = computed<MessageKey>(() =>
     this.sidebar() === 'collapsed' ? 'app.sidebar.expand' : 'app.sidebar.collapse',
   );
-
-  /** The OS preference, re-read whenever it changes, used only for `system`. */
   private readonly prefersLight = signal(false);
-
   protected readonly t = this.i18n.t;
-
-  /**
-   * Injected for its lifetime rather than for its value: a root service starts its effect when it is
-   * first injected, and this is what keeps the ambient layer alive for the whole renderer, so the
-   * sound survives a move to the dashboard in the middle of a session (#57). Whether it should be
-   * playing is read from the store's preference inside the service.
-   */
-  private readonly ambientLayer = inject(AmbientSoundService);
-
-  /**
-   * The renderer keeps no language state of its own: the store owns the choice,
-   * `AppStateService.locale` mirrors it, and this effect is the single place that pushes
-   * it into the translator and onto `<html lang>`. One direction, so the two cannot
-   * disagree — and a screen reader is told which voice to use.
-   */
   private readonly syncLocale = effect(() => {
     const locale = this.locale();
     this.i18n.set(locale);
     applyLanguage(document.documentElement, locale);
   });
-
-  /**
-   * One place resolves the preference into a concrete theme and writes it to the
-   * document. Components never touch theming, and `system` keeps following the OS
-   * because `prefersLight` is a signal rather than a one-off read.
-   */
   private readonly syncTheme = effect(() =>
     applyTheme(document.documentElement, resolveTheme(this.theme(), this.prefersLight())),
   );
-
   constructor() {
+    inject(AmbientSoundService);
     const query = window.matchMedia('(prefers-color-scheme: light)');
     this.prefersLight.set(query.matches);
     query.addEventListener('change', (event) => this.prefersLight.set(event.matches));
   }
-
   ngOnInit(): void {
+    this.uninstallScrollSpeed = this.zone.runOutsideAngular(() => installScrollSpeed(document));
     void this.stateService.loadSettings().then((settings) => {
       this.stateService.locale.set(settings.locale);
       this.stateService.theme.set(settings.theme);
@@ -498,76 +300,65 @@ export class AppComponent implements OnInit, OnDestroy {
     });
     void this.stateService.refresh();
     this.unsubscribe = this.stateService.subscribeToEvents();
-
-    /*
-     * A recall made through the floating button is a request for this focus session, not
-     * a standing preference. Leaving the focus screen hands the choice back to `auto`,
-     * so the next session folds the sidebar away again. A deliberate `collapsed` is left
-     * alone — the user pressed collapse, not recall.
-     */
     this.routerSubscription = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
       .subscribe(() => {
-        // A peek never survives a navigation: the click that moved screens was the
-        // pointer's whole intent.
         this.endPeek();
+        const wasFocus = this.onFocusRoute();
         this.currentUrl.set(this.router.url);
-        if (!this.router.url.startsWith('/focus')) {
-          this.sidebar.update(leaveFocusScreen);
-        }
+        if (wasFocus !== isFocusRoute(this.router.url)) this.sidebar.update(leaveFocusScreen);
       });
   }
-
   ngOnDestroy(): void {
+    this.uninstallScrollSpeed?.();
     this.unsubscribe?.();
     this.routerSubscription?.unsubscribe();
     this.clearPeekTimer();
     this.syncLocale.destroy();
     this.syncTheme.destroy();
   }
-
+  @HostListener('document:keydown', ['$event'])
+  protected settingsKeydown(event: KeyboardEvent): void {
+    if (!isSettingsShortcut(event, this.settingsPlatform())) return;
+    event.preventDefault();
+    // Repeated requests keep the selected tab, unsaved draft and nested confirmation intact.
+    // Never put settings over another modal or steal that modal's keyboard focus.
+    if (
+      this.settingsOpen() ||
+      document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')
+    )
+      return;
+    this.openSettings('general');
+  }
+  protected openSettings(section: SettingsSection, event?: Event): void {
+    const opener = event?.currentTarget ?? document.activeElement;
+    this.settingsOpener = opener instanceof HTMLElement ? opener : null;
+    this.settingsInitialSection.set(section);
+    this.settingsOpen.set(true);
+  }
+  protected closeSettings(): void {
+    this.settingsOpen.set(false);
+    queueMicrotask(() => this.settingsOpener?.focus());
+  }
   protected collapse(): void {
     this.endPeek();
     this.sidebar.update(collapseSidebar);
   }
-
-  /** The header button's press, in whichever direction the sidebar is currently in. */
   protected toggle(): void {
-    if (this.sidebar() === 'collapsed') {
-      this.expand();
-      return;
-    }
-    this.collapse();
+    if (this.sidebar() === 'collapsed') this.expand();
+    else this.collapse();
   }
-
   protected expand(): void {
     this.endPeek();
     this.sidebar.update(expandSidebar);
   }
-
-  /*
-   * Hover-peek, the Codex pattern: resting the pointer on the recall button slides the
-   * folded sidebar out over the content, and moving away takes it back. Two timings
-   * matter and both are borrowed from prior art (the Obsidian quick-peek plugin): the
-   * peek opens immediately, because the button is a deliberate target — but closing
-   * waits PEEK_CLOSE_DELAY_MS, so the gap between leaving the button and entering the
-   * overlay, and the small gaps between the sidebar's own controls, do not flicker it
-   * shut.
-   *
-   * The button only opens the peek; the sidebar itself only cancels or schedules the
-   * close. `mouseenter` on a visible sidebar must never set `peeking`, or a click on
-   * the sidebar in its ordinary state would count as a peek and misroute pinning.
-   */
   protected peekStart(): void {
     this.clearPeekTimer();
     this.peeking.set(true);
   }
-
-  /** Entering the sidebar means the pointer made it out of the button: hold it open. */
   protected keepPeek(): void {
     this.clearPeekTimer();
   }
-
   protected peekEnd(): void {
     if (!this.peeking()) return;
     this.clearPeekTimer();
@@ -576,33 +367,22 @@ export class AppComponent implements OnInit, OnDestroy {
       this.peekTimer = null;
     }, PEEK_CLOSE_DELAY_MS);
   }
-
-  /** A click anywhere in a peeked sidebar pins it open — hover is a look, a click is a keep. */
   protected pinIfPeeking(): void {
     if (this.peeking()) this.expand();
   }
-
   private endPeek(): void {
     this.clearPeekTimer();
     this.peeking.set(false);
   }
-
   private clearPeekTimer(): void {
     if (this.peekTimer !== null) {
       clearTimeout(this.peekTimer);
       this.peekTimer = null;
     }
   }
-
   protected stateLabel(): string {
-    const current = this.state();
-    return this.t(STATE_KEYS[current] ?? 'state.READY');
+    return this.t(STATE_KEYS[this.state()] ?? 'state.READY');
   }
-
-  /**
-   * Offline beats degraded in the label: a mock provider is not a failed
-   * primary, so "offline" is the honest reading when both would apply.
-   */
   protected runModeLabel(info: {
     readonly providerOffline: boolean;
     readonly providerDegraded: boolean;
@@ -611,99 +391,25 @@ export class AppComponent implements OnInit, OnDestroy {
     if (info.providerDegraded) return this.t('app.mode.degraded');
     return this.t('app.mode.network');
   }
-
-  protected label(locale: Locale): string {
-    return LOCALE_LABELS[locale];
-  }
-
-  protected choose(locale: Locale): void {
-    void this.stateService.setLocale(locale);
-  }
-
-  protected chooseTheme(theme: ThemePreference): void {
-    void this.stateService.setTheme(theme);
-  }
-
-  protected readonly showMaterialText = this.stateService.showMaterialText;
-
-  /**
-   * The learner's own call, not a default: the tasks stand on their own, and the text they were
-   * generated from is there for whoever wants to read it in place.
-   */
-  protected toggleMaterialText(): void {
-    void this.stateService.setShowMaterialText(!this.showMaterialText());
-  }
-
   protected span(ms: number): string {
     return formatSpan(ms, this.t);
   }
-
-  protected toggleModel(): void {
-    this.modelOpen.update((open) => !open);
-  }
-
-  protected onModelKeyInput(event: Event): void {
-    this.modelKeyDraft.set((event.target as HTMLInputElement).value);
-  }
-
-  /**
-   * Saves the key and forgets the draft.
-   *
-   * The field is cleared on the way out whatever happened, and that is not tidiness: the value is a
-   * secret, it is no longer needed once main has answered, and leaving it in a DOM input for the next
-   * person at the machine is exactly the sort of copy this feature exists to not make.
-   */
-  protected saveModelKey(): void {
-    const draft = this.modelKeyDraft().trim();
-    if (draft === '' || this.modelBusy()) return;
-    this.modelBusy.set(true);
-    void this.stateService.setModelApiKey(draft).finally(() => {
-      this.modelKeyDraft.set('');
-      this.modelBusy.set(false);
-    });
-  }
-
-  protected clearModelKey(): void {
-    if (this.modelBusy()) return;
-    this.modelBusy.set(true);
-    void this.stateService.clearModelApiKey().finally(() => {
-      this.modelKeyDraft.set('');
-      this.modelBusy.set(false);
-    });
-  }
-
-  /**
-   * An em dash, not wording.
-   *
-   * It covers two cases with one glyph: the block is always rendered so the sidebar
-   * cannot jump when the first summary lands, and a day with no time in it is already
-   * explained by the sentence underneath — `Today 0s` above `Nothing recorded today.`
-   * says the same thing twice.
-   */
   protected totalLabel(): string {
     const data = this.today();
-    if (data === null || data.totalMs === 0) return '—';
-    return this.span(data.totalMs);
+    return data === null || data.totalMs === 0 ? '—' : this.span(data.totalMs);
   }
-
   protected color(state: LearningState): string {
     return STATE_COLORS[state];
   }
-
-  /** A tooltip is the only place the band's exact state and share can be read. */
   protected bandTitle(share: StateShare): string {
     return `${this.t(STATE_KEYS[share.state])} · ${percentLabel(share.share)}`;
   }
-
   protected tasksLabel(count: number): string {
-    return count === 1
-      ? this.t('app.today.tasks.one', { n: `${count}` })
-      : this.t('app.today.tasks.other', { n: `${count}` });
+    return this.t(count === 1 ? 'app.today.tasks.one' : 'app.today.tasks.other', { n: `${count}` });
   }
-
   protected interruptionsLabel(count: number): string {
-    return count === 1
-      ? this.t('app.today.interruptions.one', { n: `${count}` })
-      : this.t('app.today.interruptions.other', { n: `${count}` });
+    return this.t(count === 1 ? 'app.today.interruptions.one' : 'app.today.interruptions.other', {
+      n: `${count}`,
+    });
   }
 }

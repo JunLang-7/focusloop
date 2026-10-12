@@ -179,6 +179,8 @@ describe('cancellation and the absolute deadline bound retries', () => {
   });
 
   it('does not sleep when the backoff would cross the absolute deadline', async () => {
+    // Test the 10ms backoff against a 5ms budget, not the runner's scheduling speed.
+    vi.useFakeTimers();
     const primary = scripted('primary', ['timeout', { text: 'must not happen' }]);
     const fallback = scripted('fallback', [{ text: 'local' }]);
     const retry = policy();

@@ -1,0 +1,387 @@
+:host {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.llm-dialog {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  color: var(--text);
+  overflow: hidden;
+}
+.llm-dialog button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.llm-dialog__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 0 18px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.llm-dialog__header h2 {
+  font-size: 18px;
+}
+.llm-dialog__header p {
+  margin: 6px 0 0;
+}
+.llm-dialog__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.llm-providers {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 8px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overscroll-behavior: contain;
+}
+.llm-providers > button {
+  flex-shrink: 0;
+}
+.llm-provider > .muted {
+  display: none;
+}
+.llm-provider {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+}
+.llm-provider:hover,
+.llm-provider.is-active {
+  background: var(--bg-soft);
+}
+.llm-provider.is-active {
+  border-color: var(--accent-border);
+}
+.llm-in-use {
+  color: var(--accent);
+}
+.llm-editor {
+  flex: 1;
+  padding: 20px 2px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+fieldset {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+.field {
+  gap: 7px;
+  margin-bottom: 18px;
+}
+.field > span:first-child,
+.field > label {
+  color: var(--text);
+  font-size: 12px;
+}
+.field > label > span {
+  margin-left: 6px;
+  font-family: var(--font-mono);
+}
+.field > input,
+.llm-model-input > input {
+  min-width: 0;
+}
+.llm-presets {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.llm-preset,
+.llm-model-tab {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.llm-preset:hover,
+.llm-model-tab:hover {
+  color: var(--text);
+}
+.llm-preset.is-selected,
+.llm-model-tab.is-selected {
+  color: var(--text);
+  background: var(--bg-soft);
+  border-color: var(--accent-border);
+}
+.llm-model-input {
+  display: flex;
+  align-items: stretch;
+  gap: 6px;
+  anchor-name: --llm-model-anchor;
+}
+.llm-model-input > input {
+  flex: 1;
+  width: 0;
+  font-family: var(--font-mono);
+}
+.llm-model-input > button {
+  flex-shrink: 0;
+}
+.llm-picker-toggle {
+  width: 32px;
+}
+.llm-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: -10px 0 18px;
+}
+.llm-advanced {
+  border-top: 1px solid var(--border);
+}
+.llm-advanced > summary {
+  padding: 14px 0;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.llm-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 12px;
+}
+.llm-select {
+  position: relative;
+  display: block;
+}
+.llm-select::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--text-muted);
+  border-bottom: 1px solid var(--text-muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+.llm-select select {
+  appearance: none;
+  width: 100%;
+  padding: 8px 32px 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  color-scheme: dark;
+}
+:host-context([data-theme='light']) .llm-select select {
+  color-scheme: light;
+}
+.llm-select select:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: -1px;
+}
+.llm-flags {
+  display: flex;
+  gap: 18px;
+  flex-wrap: wrap;
+  font-size: 12px;
+}
+.llm-flags label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.llm-section-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin: 20px 0 10px;
+  font-size: 12px;
+}
+.llm-model-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+.llm-model-tab {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.llm-danger-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 20px;
+}
+.llm-confirm {
+  padding: 12px 0;
+}
+.llm-status {
+  margin-top: 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  overflow-wrap: anywhere;
+}
+.llm-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.llm-test {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 4px;
+}
+.row {
+  flex-wrap: wrap;
+}
+/* Native anchor positioning tracks scrolling and resizing without stale viewport coordinates.
+ * The top layer avoids editor clipping; flip-block handles anchors near the viewport bottom. */
+.llm-picker {
+  position: fixed;
+  position-anchor: --llm-model-anchor;
+  position-try-fallbacks: flip-block;
+  position-visibility: anchors-visible;
+  inset: auto;
+  top: anchor(bottom);
+  left: anchor(left);
+  width: anchor-size(width);
+  max-height: min(300px, calc(100dvh - 32px));
+  margin: 6px 0 0;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+  font: inherit;
+  overflow: hidden;
+}
+.llm-picker:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+.llm-picker__header {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.llm-picker__header input {
+  flex: 1;
+  min-width: 0;
+  width: 0;
+  font-size: 12px;
+}
+.llm-picker__list {
+  overflow-y: auto;
+  min-height: 0;
+  overscroll-behavior: contain;
+  padding: 4px;
+}
+.llm-option {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 4px;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.llm-option > span:first-child {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.llm-option:hover,
+.llm-option:focus-visible,
+.llm-option[aria-selected='true'] {
+  background: var(--bg-soft);
+}
+.llm-empty {
+  padding: 10px;
+}
+@media (max-width: 640px) {
+  .llm-dialog__body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .llm-providers {
+    flex-direction: row;
+    align-items: stretch;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+    padding: 10px 12px;
+    overflow-x: auto;
+  }
+  .llm-providers > button {
+    flex-shrink: 0;
+  }
+  .llm-provider {
+    padding: 8px 12px;
+  }
+  .llm-provider > .muted {
+    display: none;
+  }
+  .llm-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .llm-editor {
+    padding: 18px 16px;
+  }
+  .llm-dialog__header {
+    padding: 16px;
+  }
+  .llm-dialog__footer {
+    padding: 12px 16px;
+  }
+}
+@media (max-width: 420px) {
+  .llm-dialog__footer {
+    flex-wrap: wrap;
+  }
+  .llm-dialog__footer > .row {
+    margin-left: auto;
+  }
+}

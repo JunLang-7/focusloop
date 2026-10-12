@@ -119,9 +119,19 @@ const api: FocusLoopApi = {
     ipcRenderer.invoke(IPC_CHANNELS.setAmbientSound, payload.setAmbientSound(request.ambientSound)),
 
   getModelSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getModelSettings, payload.none()),
-  setModelApiKey: (request) =>
-    ipcRenderer.invoke(IPC_CHANNELS.setModelApiKey, payload.setModelApiKey(request.apiKey)),
-  clearModelApiKey: () => ipcRenderer.invoke(IPC_CHANNELS.clearModelApiKey, payload.none()),
+  getLlmSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getLlmSettings, payload.none()),
+  saveLlmProvider: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.saveLlmProvider, payload.saveLlmProvider(request)),
+  removeLlmProvider: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.removeLlmProvider, payload.providerId(request)),
+  clearLlmProviderKey: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.clearLlmProviderKey, payload.providerId(request)),
+  selectLlmModel: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.selectLlmModel, payload.selectLlmModel(request)),
+  testLlmModel: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.testLlmModel, payload.testLlmModel(request)),
+  discoverLlmModels: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.discoverLlmModels, payload.discoverLlmModels(request)),
 
   getDataInfo: () => ipcRenderer.invoke(IPC_CHANNELS.getDataInfo, payload.none()),
   openDataFolder: () => ipcRenderer.invoke(IPC_CHANNELS.openDataFolder, payload.none()),

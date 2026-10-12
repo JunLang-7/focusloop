@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { _electron as electron, expect, test } from '@playwright/test';
 import { BRIDGE_PROTOCOL_VERSION } from '@focusloop/shared-types';
 import { hermeticEnv } from '../hermetic-env.mjs';
+import { openSidebar } from '../support/sidebar';
 
 const MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs');
 
@@ -63,6 +64,7 @@ test('the dashboard keeps the bridge behind an explicit request', async () => {
       location.hash = '#/dashboard';
     });
     await expect(page.getByTestId('insights-total')).toBeVisible();
+    await openSidebar(page);
 
     /*
      * Nothing from the machinery reaches a learner who has not asked for it - in either language,
@@ -71,14 +73,19 @@ test('the dashboard keeps the bridge behind an explicit request', async () => {
      */
     const body = page.locator('body');
     for (const locale of ['en', 'zh'] as const) {
-      await page.getByTestId(`locale-${locale}`).click();
-      await expect(page.getByTestId(`locale-${locale}`)).toHaveAttribute('aria-pressed', 'true');
+      await page.getByTestId('nav-settings').click();
+      await page.getByTestId('general-language').selectOption(locale);
+      await expect(page.getByTestId('general-language')).toHaveValue(locale);
+      await page.getByTestId('settings-close').click();
+      await expect(page.getByTestId('insights-total')).toBeVisible();
       await expect(page.getByTestId('bridge-token')).toHaveCount(0);
       await expect(body).not.toContainText('ws://');
       await expect(body).not.toContainText('protocol v');
       await expect(body).not.toContainText('127.0.0.1:');
     }
-    await page.getByTestId('locale-en').click();
+    await page.getByTestId('nav-settings').click();
+    await page.getByTestId('general-language').selectOption('en');
+    await page.getByTestId('settings-close').click();
 
     // And it stays reachable.
     const reveal = page.getByTestId('bridge-reveal');

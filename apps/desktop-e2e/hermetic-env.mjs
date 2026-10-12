@@ -11,7 +11,7 @@
  * Every future provider credential joins PROVIDER_CREDENTIALS below; that list
  * is the one place the suite decides what a child process is not allowed to see.
  */
-const PROVIDER_CREDENTIALS = ['FOCUSLOOP_DEEPSEEK_API_KEY'];
+const PROVIDER_CREDENTIALS = ['FOCUSLOOP_DEEPSEEK_API_KEY', 'FOCUSLOOP_OPENAI_API_KEY'];
 const BLOCKED_ENV_NAMES = new Set(PROVIDER_CREDENTIALS.map((key) => key.toUpperCase()));
 
 export function hermeticEnv(sourceEnv = process.env) {

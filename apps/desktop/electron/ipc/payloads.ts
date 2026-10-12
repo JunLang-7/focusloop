@@ -15,7 +15,11 @@ import type {
   SetLocaleRequest,
   SetThemeRequest,
   SetShowMaterialTextRequest,
-  SetModelApiKeyRequest,
+  SaveProviderRequest,
+  DiscoverModelsRequest,
+  ProviderIdRequest,
+  SelectModelRequest,
+  TestModelRequest,
   SimulatorCommand,
   StartSessionRequest,
   ThemePreference,
@@ -81,7 +85,24 @@ export const payload = {
     showMaterialText,
   }),
   setAmbientSound: (ambientSound: boolean): SetAmbientSoundRequest => ({ ambientSound }),
-  setModelApiKey: (apiKey: string): SetModelApiKeyRequest => ({ apiKey }),
+  saveLlmProvider: (request: SaveProviderRequest): SaveProviderRequest => ({
+    provider: request.provider,
+    ...(request.apiKey === undefined ? {} : { apiKey: request.apiKey }),
+  }),
+  discoverLlmModels: (request: DiscoverModelsRequest): DiscoverModelsRequest => ({
+    provider: request.provider,
+    ...(request.apiKey === undefined ? {} : { apiKey: request.apiKey }),
+  }),
+  providerId: (request: ProviderIdRequest): ProviderIdRequest => ({
+    providerConfigId: request.providerConfigId,
+  }),
+  selectLlmModel: (request: SelectModelRequest): SelectModelRequest => ({
+    selection: request.selection,
+  }),
+  testLlmModel: (request: TestModelRequest): TestModelRequest => ({
+    providerConfigId: request.providerConfigId,
+    modelId: request.modelId,
+  }),
   insights: (range: InsightRange): InsightsRequest => ({ range }),
   askTutor: (request: TutorAskRequest): TutorAskRequest => request,
   dispatchEvent: (request: DispatchEventRequest): DispatchEventRequest => request,
