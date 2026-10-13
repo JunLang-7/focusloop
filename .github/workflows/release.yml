@@ -4,13 +4,16 @@ on:
   push:
     tags:
       - 'v*'
-  # A rehearsal path. Without this, the only way to find out whether the packaging and checksum
-  # steps still work was to push a tag, which is the moment the answer is most expensive.
+  # A rehearsal path. Without this, the only way to find out whether the
+  # packaging and checksum steps still work was to push a tag, which is the
+  # moment the answer is most expensive.
   workflow_dispatch:
 
-# Release publishes, so it needs to write; the jobs it reuses ask only for `read` and get it.
+# Read by default, like every other workflow here. Only the publishing job
+# writes, and it asks for `contents: write` on itself rather than granting it to
+# the ten jobs that only read.
 permissions:
-  contents: write
+  contents: read
 
 env:
   NODE_VERSION: '22.13.0'
@@ -19,223 +22,21 @@ env:
 jobs:
   # ---------------------------------------------------------- the CI gates
   #
-  # Release calls the CI workflow instead of restating its steps. It used to restate four of them
-  # and silently miss the other seven plus the whole golden-path suite — nothing failed, the gates
-  # were simply absent. A gate added to CI is now part of every release by construction.
+  # Release calls the CI workflow instead of restating its steps. It used to
+  # restate four of them and silently miss the other seven plus the whole
+  # golden-path suite — nothing failed, the gates were simply absent. A gate
+  # added to CI is now part of every release by construction.
   ci:
     name: CI gates
     uses: ./.github/workflows/ci.yml
-    timeout-minutes: 60
 
-  # ------------------------------------------------ deep gates, release only
-  #
-  # Everything below is deliberately NOT in CI: each one is too slow or too repeat-sensitive to run
-  # on every push, and each one catches a class of failure the CI gates cannot see.
-  coverage:
-    name: coverage floors
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      # Each package declares its own floor in `vitest.config.ts`. CI runs the tests; this runs them
-      # again under the v8 provider and fails when a package stops exercising a rule, which is a
-      # different failure from a package failing its assertions.
-      - name: Measure
-        run: |
-          set -o pipefail
-          pnpm coverage 2>&1 | tee coverage.txt
-
-      - name: Job summary
-        if: always()
-        run: |
-          {
-            echo '### Coverage'
-            echo
-            echo '```text'
-            cat coverage.txt
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-  # Flake hunting. A suite that passes once is not a suite that passes; the Windows SQLite I/O
-  # stall that turned main red passed its own branch's CI and failed after merging. Repetition is
-  # the only thing that can see that, so it belongs where a failure costs minutes, not a merge.
-  soak-unit:
-    name: soak unit (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-24.04, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      # A loop rather than a matrix: install is the slow part and repetition is the point. Five
-      # passes is enough for a rare stall to show up without turning a release into an afternoon.
-      - name: Run the unit suite five times
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3 4 5; do
-            echo "::group::attempt ${attempt} of 5"
-            pnpm test
-            echo "::endgroup::"
-          done
-
-  soak-e2e:
-    name: soak golden path (${{ matrix.os }})
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      - name: Build desktop
-        run: pnpm --filter @focusloop/desktop run build
-
-      # The end-to-end suite drives a real Electron window, so it is the suite most exposed to
-      # timing. `CI=true` keeps Playwright's single retry: a pass on the retry is still a signal the
-      # release should see, so the run is left to report it rather than being made to look clean.
-      - name: Run the golden path three times
-        shell: bash
-        run: |
-          set -euo pipefail
-          for attempt in 1 2 3; do
-            echo "::group::attempt ${attempt} of 3"
-            CI=true pnpm e2e
-            echo "::endgroup::"
-          done
-
-      - name: Upload traces
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: soak-e2e-traces-${{ matrix.os }}
-          path: apps/desktop-e2e/test-results/
-          retention-days: 7
-
-  # The one gate that talks to a real provider. CI is offline by design; a release is the moment to
-  # prove the shipped adapters still reach the services they claim to reach.
-  llm-live:
-    name: live provider smoke
-    runs-on: ubuntu-24.04
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: ${{ env.PNPM_VERSION }}
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: pnpm
-
-      - name: Install
-        run: pnpm install --frozen-lockfile
-
-      # Fails loudly rather than skipping. A release gate that quietly passes when its credential is
-      # absent is not a gate — it is the appearance of one. The message names the secret to set.
-      - name: Require the DeepSeek credential
-        shell: bash
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          if [ -z "$DEEPSEEK_API_KEY" ]; then
-            echo "::error::DEEPSEEK_API_KEY is not set; add a repository secret."
-            echo "::error::Without it a release ships without proving its main adapter."
-            exit 1
-          fi
-
-      # Discovery first: it is the cheap call, and a failure here is a different diagnosis from a
-      # completion failure. `--list-only` never sends a token, so a broken key is reported as a
-      # completion problem rather than misread as a model-list problem.
-      - name: Discover models
-        shell: bash
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          set -euo pipefail
-          node scripts/test-llm-connection.mjs --provider deepseek --list-only
-
-      # Then completion and streaming, which is what the learner actually pays for.
-      - name: Complete and stream
-        shell: bash
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          set -euo pipefail
-          node scripts/test-llm-connection.mjs \
-            --provider deepseek --model deepseek-chat
-
-      # A second provider, exercised only when its credential is present. The compatible adapter is
-      # generic, so the release should prove it against a real endpoint when one is offered — but
-      # its absence must not block a release that never claimed to ship that endpoint.
-      - name: Complete against the compatible provider
-        shell: bash
-        env:
-          OPENAI_COMPATA_API_KEY: ${{ secrets.OPENAI_COMPATA_API_KEY }}
-          OPENAI_COMPATA_BASE_URL: ${{ secrets.OPENAI_COMPATA_BASE_URL }}
-          OPENAI_COMPATA_MODEL: ${{ secrets.OPENAI_COMPATA_MODEL }}
-        run: |
-          set -euo pipefail
-          if [ -z "${OPENAI_COMPATA_API_KEY:-}" ] ||
-             [ -z "${OPENAI_COMPATA_BASE_URL:-}" ]; then
-            echo "Compatible provider unset; skipping that probe."
-            exit 0
-          fi
-          node scripts/test-llm-connection.mjs \
-            --provider compatible \
-            ${OPENAI_COMPATA_MODEL:+--model "$OPENAI_COMPATA_MODEL"}
+  # The deep gates live in their own workflow because the same ones run nightly.
+  # Restating them here is how this file once drifted seven gates behind CI
+  # without anything failing.
+  deep:
+    name: deep checks
+    uses: ./.github/workflows/deep-checks.yml
+    secrets: inherit
 
   # -------------------------------------------------------------- packaging
   package-windows:
@@ -259,14 +60,16 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      # Separate steps, for the reason the release file has always stated: on Windows the default
-      # shell is pwsh, and a `;`-joined block reports only the last command's exit code — a failed
-      # build could still leave the step green.
+      # Separate steps, for the reason the release file has always stated: on
+      # Windows the default shell is pwsh, and a `;`-joined block reports only
+      # the last command's exit code — a failed build could still leave the
+      # step green.
       - name: Build the desktop renderer and main
         run: pnpm --filter @focusloop/desktop run build
 
-      # Both architectures in one pass. The x64 installer serves the bulk of machines; arm64 serves
-      # Windows on ARM, which has no reliable x64 emulation and cannot be reached any other way.
+      # Both architectures in one pass. The x64 installer serves the bulk of
+      # machines; arm64 serves Windows on ARM, which has no reliable x64
+      # emulation and cannot be reached any other way.
       - name: Package both architectures
         run: >-
           pnpm --filter @focusloop/desktop exec electron-builder --win
@@ -314,8 +117,9 @@ jobs:
       - name: Build the desktop renderer and main
         run: pnpm --filter @focusloop/desktop run build
 
-      # Arch flags are mandatory: without them electron-builder builds only the runner's own
-      # architecture, and the x64 dmg would silently disappear from the release.
+      # Arch flags are mandatory: without them electron-builder builds only the
+      # runner's own architecture, and the x64 dmg would silently disappear from
+      # the release.
       - name: Package both architectures
         run: >-
           pnpm --filter @focusloop/desktop exec electron-builder --mac dmg
@@ -367,9 +171,9 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------- install smoke
-  #
-  # Building an installer proves the toolchain ran. Installing it proves the learner can. These run
-  # on the artefacts the release will actually attach, not on a build directory.
+  # Building an installer proves the toolchain ran. Installing it proves the
+  # learner can. These run on the artefacts the release will actually attach,
+  # not on a build directory.
   smoke-windows:
     name: install smoke (windows)
     runs-on: windows-latest
@@ -381,8 +185,9 @@ jobs:
           name: windows-installers
           path: installers
 
-      # A silent install and uninstall, twice — once per architecture. `/S` is NSIS's switch;
-      # `perMachine: false` in the config means it lands in the user profile and needs no elevation.
+      # A silent install and uninstall, twice — once per architecture. `/S` is
+      # NSIS's switch; `perMachine: false` in the config means it lands in the
+      # user profile and needs no elevation.
       - name: Install and uninstall each architecture
         shell: pwsh
         run: |
@@ -457,18 +262,18 @@ jobs:
   # -------------------------------------------------------------- publish
   #
   # Only a tag may create a release. A dispatched rehearsal runs everything
-  # above and stops here, because a release cannot be attached to a branch —
-  # but it still uploads every artefact so they can be inspected.
+  # above and stops here, because a release cannot be attached to a branch — but
+  # it still uploads every artefact so they can be inspected.
   publish:
     name: checksums and release
     runs-on: ubuntu-24.04
+    # The one job that publishes, and the only one that needs to write.
+    permissions:
+      contents: write
     timeout-minutes: 20
     needs:
       - ci
-      - coverage
-      - soak-unit
-      - soak-e2e
-      - llm-live
+      - deep
       - package-windows
       - package-macos
       - package-extension

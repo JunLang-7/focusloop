@@ -27,13 +27,24 @@ extraResources:
 
 mac:
   icon: resources/icon.icns
-  # Unsigned, like the Windows installer: there is no Apple Developer account
-  # behind this project yet. `identity: null` skips signing entirely rather than
-  # hunting for a certificate, so the build cannot fail for want of one. The
-  # cost is Gatekeeper — a downloaded dmg is quarantined, and the learner opens
-  # the app with right-click → Open the first time. Saying so in the release
-  # notes is better than shipping a package that silently will not launch.
-  identity: null
+  # Ad-hoc signing (`-`), not `null`. There is no Apple Developer account behind
+  # this project yet, so the app cannot carry a Developer ID signature and a
+  # downloaded copy still needs right-click → Open. What ad-hoc signing buys is
+  # a *complete* bundle signature. `identity: null` left the bundle with only
+  # the linker's signature on the executable and no `CodeResources` at all, so
+  # `codesign --verify --strict` failed and macOS reported the app as damaged
+  # rather than merely unidentified — and "damaged" is not something a learner
+  # can clear with right-click. Measured on the arm64 dmg: before, the bundle
+  # had `Sealed Resources=none`; after, strict verification passes and
+  # `Contents/_CodeSignature/CodeResources` is written.
+  #
+  # `hardenedRuntime` is off because the hardened runtime with an ad-hoc
+  # signature enforces library validation, which stops an Electron app launching
+  # unless it also carries `com.apple.security.cs.disable-library-validation`.
+  # Notarization will need the hardened runtime back on with a real entitlements
+  # file — a change for the day a certificate exists, not for today.
+  identity: '-'
+  hardenedRuntime: false
   target:
     - target: dmg
       arch:

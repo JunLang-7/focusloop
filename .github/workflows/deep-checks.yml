@@ -1,0 +1,254 @@
+name: Deep checks
+
+# The gates CI deliberately omits, because each is too slow or too
+# repeat-sensitive to run on every push — and each catches a class of failure
+# the CI gates cannot see.  Defined once and reached two ways:  * on a schedule,
+# so a regression is found in a day rather than at the next release; * by
+# `release.yml`, which calls this workflow, so a release cannot pass a gate the
+# nightly suite would have failed.  Two triggers, one definition. Restating
+# these jobs inside `release.yml` is exactly how the release pipeline once ended
+# up missing seven gates and the whole golden-path suite without anything
+# failing, so the steps live here only.
+on:
+  schedule:
+    # 03:17 UTC daily. Off the hour on purpose: GitHub's busiest minute is :00,
+    # and a queue there would make a slow suite look like a hung one.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  workflow_call:
+    secrets:
+      # Declared so the contract is readable from either side. `required: false`
+      # because the credential is checked by an explicit step below, which can
+      # name the secret and explain itself; a schema-level rejection would
+      # surface as a startup failure with no diagnosis.
+      DEEPSEEK_API_KEY:
+        required: false
+      OPENAI_COMPATA_API_KEY:
+        required: false
+      OPENAI_COMPATA_BASE_URL:
+        required: false
+      OPENAI_COMPATA_MODEL:
+        required: false
+
+# Reads the repository and reports. Nothing here writes.
+permissions:
+  contents: read
+
+env:
+  PNPM_VERSION: '11.4.0'
+
+jobs:
+  coverage:
+    name: coverage floors
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Each package declares its own floor in `vitest.config.ts`. CI runs the
+      # tests; this runs them again under the v8 provider and fails when a
+      # package stops exercising a rule — a different failure from a package
+      # failing its assertions.
+      - name: Measure
+        run: |
+          set -o pipefail
+          pnpm coverage 2>&1 | tee coverage.txt
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo '### Coverage'
+            echo
+            echo '```text'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # Flake hunting. A suite that passes once is not a suite that passes: the
+  # Windows SQLite I/O stall that turned `main` red passed its own branch's CI
+  # and failed only after merging. Repetition is the only thing that can see
+  # that class of failure.
+  soak-unit:
+    name: soak unit (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # A loop rather than a matrix: install is the slow part and repetition is
+      # the point. Five passes is enough for a rare stall to show up without
+      # turning the run into an afternoon.
+      - name: Run the unit suite five times
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            echo "::group::attempt ${attempt} of 5"
+            pnpm test
+            echo "::endgroup::"
+          done
+
+  soak-e2e:
+    name: soak golden path (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build desktop
+        run: pnpm --filter @focusloop/desktop run build
+
+      # The end-to-end suite drives a real Electron window, so it is the suite
+      # most exposed to timing. `CI=true` keeps Playwright's single retry: a
+      # pass on the retry is still a signal the run should see, so it is left to
+      # report rather than being made to look clean.
+      - name: Run the golden path three times
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            echo "::group::attempt ${attempt} of 3"
+            CI=true pnpm e2e
+            echo "::endgroup::"
+          done
+
+      - name: Upload traces
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: soak-e2e-traces-${{ matrix.os }}
+          path: apps/desktop-e2e/test-results/
+          retention-days: 7
+
+  # The one gate that talks to a real provider. CI is offline by design; this is
+  # where the shipped adapters are proved to still reach the services they claim
+  # to reach.
+  llm-live:
+    name: live provider smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Fails loudly rather than skipping. A gate that quietly passes when its
+      # credential is absent is not a gate — it is the appearance of one. The
+      # message names the secret to set.
+      - name: Require the DeepSeek credential
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          if [ -z "$DEEPSEEK_API_KEY" ]; then
+            echo "::error::DEEPSEEK_API_KEY is not set; add it as a repository"
+            echo "::error::secret, or the adapters ship unproven."
+            exit 1
+          fi
+
+      # Discovery first: it is the cheap call, and a failure here is a different
+      # diagnosis from a completion failure. `--list-only` never sends a token,
+      # so a broken key is reported as a completion problem rather than misread
+      # as a model-list problem.
+      - name: Discover models
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -euo pipefail
+          node scripts/test-llm-connection.mjs --provider deepseek --list-only
+
+      # Then completion and streaming, which is what the learner actually pays
+      # for.
+      - name: Complete and stream
+        shell: bash
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          set -euo pipefail
+          node scripts/test-llm-connection.mjs \
+            --provider deepseek --model deepseek-chat
+
+      # A second provider, exercised only when its credential is present. The
+      # compatible adapter is generic, so it should be proved against a real
+      # endpoint when one is offered — but its absence must not block a run
+      # that never claimed to ship that endpoint.
+      - name: Complete against the compatible provider
+        shell: bash
+        env:
+          OPENAI_COMPATA_API_KEY: ${{ secrets.OPENAI_COMPATA_API_KEY }}
+          OPENAI_COMPATA_BASE_URL: ${{ secrets.OPENAI_COMPATA_BASE_URL }}
+          OPENAI_COMPATA_MODEL: ${{ secrets.OPENAI_COMPATA_MODEL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${OPENAI_COMPATA_API_KEY:-}" ] ||
+             [ -z "${OPENAI_COMPATA_BASE_URL:-}" ]; then
+            echo "Compatible provider unset; skipping that probe."
+            exit 0
+          fi
+          node scripts/test-llm-connection.mjs \
+            --provider compatible \
+            ${OPENAI_COMPATA_MODEL:+--model "$OPENAI_COMPATA_MODEL"}

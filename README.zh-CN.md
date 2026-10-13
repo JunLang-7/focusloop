@@ -39,7 +39,7 @@ FocusLoop **不做 ADHD 诊断**,也不评估临床严重程度。它只观察�
 | macOS (Apple Silicon) | `FocusLoop-Setup-arm64.dmg` |
 | macOS (Intel)         | `FocusLoop-Setup-x64.dmg`   |
 
-两个安装包目前都未签名：macOS 首次启动需右键 → **打开** 以绕过 Gatekeeper，Windows 则需在 SmartScreen 提示中选择继续。从源码构建见[开发指南](docs/development.md#package)(英文)。
+两个安装包都没有 Developer ID 签名：macOS 首次启动需右键 → **打开** 以绕过 Gatekeeper，Windows 则需在 SmartScreen 提示中选择继续。从源码构建见[开发指南](docs/development.md#package)(英文)。
 
 ## 快速开始
 

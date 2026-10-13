@@ -13,6 +13,12 @@
  *      the default happens to be, which is not a decision anyone made in that file.
  *   3. Every job has a `timeout-minutes:`. Without one, a hung step holds a runner for the
  *      repository-wide maximum, which for the private-repository case bills by the minute.
+ *      A job whose only content is a `uses:` reusable-workflow call is exempt — not out of
+ *      leniency, but because the field cannot be written there at all: GitHub rejects a
+ *      workflow whose reusable-workflow job carries `timeout-minutes` ("Unexpected value
+ *      'timeout-minutes'") and the run dies with a `startup_failure` before any job starts.
+ *      The bound for such a job is the timeout on the jobs of the workflow it calls, which
+ *      this gate checks when it reads that file.
  *
  * Exit code 1 means a workflow is not shippable.
  */
@@ -30,6 +36,8 @@ const VERSION_COMMENT = /#\s*v?\d+\.\d+\.\d+/;
 const TOP_LEVEL_PERMISSIONS = /^permissions:/;
 const JOB_HEADER = /^ {2}([A-Za-z0-9_-]+):\s*$/;
 const JOB_TIMEOUT = /^ {4}timeout-minutes:\s*\d+\s*$/;
+/** A job that is nothing but a reusable-workflow call; GitHub forbids a timeout on it. */
+const JOB_REUSABLE_CALL = /^ {4}uses:\s*\S+/;
 const LOCAL_OR_DOCKER = /^(\.\/|docker:\/\/)/;
 
 const findings = [];
@@ -72,8 +80,9 @@ function checkWorkflow(name) {
   let job = null;
   let jobLine = 0;
   let hasTimeout = false;
+  let isReusableCall = false;
   const closeJob = () => {
-    if (job !== null && !hasTimeout) {
+    if (job !== null && !hasTimeout && !isReusableCall) {
       report(relativePath, jobLine, `job \`${job}\` has no \`timeout-minutes:\``);
     }
   };
@@ -98,8 +107,10 @@ function checkWorkflow(name) {
       job = header[1];
       jobLine = index + 1;
       hasTimeout = false;
+      isReusableCall = false;
       return;
     }
+    if (JOB_REUSABLE_CALL.test(line)) isReusableCall = true;
     if (JOB_TIMEOUT.test(line)) hasTimeout = true;
   });
   closeJob();

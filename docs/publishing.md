@@ -85,10 +85,23 @@ The arch flags are not optional. `electron-builder` builds only the architecture
 runs on unless told otherwise, so leaving them off produces one installer and drops the other from
 the release without an error.
 
-Neither installer is signed. The macOS builds set `identity: null`, which skips signing rather than
-failing for want of an Apple certificate; the Windows builds set `signExecutable: false`. Learners
-open a downloaded app with right-click → **Open** (macOS Gatekeeper) or **More info → Run anyway**
-(Windows SmartScreen). Signing is the obvious next step once there is an account to sign with.
+Neither installer carries a Developer ID, so a downloaded copy still needs right-click → **Open**
+(macOS Gatekeeper) or **More info → Run anyway** (Windows SmartScreen). A paid Apple Developer
+Program membership plus a notarization round is what removes that prompt, and there is no free path
+to it: the account is Apple's gate rather than a technical one.
+
+The macOS builds are **ad-hoc signed** (`identity: '-'`), which is not the same as unsigned. The
+ad-hoc signature seals the bundle, so `codesign --verify --strict` passes and macOS treats the app
+as unidentified rather than as damaged. `identity: null` — what this file used before — left the
+bundle with only the linker's signature on the executable and no `CodeResources` at all, which
+strict verification rejects; measured on the arm64 dmg, the seal was absent before and present
+after. `hardenedRuntime` is off, because hardened runtime combined with an ad-hoc signature
+enforces library validation and would stop the app launching unless it also carried
+`com.apple.security.cs.disable-library-validation`. Notarization will want it back on with a real
+entitlements file.
+
+The Windows builds set `signExecutable: false`, which keeps the icon and version metadata while
+leaving the signing toolchain out of the build.
 
 `SHA256SUMS.txt` is written by `.github/workflows/release.yml` at release time and attached to the
 release. It is deliberately **not** committed: the repository would then carry checksums for the
@@ -112,19 +125,26 @@ gains is automatically part of the next release. Before it did this, Release ran
 quietly missed the other seven plus the whole golden-path suite — nothing failed, the gates were
 simply absent.
 
+The gates CI does not run live in `.github/workflows/deep-checks.yml`, because the same ones also
+run **nightly** on a schedule. Two triggers, one definition: a regression is found within a day
+rather than at the next release, and a release cannot pass a gate the nightly run would have failed.
+
 | Stage             | What it proves                                                                                                     |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------ |
 | CI gates (reused) | lint, typecheck, spec types, tests, build, formatting, all five `verify:*` gates, golden path on Windows and macOS |
-| `coverage`        | every package still meets its own coverage floors                                                                  |
-| `soak-unit`       | the unit suite passes five consecutive runs on all three OSes — a rare stall cannot hide behind one green run      |
-| `soak-e2e`        | the golden path passes three consecutive runs on Windows and macOS                                                 |
-| `llm-live`        | the shipped adapters still reach a real provider                                                                   |
+| `deep` (reused)   | the four gates below, defined once in `deep-checks.yml`                                                            |
+| ↳ `coverage`      | every package still meets its own coverage floors                                                                  |
+| ↳ `soak-unit`     | the unit suite passes five consecutive runs on all three OSes — a rare stall cannot hide behind one green run      |
+| ↳ `soak-e2e`      | the golden path passes three consecutive runs on Windows and macOS                                                 |
+| ↳ `llm-live`      | the shipped adapters still reach a real provider                                                                   |
 | `package-*`       | four installers build, one per OS/architecture                                                                     |
 | `smoke-windows`   | each installer silently installs and leaves a runnable app                                                         |
 | `smoke-macos`     | each dmg mounts and contains a complete, correctly-architected app bundle                                          |
 
 The soak jobs exist because a suite that passes once is not a suite that passes: the Windows SQLite
 I/O stall that turned `main` red had passed its own branch's CI and failed only after merging.
+
+The nightly run can also be started by hand: **Actions → Deep checks → Run workflow**.
 
 ### Required repository secrets
 
