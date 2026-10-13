@@ -6,357 +6,114 @@
   </picture>
 </p>
 
+<p align="center"><b>English</b> · <a href="README.zh-CN.md">简体中文</a></p>
+
 # FocusLoop
 
-**A local-first learning-continuity agent for people who find attention and task initiation hard.**
+**Get back to exactly where you were thinking.** A local-first desktop agent that helps people who
+struggle with attention and task initiation recover from interruptions during study.
 
-FocusLoop does **not** diagnose ADHD and does not model clinical severity. It observes the
-_learning interaction_ — has the learner started, are they still here, where were they thinking —
-and helps them get back to the exact cognitive position they left.
+[Install](#install) · [Quick start](#quick-start) · [How it works](#how-it-works) · [Docs](#documentation) · [Contributing](#contributing)
 
-> v0.1 demo · Electron + Angular desktop · MV3 browser bridge · everything stays on your machine.
+> v0.1 demo · Electron + Angular desktop · optional MV3 browser extension · all data stays on your machine.
 
----
+FocusLoop does **not** diagnose ADHD or model clinical severity. It watches the _learning
+interaction_ (started? still here? where was the thought?) and, instead of nagging you to "stay
+focused", hands you a **Resume Card**: what you were doing, what you finished, what is open, and the
+next step.
 
-## Quick start
+## Features
 
-**Prerequisites:** [Node.js](https://nodejs.org) ≥ 22.13 (`.nvmrc` pins the exact version) and
-pnpm ≥ 9.
-
-```bash
-corepack enable   # provides pnpm at the version pinned in package.json
-pnpm install
-```
-
-If `corepack` is unavailable, `npm install -g pnpm` works too.
-
-### Run the desktop app
-
-```bash
-pnpm --filter @focusloop/desktop run start
-```
-
-That compiles the Angular renderer and the Electron main process, then opens the window. There is
-no hot reload — after changing source, stop the app and run the command again.
-
-Because you are running from source, the app uses Electron's default profile directory rather than
-the packaged app's `FocusLoop` one. Nothing else differs: the developer event bar that used to sit
-along the bottom of the window is gone, and every interruption in the demo is a real one — the app
-notices its own window losing focus, so switching to another window for twenty seconds is all it
-takes.
-
-### Use the FocusLoop name in the operating system
-
-The runtime name is **FocusLoop** on Windows, macOS and Linux. Windows also uses our application
-ID for taskbar/shortcut grouping. When running from source, the executable is still the stock
-Electron runtime: Task Manager on Windows and the Dock/Finder on macOS may display **Electron**.
-Use a packaged app to give the executable or bundle the FocusLoop name and icon.
-
-**Windows:** build and install `apps/desktop/release/FocusLoop-Setup.exe`. Its executable, shortcuts
-and installed application are named **FocusLoop**:
-
-```bash
-pnpm --filter @focusloop/desktop run package
-```
-
-**macOS:** build the unsigned local app bundle:
-
-```bash
-pnpm --filter @focusloop/desktop run package:mac:dir
-```
-
-Open `apps/desktop/release/mac-arm64/FocusLoop.app` on Apple Silicon, or
-`apps/desktop/release/mac/FocusLoop.app` on Intel. On both platforms, packaged apps use a separate
-default profile from the source-run Electron profile; renaming the runtime preserves existing
-development data. You can export learning data from the development app and import it into the
-packaged app.
-
-### Start it without typing the command
-
-`scripts\start-focusloop.cmd` does the same thing as the command above. Double-click it, or run it
-from any directory — it always works from the repository root. If something fails it keeps the
-window open so the error is readable.
-
-### Start it at login (Windows)
-
-`scripts\focusloop-startup.ps1` puts a shortcut in your personal Startup folder, so FocusLoop opens
-when you sign in to Windows. It needs no administrator rights, it changes nothing until you run it,
-and it is undone with one flag:
-
-```powershell
-.\scripts\focusloop-startup.ps1            # start FocusLoop at every sign-in
-.\scripts\focusloop-startup.ps1 -Remove    # stop doing that
-```
-
-By default it auto-starts the development launcher, which rebuilds before opening. To auto-start an
-installed copy instead, point it at the executable:
-
-```powershell
-.\scripts\focusloop-startup.ps1 -Target "$env:LOCALAPPDATA\Programs\FocusLoop\FocusLoop.exe"
-```
-
-### Try it
-
-**Home** → _Start session_ on “Red-black trees: the basics” → _Start_ on the first micro task →
-_Complete task_ → switch to another window for twenty seconds and come back → the Resume Card appears.
-
-The app notices its own window losing focus, so nothing has to be installed for that last step: the
-browser extension adds tab-level detail on top, and the footer's model entry is where a real model is
-configured. Both are optional, and both are described in [docs/privacy.md](./docs/privacy.md).
-
-### Configure an LLM provider
-
-Open **Settings** in the sidebar and select **Models**, or use the model-status shortcut.
-**⌘,** on macOS or **Ctrl+,** on Windows/Linux opens General, even with the sidebar folded;
-this shortcut works only inside the app. Pressing it again preserves the current tab and edits.
-Settings opens a small window with **General** and **Models** sections; language, appearance,
-original-material preferences and local data management live under General. Choose DeepSeek or
-OpenAI, or add an OpenAI-compatible provider with your own Base URL and API Key. **Fetch models**
-lets you select a model and auto-fill its editable ID; manual model IDs also work. **Save only**,
-optionally test, then **Save & use** to enable it. **Use local only** stops
-remote calls without removing configurations. See [LLM Providers](docs/llm-providers.md) for details.
-
-### Run the checks
-
-```bash
-pnpm lint        # eslint across every project
-pnpm typecheck   # tsc --noEmit across every project
-pnpm test        # vitest across every project
-pnpm build       # production bundles for every project
-pnpm e2e         # playwright drives the real Electron app, building it first
-```
-
-`pnpm e2e` builds the desktop app as a dependency before it runs, so it works on a clean checkout.
-
-### Package a release
-
-```bash
-pnpm --filter @focusloop/desktop run package      # → apps/desktop/release/FocusLoop-Setup.exe
-pnpm --filter @focusloop/extension run build:zip  # → apps/extension/release/focusloop-extension.zip
-```
-
----
-
-## What it does
-
-1. Open the built-in demo course (or import your own `.txt` / `.md` notes).
-2. FocusLoop shows 3–5 micro tasks, each a few minutes long.
-3. Start a **Focus Session** and work through them.
-4. FocusLoop continuously saves a **Learning Checkpoint** — the current concept, the goal, what is
-   mastered, what is still unresolved, and the next best action.
-5. If you leave the tab or go idle past a threshold, the state engine moves to `INTERRUPTED`.
-6. When you come back, a **Resume Card** appears: where you were, what you finished, what is open,
-   and the next step — not a notification telling you to "stay focused".
-7. Continue, and FocusLoop records the **resume latency** and whether the intervention helped.
-8. The **Dashboard** shows duration, task completion, interruptions, average resume latency and
-   intervention outcomes.
-9. The **Insights** view above it re-aggregates on demand over this session, today, the last seven
-   days or all time: total and daily-average time, a ring of time by learning state, a daily
-   activity grid and a per-course breakdown.
-
-The interface is bilingual — English and Simplified Chinese — and the theme can follow the operating
-system or be pinned to light or dark. Both choices are stored locally and survive a restart.
-
-### Deliberately not in v0.1
-
-Medical diagnosis · always-on camera/eye-tracking/microphone · mobile apps · accounts ·
-a central business server · Redis/Postgres/NestJS · collaboration · reinforcement learning.
-
----
-
-## The demo, in 3 minutes
-
-```text
-00:00  Launch FocusLoop
-00:15  Open "Red-black trees: the basics"
-00:30  See the 5 micro tasks
-00:45  Start Focus Session
-01:10  Complete the first task
-01:30  Switch to another window and stay there for ~25 seconds
-01:45  FocusLoop does NOT nag: nothing appears while you are away
-02:00  Switch back
-02:05  Resume Card appears
-02:15  "Continue: Recall the ordering invariant" — done / open / next step
-02:35  Continue
-02:45  Back on the micro task
-03:05  Complete it
-03:15  Dashboard: interruption count, resume latency, outcomes
-```
-
-Every step above is a real interaction: the app notices its own window losing focus, so no
-developer bar and no extension are needed. The bar that used to provide the same events on demand
-was removed in v0.1 — it was the one surface a learner must never see, and it put a row of debug
-buttons under every screen. The `simulate` command it called survives as an internal seam: the
-browser extension, the end-to-end suite and the UI capture script all reach the engine through it,
-and nothing renders it.
-
----
-
-## Architecture
-
-```text
-focusloop/
-├─ apps/
-│  ├─ desktop/          Electron main + preload + Angular renderer
-│  ├─ desktop-e2e/      Playwright golden-path test (drives the real Electron app)
-│  └─ extension/        Chrome/Edge Manifest V3 bridge
-├─ packages/
-│  ├─ shared-types/     The domain vocabulary. No logic, no dependencies.
-│  ├─ learning-state/   Pure, rule-based state engine (8 states, event driven)
-│  ├─ continuity/       Checkpoint building, interruption detection, resume engine
-│  ├─ intervention-policy/  Rule-based policy v1 + outcome records
-│  ├─ material-parser/  .txt / .md → MaterialDocument
-│  ├─ agent-core/       Micro-task generation + the application service
-│  ├─ persistence/      SQLite schema, migrations and repositories
-│  └─ llm-provider/     Provider abstraction, MockAIProvider, OpenAI-compatible adapters
-└─ tooling/
-```
-
-```mermaid
-flowchart LR
-  UI[Angular renderer] -->|window.focusloop| IPC[Typed IPC bridge]
-  EXT[MV3 extension] -->|loopback WebSocket + token| BRIDGE[Bridge server]
-  IPC --> ENGINE[FocusLoopEngine]
-  BRIDGE --> ENGINE
-  EVENT[The app's own window and idle sensor] --> ENGINE
-  ENGINE --> STATE[learning-state]
-  ENGINE --> CONT[continuity]
-  ENGINE --> POL[intervention-policy]
-  ENGINE --> STORE[persistence / SQLite]
-  ENGINE -.->|optional, key required| LLM[Selected provider / model]
-  ENGINE --> MOCK[Mock provider]
-```
-
-### Four invariants
-
-1. **Local-first.** There is no mandatory server. The whole golden path, including resume and
-   dashboard, runs with the network switched off and no API key.
-2. **The state engine is a domain model, not a prompt.** `learning-state` is a pure reducer with
-   no clock, no IO and no LLM. It is exhaustively unit-tested.
-3. **The renderer is isolated.** `contextIsolation: true`, `nodeIntegration: false`,
-   `sandbox: true`, and a closed whitelist of IPC channels that re-validate every argument.
-4. **Privacy is enforced by the permission model.** The browser extension requests no page access
-   at all — it cannot read URLs, titles, page text, form input or cookies.
-
-More detail: [`docs/architecture.md`](docs/architecture.md) · [`docs/privacy.md`](docs/privacy.md)
-
-Agent capability planning: [`docs/wiki/README.md`](docs/wiki/README.md)
-
----
+- **Micro tasks** — turn a course, or your own `.txt` / `.md` notes, into 3–5 tasks of a few minutes each.
+- **Focus sessions with live checkpoints** — the current concept, goal, what is mastered, what is unresolved, and the next best action are saved continuously.
+- **Interruption detection** — an 8-state, rule-based engine notices a lost window or an idle gap; nothing pops up while you are away.
+- **Resume Card** — on return, shows the exact cognitive position and records resume latency and whether the nudge helped.
+- **Insights & Dashboard** — time by learning state, daily activity, per-course breakdown, interruptions, resume latency and intervention outcomes, over a session, today, 7 days or all time.
+- **Bring your own model, or none** — runs fully offline on a deterministic mock provider; optionally use DeepSeek, OpenAI or any OpenAI-compatible endpoint.
+- **Bilingual, themeable** — English and Simplified Chinese; light, dark or follow the OS.
 
 ## Install
 
-Download the latest `FocusLoop-Setup.exe` from the
-[releases page](https://github.com/nianpingy-cpu/focusloop/releases) and run it. No Node.js or pnpm
-is required on the target machine.
+Download `FocusLoop-Setup.exe` from the [releases page](https://github.com/nianpingy-cpu/focusloop/releases)
+(verify it against `SHA256SUMS.txt`). No Node.js or pnpm is needed. For macOS or other builds, see the
+[development guide](docs/development.md#package).
 
-Verify your download against `SHA256SUMS.txt`.
+## Quick start
 
-To build it yourself instead, see [Quick start](#quick-start).
-
----
-
-## Development
-
-[Quick start](#quick-start) covers installation, running the app and packaging.
+From source (Node.js ≥ 22.13, pnpm ≥ 9):
 
 ```bash
-pnpm lint        # eslint across every project
-pnpm typecheck   # tsc --noEmit across every project
-pnpm test        # vitest across every project
-pnpm build       # angular + esbuild + extension bundles
-pnpm e2e         # playwright drives the real Electron app
+corepack enable
+pnpm install
+pnpm --filter @focusloop/desktop run start
 ```
 
-### Publishing
+Then try the loop: **Home** → _Start session_ on “Red-black trees: the basics” → complete the first
+micro task → switch to another window for ~20 seconds → come back to the Resume Card.
 
-The project is hosted in a **private** repository:
-[`nianpingy-cpu/focusloop`](https://github.com/nianpingy-cpu/focusloop). See
-[`docs/publishing.md`](docs/publishing.md) for how the installer is distributed, the commit-identity
-caveat, and what a rename would break.
+No extension, API key or network is required. Running, packaging, launchers and model setup are in the
+[development guide](docs/development.md).
 
-### Optional: a real model provider
+## How it works
 
-The default provider is `MockAIProvider` — deterministic, offline, and enough for the entire demo.
-To use a real provider instead, supply a key at runtime:
-
-```bash
-FOCUSLOOP_DEEPSEEK_API_KEY=... pnpm --filter @focusloop/desktop run start
+```mermaid
+flowchart LR
+  UI[Angular renderer] -->|typed IPC| ENGINE[FocusLoopEngine]
+  EXT[MV3 extension] -->|loopback WebSocket + token| ENGINE
+  WIN[Window and idle sensor] --> ENGINE
+  ENGINE --> STATE[learning-state]
+  ENGINE --> CONT[continuity]
+  ENGINE --> POL[intervention-policy]
+  ENGINE --> STORE[(SQLite)]
+  ENGINE -.->|optional| LLM[Model provider]
 ```
 
-On PowerShell the same thing is:
+Four invariants:
 
-```powershell
-$env:FOCUSLOOP_DEEPSEEK_API_KEY="..."; pnpm --filter @focusloop/desktop run start
-```
+1. **Local-first.** No mandatory server; the whole golden path works offline with no key.
+2. **The state engine is a domain model, not a prompt.** `learning-state` is a pure, exhaustively tested reducer: no clock, IO or LLM.
+3. **The renderer is isolated.** `contextIsolation`, `sandbox`, no Node integration, and a closed whitelist of IPC channels that re-validate every argument.
+4. **Privacy is enforced by permissions.** The extension requests no page access, so it cannot read URLs, titles, page text, form input or cookies.
 
-Keys come from one of two places, and the app tells you which one is in force. The environment
-variable above wins if it is set; otherwise you can save a key in the app itself, from the model
-entry in the sidebar footer, where it is encrypted by the operating system keychain
-(`safeStorage`) into a single file beside the database. On a machine with no usable keychain the
-entry says so instead of pretending to save. A key is never written to the repository, never
-written to the database, never logged, and never handed to the renderer — the interface that saves
-it cannot read it back. If the provider fails (offline, timeout, rate limit, bad response)
-FocusLoop degrades to the mock provider and tells the UI why.
-
----
+| Path        | Contents                                                                                                                                             |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/`     | `desktop` (Electron + Angular), `desktop-e2e` (Playwright), `extension` (Chrome/Edge MV3)                                                            |
+| `packages/` | `shared-types`, `learning-state`, `continuity`, `intervention-policy`, `material-parser`, `agent-core`, `persistence`, `llm-provider`, `agent-evals` |
 
 ## Privacy
 
-- No account, no telemetry, no analytics, no crash reporting.
-- The SQLite database lives in the OS user-data directory and is the only stored artefact.
-- The browser bridge binds to `127.0.0.1` only, requires a per-run token, and rejects anything that
-  is not a strictly validated metadata message.
-- Imported material and generated courses are stored locally and never uploaded.
+No account, telemetry, analytics or crash reporting. Data lives in a local SQLite database in the OS
+user-data directory. The browser bridge binds to `127.0.0.1`, needs a per-run token and accepts only
+strictly validated metadata. Imported material is never uploaded. Full statement: [docs/privacy.md](docs/privacy.md).
 
-Full statement: [`docs/privacy.md`](docs/privacy.md).
+**Out of scope for v0.1:** diagnosis, camera/eye-tracking/microphone, mobile, accounts, a central
+server, collaboration, reinforcement learning.
 
----
+## Documentation
 
-## Testing
-
-```bash
-pnpm test                                        # every unit test in the workspace
-pnpm --filter @focusloop/desktop-e2e run e2e     # the golden path, in the real app
-pnpm verify:scaffolding                          # no scaffolding or debug leftovers
-pnpm verify:workflows                            # pinned actions, stated permissions, timeouts
-pnpm verify:docs                                 # the commands, packages and links the docs cite
-pnpm verify:tokens                               # one palette, and the native window background
-pnpm verify:spec-types                           # every project's specs are compiled, not just run
-```
-
-The suite is organised so that the domain is proven independently of the UI:
-
-| Area                  | What is proven                                                              |
-| --------------------- | --------------------------------------------------------------------------- |
-| `learning-state`      | Every state transition, thresholds, duplicate events, purity, determinism   |
-| `continuity`          | Checkpoint content, interruption detection, resume card content, latency    |
-| `intervention-policy` | Every rule, `NO_ACTION`, cooldowns, escalation, outcome aggregation         |
-| `persistence`         | Migrations, round-trips, dedupe, isolation between sessions, durability     |
-| `agent-core`          | The golden path at domain level, plus degraded mode with a failing provider |
-| `desktop`             | IPC validation (rejects hostile payloads) and the loopback bridge           |
-| `extension`           | Tab/idle tracking and reconnect/duplicate protection                        |
-| `desktop-e2e`         | The whole product, launched, clicked and asserted                           |
-
-Details: [`docs/testing.md`](docs/testing.md)
-
----
+| Topic                             | Where                                          |
+| --------------------------------- | ---------------------------------------------- |
+| Run, package, model setup, checks | [docs/development.md](docs/development.md)     |
+| Architecture                      | [docs/architecture.md](docs/architecture.md)   |
+| LLM providers                     | [docs/llm-providers.md](docs/llm-providers.md) |
+| Testing strategy                  | [docs/testing.md](docs/testing.md)             |
+| Privacy                           | [docs/privacy.md](docs/privacy.md)             |
+| Releases and publishing           | [docs/publishing.md](docs/publishing.md)       |
+| Capability planning and decisions | [docs/wiki/README.md](docs/wiki/README.md)     |
+| Changes                           | [CHANGELOG.md](CHANGELOG.md)                   |
 
 ## Roadmap
 
-- **v0.1 (this release)** — desktop, learning state, checkpoints, resume, intervention outcomes,
-  dashboard, bridge, packaging.
-- **v0.2** — PDF import, richer material parsing, per-concept mastery model.
+- **v0.1** — desktop, learning state, checkpoints, resume, outcomes, dashboard, bridge, packaging.
+- **v0.2** — PDF import, richer material parsing, per-concept mastery.
 - **v0.3** — user-tunable thresholds, export/import of the local store.
-- **Later** — additional provider adapters; optional, explicitly opt-in sync.
-
----
+- **Later** — more provider adapters; optional, explicitly opt-in sync.
 
 ## Contributing
 
-Read [`CONTRIBUTING.md`](CONTRIBUTING.md). One issue per branch, RED → GREEN → REFACTOR, no direct
-pushes to `main`, and an independent review before merge.
+Read [CONTRIBUTING.md](CONTRIBUTING.md): one issue per branch, RED → GREEN → REFACTOR, no direct pushes
+to `main`, independent review before merge.
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE).
+MIT — see [LICENSE](LICENSE).

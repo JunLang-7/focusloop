@@ -100,7 +100,9 @@ function workspacePackages() {
 }
 
 function markdownFiles() {
-  const files = ['README.md', 'CONTRIBUTING.md', 'CHANGELOG.md'].map((name) => join(root, name));
+  const files = ['README.md', 'README.zh-CN.md', 'CONTRIBUTING.md', 'CHANGELOG.md'].map((name) =>
+    join(root, name),
+  );
   const docs = join(root, 'docs');
   if (existsSync(docs)) {
     for (const entry of readdirSync(docs)) {
