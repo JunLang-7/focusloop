@@ -52,8 +52,15 @@ jobs:
 
       # The wiki is a separate git repository. `--depth 1` is enough: every run rewrites the pages it
       # manages, so there is no history to merge with.
+      #
+      # `GIT_TERMINAL_PROMPT=0` and the explicit error below are both about what a *rejected* credential
+      # looks like. Without them, GitHub answering 401 makes git fall through to asking for a username,
+      # which in a runner fails as `fatal: could not read Username for 'https://github.com': No such
+      # device or address` — a message that names a git problem and sends the reader to the wrong place.
+      # Measured by setting the override to a deliberately wrong value and reading the log.
       - name: Clone the wiki
         env:
+          GIT_TERMINAL_PROMPT: '0'
           # `||` is what makes the override optional: an unset (or empty) secret is falsy, so the
           # built-in token is what an unconfigured repository gets.
           WIKI_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
@@ -68,16 +75,31 @@ jobs:
           # The token goes in a per-command header rather than into the remote URL: a URL ends up in
           # `.git/config`, where any later step that archives or prints the workspace would carry it.
           auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_TOKEN" | base64 -w0)"
-          git -c http.extraheader="$auth" clone --depth 1 \
+          set +e
+          out=$(git -c http.extraheader="$auth" clone --depth 1 \
             "https://github.com/${GITHUB_REPOSITORY}.wiki.git" \
-            "$RUNNER_TEMP/wiki"
+            "$RUNNER_TEMP/wiki" 2>&1)
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            printf '%s\n' "$out" | sed -E 's#https://[^ ]*#<redacted-url>#g'
+            echo "::error::The credential was rejected by the wiki repository."
+            if [ -n "$OVERRIDE" ]; then
+              echo "::error::WIKI_SYNC_TOKEN is configured and takes precedence. Check that it has not expired or been revoked and that it may push to this repository's wiki; deleting the secret falls back to the built-in token."
+            else
+              echo "::error::No override is configured, so the built-in job token was used. Check this workflow's \`permissions:\`."
+            fi
+            exit $code
+          fi
 
       - name: Publish
         run: node scripts/sync-wiki.mjs --target "$RUNNER_TEMP/wiki"
 
       - name: Push when a page changed
         env:
+          GIT_TERMINAL_PROMPT: '0'
           WIKI_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+          OVERRIDE: ${{ secrets.WIKI_SYNC_TOKEN }}
         working-directory: ${{ runner.temp }}/wiki
         run: |
           if [ -z "$(git status --porcelain)" ]; then
@@ -89,4 +111,16 @@ jobs:
           git add --all
           git commit -m "docs(wiki): publish docs/wiki @ ${GITHUB_SHA:0:7}"
           auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_TOKEN" | base64 -w0)"
-          git -c http.extraheader="$auth" push
+          set +e
+          out=$(git -c http.extraheader="$auth" push 2>&1)
+          code=$?
+          set -e
+          if [ $code -ne 0 ]; then
+            printf '%s\n' "$out" | sed -E 's#https://[^ ]*#<redacted-url>#g'
+            if [ -n "$OVERRIDE" ]; then
+              echo "::error::The push was rejected. WIKI_SYNC_TOKEN is configured and takes precedence; deleting it falls back to the built-in token."
+            else
+              echo "::error::The push was rejected with the built-in job token. Check this workflow's \`permissions:\`."
+            fi
+            exit $code
+          fi

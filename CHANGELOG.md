@@ -105,7 +105,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   `contents: write` (no wiki-only permission exists to ask for), and the pages publish on every change.
   `WIKI_SYNC_TOKEN` is still **honoured** if it is set — it takes precedence over the job token — so a
   change to what GitHub lets the built-in token do is answered by pasting a credential rather than by a
-  code change, and a repository with no secret still needs nothing. Also in this release: the sync
+  code change, and a repository with no secret still needs nothing. Precedence and the failure path were
+  both measured with a deliberately wrong secret: the log names the override as the credential in use,
+  and a rejected one is now reported as `::error::The credential was rejected by the wiki repository.`
+  naming the secret to check. It used to surface as `fatal: could not read Username for
+'https://github.com': No such device or address` — true, red, and pointing at the wrong thing, which
+  is what `GIT_TERMINAL_PROMPT=0` and the explicit message are for. Also in this release: the sync
   script itself was broken (`#271`) and the three ADRs already linked from the sidebar were never
   published; both are fixed and the wiki now carries all ten pages.
 
