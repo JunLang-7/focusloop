@@ -13,17 +13,21 @@ concurrency:
   group: wiki-sync
   cancel-in-progress: false
 
-# Publishes to the wiki repository, which is a separate git repository. The default token cannot push
-# there, so this workflow does nothing until `WIKI_SYNC_TOKEN` exists as a repository secret — a
-# fine-grained PAT with `Contents: read and write` on this repository. GitHub has no wiki-only scope,
-# so keep the token narrow in every other respect and rotate it.
+# Publishes to the wiki repository, which is a separate git repository — but it belongs to *this*
+# repository, and the job token can write to it when the job is granted `contents: write`. There is no
+# wiki-only permission to ask for instead; the PAT this workflow used to require carried the same
+# reach (`Contents: read and write`) and added the burden of existing, being stored and being rotated.
 #
-# `secrets` is not usable in a step `if:`, so the token is mapped to an env var and the guard reads
-# the env var. That is also what makes the no-op visible instead of a silent skip.
+# That is measured rather than assumed. A push to a scratch branch of this wiki with this token
+# returns 0; the same push with an empty credential returns "Invalid username or token. Password
+# authentication is not supported for Git operations." — which is the message the previous version of
+# this file was reading, and why it concluded the default token could not get in. It passed
+# `$GITHUB_TOKEN` from the *ambient* environment, and that variable is not exported into a `run:` step
+# (its length there is 0); `${{ secrets.GITHUB_TOKEN }}` is the one that is populated.
 #
 # The repository copy is the single editable source; see docs/wiki/README.md.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   publish:
@@ -33,41 +37,30 @@ jobs:
     # is written out in `ci.yml`'s `quality` job (#18).
     runs-on: ubuntu-24.04
     timeout-minutes: 10
-    # Job scope is deliberate: the `if:` guards below read this variable, and a step cannot see its
-    # own `env:` in its `if:`.
-    env:
-      WIKI_SYNC_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN }}
     steps:
-      - name: Explain the no-op
-        if: env.WIKI_SYNC_TOKEN == ''
-        run: |
-          echo "::notice::WIKI_SYNC_TOKEN is not set — the GitHub Wiki was not updated."
-          echo "docs/wiki/ in this repository is the source of truth. To publish it, add a repository"
-          echo "secret named WIKI_SYNC_TOKEN (fine-grained PAT, Contents: read and write)."
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: env.WIKI_SYNC_TOKEN != ''
         with:
           persist-credentials: false
 
       # The wiki is a separate git repository. `--depth 1` is enough: every run rewrites the pages it
       # manages, so there is no history to merge with.
       - name: Clone the wiki
-        if: env.WIKI_SYNC_TOKEN != ''
+        env:
+          WIKI_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # The token goes in a per-command header rather than into the remote URL: a URL ends up in
           # `.git/config`, where any later step that archives or prints the workspace would carry it.
-          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_SYNC_TOKEN" | base64 -w0)"
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_TOKEN" | base64 -w0)"
           git -c http.extraheader="$auth" clone --depth 1 \
             "https://github.com/${GITHUB_REPOSITORY}.wiki.git" \
             "$RUNNER_TEMP/wiki"
 
       - name: Publish
-        if: env.WIKI_SYNC_TOKEN != ''
         run: node scripts/sync-wiki.mjs --target "$RUNNER_TEMP/wiki"
 
       - name: Push when a page changed
-        if: env.WIKI_SYNC_TOKEN != ''
+        env:
+          WIKI_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         working-directory: ${{ runner.temp }}/wiki
         run: |
           if [ -z "$(git status --porcelain)" ]; then
@@ -78,5 +71,5 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add --all
           git commit -m "docs(wiki): publish docs/wiki @ ${GITHUB_SHA:0:7}"
-          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_SYNC_TOKEN" | base64 -w0)"
+          auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_TOKEN" | base64 -w0)"
           git -c http.extraheader="$auth" push

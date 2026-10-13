@@ -92,6 +92,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   workspace's column in place, so the peeked panel only ever slides over the gutter it vacated and
   the countdown never reflows under it.
 
+### Fixed
+
+- **The wiki publishes without a secret, because it never needed one.** `wiki-sync.yml` required a
+  `WIKI_SYNC_TOKEN` repository secret and, without it, did nothing but print a notice on every change
+  under `docs/wiki/`. The premise — "the default token cannot push to the wiki repository" — came from
+  passing `$GITHUB_TOKEN` out of the _ambient_ environment, where it is empty (its length in a `run:`
+  step is 0); an empty credential produces exactly the rejection that was read as "no permission".
+  `secrets.GITHUB_TOKEN` is populated, and with `permissions: contents: write` it pushes to
+  `<repo>.wiki.git` — measured by pushing a scratch branch of this wiki with that token (exit 0) and
+  deleting it in the same run. So the secret, the guard and the notice are gone, the job asks for
+  `contents: write` (no wiki-only permission exists to ask for, and the PAT it used to want had the
+  same reach, plus rotation), and the pages publish on every change. Also in this release: the sync
+  script itself was broken (`#271`) and the three ADRs already linked from the sidebar were never
+  published; both are fixed and the wiki now carries all ten pages.
+
 ## [0.1.0-demo] — 2026-09-17
 
 The first demonstrable end-to-end slice. FocusLoop does not diagnose ADHD; it tracks the learning
