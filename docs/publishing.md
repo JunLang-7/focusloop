@@ -165,6 +165,31 @@ be proven before a release ships. Nothing in the live job prints a credential, a
 `scripts/test-llm-connection.mjs` emits one sanitized JSON object per line and exits non-zero on
 failure.
 
+### The wiki publishes with no secret at all
+
+`docs/wiki/` is published to the GitHub Wiki by `wiki-sync.yml` on every push to `main` that touches
+it. It used to require a `WIKI_SYNC_TOKEN` secret and, without one, did nothing but print a notice —
+and the secret was never needed. The job token can write to `<repo>.wiki.git` when the job is granted
+`contents: write` (GitHub has no wiki-only permission), so **the wiki needs no configuration**.
+
+`WIKI_SYNC_TOKEN` is therefore **optional**, and takes precedence when it is set: it exists so that a
+change to what GitHub lets the built-in token do is answered by pasting a credential rather than by a
+code change. So it is worth knowing what it costs as well as what it buys — a token expires, and an
+expired or revoked one fails the publish (loudly, naming the secret) until it is replaced, where the
+built-in path has nothing to maintain. **Deleting the secret returns the workflow to the built-in
+token**, which is why the fallback is a one-liner rather than a revert:
+
+```bash
+gh secret set WIKI_SYNC_TOKEN --repo nianpingy-cpu/focusloop     # optional; paste a PAT
+gh secret delete WIKI_SYNC_TOKEN --repo nianpingy-cpu/focusloop  # back to the built-in token
+```
+
+Use a **dedicated** personal access token. A classic PAT with `repo` is what the wiki-publishing
+ecosystem documents; a fine-grained token is undocumented for wiki Git access, so treat it as
+unverified. Do not reuse the token your own `gh` CLI holds — that one carries `delete_repo` and
+`admin:org`, and anyone who can push a branch to this repository can read a repository secret, so
+reusing it would put account-wide reach behind a single workflow file.
+
 ## The application icon
 
 `apps/desktop/resources/icon.ico`, `icon.png` and `icon.icns` are committed assets, not build output.
