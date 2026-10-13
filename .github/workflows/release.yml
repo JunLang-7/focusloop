@@ -62,8 +62,8 @@ jobs:
 
       # Separate steps, for the reason the release file has always stated: on
       # Windows the default shell is pwsh, and a `;`-joined block reports only
-      # the last command's exit code — a failed build could still leave the
-      # step green.
+      # the last command's exit code — a failed build could still leave the step
+      # green.
       - name: Build the desktop renderer and main
         run: pnpm --filter @focusloop/desktop run build
 
@@ -84,6 +84,47 @@ jobs:
             $p = Join-Path 'apps/desktop/release' $f
             if (-not (Test-Path $p)) { throw "missing $p" }
             Get-Item $p | Select-Object Name, Length
+          }
+
+      # Each payload is checked for the machine type it claims. An arm64
+      # installer built from an x64 payload would look right everywhere else —
+      # same name, same size class, same installer structure — so the executable
+      # itself is the only place the difference shows.
+      #
+      # This lives in the packaging job rather than the install smoke because
+      # the unpacked directories are here. The arm64 installer cannot be run on
+      # an x64 runner at all: its NSIS script picks the payload with
+      # `${IsNativeARM64}`, so on an x64 host it extracts nothing and still
+      # exits 0.
+      - name: Assert each payload is the architecture it claims
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $metadataAssembly = 'System.Reflection.Metadata'
+          Add-Type -AssemblyName $metadataAssembly -ErrorAction SilentlyContinue
+
+          function Get-PeMachine([string]$Path) {
+            $peReaderType = [System.Reflection.PortableExecutable.PEReader]
+            $stream = [System.IO.File]::OpenRead($Path)
+            try {
+              $reader = $peReaderType::new($stream)
+              try { return $reader.PEHeaders.CoffHeader.Machine }
+              finally { $reader.Dispose() }
+            } finally { $stream.Dispose() }
+          }
+
+          $expected = @{
+            'win-unpacked/FocusLoop.exe'       = 'Amd64'
+            'win-arm64-unpacked/FocusLoop.exe' = 'Arm64'
+          }
+          foreach ($relative in $expected.Keys) {
+            $path = Join-Path 'apps/desktop/release' $relative
+            if (-not (Test-Path $path)) { throw "missing $path" }
+            $machine = Get-PeMachine $path
+            if ("$machine" -ne $expected[$relative]) {
+              throw "$relative is $machine, expected $($expected[$relative])"
+            }
+            Write-Host "$relative -> $machine"
           }
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -171,9 +212,10 @@ jobs:
           retention-days: 7
 
   # ---------------------------------------------------------- install smoke
+  #
   # Building an installer proves the toolchain ran. Installing it proves the
-  # learner can. These run on the artefacts the release will actually attach,
-  # not on a build directory.
+  # learner can. These run on the artefacts the release attaches, not on a build
+  # directory.
   smoke-windows:
     name: install smoke (windows)
     runs-on: windows-latest
@@ -185,40 +227,43 @@ jobs:
           name: windows-installers
           path: installers
 
-      # A silent install and uninstall, twice — once per architecture. `/S` is
-      # NSIS's switch; `perMachine: false` in the config means it lands in the
-      # user profile and needs no elevation.
-      - name: Install and uninstall each architecture
+      # `/S` is NSIS's silent switch, and `perMachine: false` keeps the install
+      # inside the user profile, so no elevation is involved.
+      #
+      # Only x64 can be exercised here, and not for want of trying: the arm64
+      # installer chooses its payload with `${IsNativeARM64}`
+      # (electron-builder's `extractAppPackage.nsh`), so on an x64 host it
+      # extracts nothing, installs nothing, and still exits 0. Run 38363388266
+      # failed exactly that way. The arm64 payload's machine type is asserted in
+      # the packaging job instead, beside the directory it was just built into.
+      - name: Install, verify and uninstall the x64 build
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          foreach ($arch in @('x64', 'arm64')) {
-            $setup = Resolve-Path "installers/FocusLoop-Setup-$arch.exe"
-            Write-Host "::group::install $arch"
-            $proc = Start-Process -FilePath $setup `
+          $root = Join-Path $env:LOCALAPPDATA 'Programs/FocusLoop'
+
+          $setup = Resolve-Path 'installers/FocusLoop-Setup-x64.exe'
+          $install = Start-Process -FilePath $setup -ArgumentList '/S' `
+            -PassThru -Wait
+          if ($install.ExitCode -ne 0) {
+            throw "installer exited $($install.ExitCode)"
+          }
+
+          foreach ($f in @('FocusLoop.exe', 'resources/app.asar')) {
+            if (-not (Test-Path (Join-Path $root $f))) {
+              throw "missing after install: $f"
+            }
+          }
+          Write-Host "installed and complete: $root"
+
+          $uninstaller = Join-Path $root 'Uninstall FocusLoop.exe'
+          if (Test-Path $uninstaller) {
+            $remove = Start-Process -FilePath $uninstaller `
               -ArgumentList '/S' -PassThru -Wait
-            if ($proc.ExitCode -ne 0) {
-              throw "installer $arch exited $($proc.ExitCode)"
+            if ($remove.ExitCode -ne 0) {
+              throw "uninstaller exited $($remove.ExitCode)"
             }
-            $exe = Join-Path $env:LOCALAPPDATA `
-              'Programs/FocusLoop/FocusLoop.exe'
-            if (-not (Test-Path $exe)) {
-              throw "installed executable missing for $arch"
-            }
-            $asar = Join-Path $env:LOCALAPPDATA `
-              'Programs/FocusLoop/resources/app.asar'
-            if (-not (Test-Path $asar)) { throw "app.asar missing for $arch" }
-            Write-Host "installed $arch -> $exe"
-            Write-Host "::endgroup::"
-            Write-Host "::group::uninstall $arch"
-            $unins = Join-Path $env:LOCALAPPDATA `
-              'Programs/FocusLoop/Uninstall FocusLoop.exe'
-            if (Test-Path $unins) {
-              $u = Start-Process -FilePath $unins `
-                -ArgumentList '/S' -PassThru -Wait
-              Write-Host "uninstall $arch exited $($u.ExitCode)"
-            }
-            Write-Host "::endgroup::"
+            Write-Host "uninstalled: exit $($remove.ExitCode)"
           }
 
   smoke-macos:
@@ -232,27 +277,31 @@ jobs:
           name: macos-installers
           path: installers
 
-      # Mount each dmg, check the bundle is complete, and confirm the binary
-      # matches the advertised architecture, then detach. A read-only attach
-      # needs no privileges.
+      # Mount each dmg, check the bundle is complete, confirm the binary is the
+      # architecture it claims, then detach. A read-only attach needs no
+      # privileges.
+      #
+      # `case` rather than an associative array: the runner's `/bin/bash` is
+      # 3.2, where `declare -A` does not exist — run 38363388266 died with
+      # `arm64: unbound variable` on that line.
       - name: Mount and inspect each dmg
         shell: bash
         run: |
           set -euo pipefail
-          declare -A want=(
-            [arm64]='Mach-O 64-bit executable arm64'
-            [x64]='Mach-O 64-bit executable x86_64'
-          )
           for arch in arm64 x64; do
+            case "$arch" in
+              arm64) want='Mach-O 64-bit executable arm64' ;;
+              x64) want='Mach-O 64-bit executable x86_64' ;;
+            esac
             echo "::group::mount $arch"
             mnt=$(mktemp -d)
-            hdiutil attach -nobrowse -readonly -mountpoint "$mnt" \
-              "installers/FocusLoop-Setup-$arch.dmg"
+            hdiutil attach -nobrowse -readonly \
+              -mountpoint "$mnt" "installers/FocusLoop-Setup-$arch.dmg"
             app="$mnt/FocusLoop.app"
             test -d "$app"
             test -f "$app/Contents/MacOS/FocusLoop"
             test -f "$app/Contents/Resources/app.asar"
-            file "$app/Contents/MacOS/FocusLoop" | grep -F "${want[$arch]}"
+            file "$app/Contents/MacOS/FocusLoop" | grep -F "$want"
             hdiutil detach "$mnt" -quiet
             rmdir "$mnt"
             echo "verified $arch"
