@@ -15,15 +15,23 @@ concurrency:
 
 # Publishes to the wiki repository, which is a separate git repository — but it belongs to *this*
 # repository, and the job token can write to it when the job is granted `contents: write`. There is no
-# wiki-only permission to ask for instead; the PAT this workflow used to require carried the same
-# reach (`Contents: read and write`) and added the burden of existing, being stored and being rotated.
+# wiki-only permission to ask for instead.
 #
-# That is measured rather than assumed. A push to a scratch branch of this wiki with this token
-# returns 0; the same push with an empty credential returns "Invalid username or token. Password
-# authentication is not supported for Git operations." — which is the message the previous version of
-# this file was reading, and why it concluded the default token could not get in. It passed
+# **Nothing has to be configured for this to work, and `WIKI_SYNC_TOKEN` is not required.** It is
+# honoured if it exists as a repository secret: the override wins when it is set, and the built-in job
+# token is used when it is not. The reason to keep the door open is that the built-in token's reach is
+# GitHub's decision rather than ours — this workflow already believed, wrongly, that it had none — and
+# a credential that only needs to be pasted in is a cheaper answer to that than a code change.
+#
+# The built-in path is measured rather than assumed. A push to a scratch branch of this wiki with the
+# job token returns 0; the same push with an empty credential returns "Invalid username or token.
+# Password authentication is not supported for Git operations." — which is the message the previous
+# version of this file was reading, and why it concluded the default token could not get in. It passed
 # `$GITHUB_TOKEN` from the *ambient* environment, and that variable is not exported into a `run:` step
 # (its length there is 0); `${{ secrets.GITHUB_TOKEN }}` is the one that is populated.
+#
+# An override that is set but wrong fails loudly in the push below, which is the point: a secret that
+# is silently ignored is worse than no secret, because it looks like insurance.
 #
 # The repository copy is the single editable source; see docs/wiki/README.md.
 permissions:
@@ -46,8 +54,17 @@ jobs:
       # manages, so there is no history to merge with.
       - name: Clone the wiki
         env:
-          WIKI_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # `||` is what makes the override optional: an unset (or empty) secret is falsy, so the
+          # built-in token is what an unconfigured repository gets.
+          WIKI_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+          # Mapped separately so the log can name the credential that was used without printing it.
+          OVERRIDE: ${{ secrets.WIKI_SYNC_TOKEN }}
         run: |
+          if [ -n "$OVERRIDE" ]; then
+            echo "Credential: the WIKI_SYNC_TOKEN repository secret."
+          else
+            echo "Credential: the built-in job token (no override is configured)."
+          fi
           # The token goes in a per-command header rather than into the remote URL: a URL ends up in
           # `.git/config`, where any later step that archives or prints the workspace would carry it.
           auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$WIKI_TOKEN" | base64 -w0)"
@@ -60,7 +77,7 @@ jobs:
 
       - name: Push when a page changed
         env:
-          WIKI_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          WIKI_TOKEN: ${{ secrets.WIKI_SYNC_TOKEN || secrets.GITHUB_TOKEN }}
         working-directory: ${{ runner.temp }}/wiki
         run: |
           if [ -z "$(git status --porcelain)" ]; then

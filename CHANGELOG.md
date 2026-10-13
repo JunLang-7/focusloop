@@ -101,9 +101,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   step is 0); an empty credential produces exactly the rejection that was read as "no permission".
   `secrets.GITHUB_TOKEN` is populated, and with `permissions: contents: write` it pushes to
   `<repo>.wiki.git` — measured by pushing a scratch branch of this wiki with that token (exit 0) and
-  deleting it in the same run. So the secret, the guard and the notice are gone, the job asks for
-  `contents: write` (no wiki-only permission exists to ask for, and the PAT it used to want had the
-  same reach, plus rotation), and the pages publish on every change. Also in this release: the sync
+  deleting it in the same run. So the requirement, the guard and the notice are gone, the job asks for
+  `contents: write` (no wiki-only permission exists to ask for), and the pages publish on every change.
+  `WIKI_SYNC_TOKEN` is still **honoured** if it is set — it takes precedence over the job token — so a
+  change to what GitHub lets the built-in token do is answered by pasting a credential rather than by a
+  code change, and a repository with no secret still needs nothing. Also in this release: the sync
   script itself was broken (`#271`) and the three ADRs already linked from the sidebar were never
   published; both are fixed and the wiki now carries all ten pages.
 
