@@ -54,32 +54,96 @@ Changing the author of _existing_ commits needs a history rewrite (for example `
 with a mailmap). That changes every commit hash, so `v0.1.0-demo` has to be recreated and anything
 already pushed needs a force-push. For a demo tag that is rarely worth it.
 
-## Distributing the installer
+## Distributing the installers
 
-`dist/` and `release/` are gitignored, so the ~114 MB installer and the built bundles stay out of
-the repository. Attach the installer to a release rather than committing it:
+`dist/` and `release/` are gitignored, so the ~125 MB installers and the built bundles stay out of
+the repository. `.github/workflows/release.yml` builds them and attaches them; a manual release is
+only the fallback:
 
 ```bash
-gh release create v0.1.0-demo \
-  apps/desktop/release/FocusLoop-Setup.exe \
+gh release create v0.2.0 \
+  apps/desktop/release/FocusLoop-Setup-x64.exe \
+  apps/desktop/release/FocusLoop-Setup-arm64.exe \
+  apps/desktop/release/FocusLoop-Setup-arm64.dmg \
+  apps/desktop/release/FocusLoop-Setup-x64.dmg \
   apps/extension/release/focusloop-extension.zip \
   SHA256SUMS.txt \
-  --title "FocusLoop v0.1.0-demo" \
+  --title "FocusLoop v0.2.0" \
   --notes-file CHANGELOG.md
 ```
 
+Four installers, because the release covers two operating systems and two architectures each:
+
+| Platform              | Artefact                    |
+| --------------------- | --------------------------- |
+| Windows (x64)         | `FocusLoop-Setup-x64.exe`   |
+| Windows on ARM        | `FocusLoop-Setup-arm64.exe` |
+| macOS (Apple Silicon) | `FocusLoop-Setup-arm64.dmg` |
+| macOS (Intel)         | `FocusLoop-Setup-x64.dmg`   |
+
+The arch flags are not optional. `electron-builder` builds only the architecture of the machine it
+runs on unless told otherwise, so leaving them off produces one installer and drops the other from
+the release without an error.
+
+Neither installer is signed. The macOS builds set `identity: null`, which skips signing rather than
+failing for want of an Apple certificate; the Windows builds set `signExecutable: false`. Learners
+open a downloaded app with right-click → **Open** (macOS Gatekeeper) or **More info → Run anyway**
+(Windows SmartScreen). Signing is the obvious next step once there is an account to sign with.
+
 `SHA256SUMS.txt` is written by `.github/workflows/release.yml` at release time and attached to the
-release. It is deliberately **not** committed: the repository would then carry checksums for two
-binaries it does not contain, and a local release run would rewrite a tracked file. The README's
-"verify your download against `SHA256SUMS.txt`" refers to the copy attached to the release.
+release. It is deliberately **not** committed: the repository would then carry checksums for the
+four binaries it does not contain, and a local release run would rewrite a tracked file. The
+README's "verify your download against `SHA256SUMS.txt`" refers to the copy attached to the release.
 
 Until that runs, the **Install** link in the README leads to an empty releases page. The repository
 is public, so a published release is visible to anyone.
 
 The same workflow can be rehearsed by hand: **Actions → Release → Run workflow**. A dispatched run
-executes every packaging and checksum step and stops before publishing — a release cannot be
-attached to a branch — and uploads the installer, the extension zip and `SHA256SUMS.txt` to the run
-instead. That is the only way to exercise the NSIS installer without pushing a tag.
+executes every gate, packaging and checksum step and stops before publishing — a release cannot be
+attached to a branch — and uploads all four installers, the extension zip and `SHA256SUMS.txt` to
+the run instead. That is the only way to exercise the NSIS installers and the dmg images without
+pushing a tag.
+
+## What a release must pass
+
+Release is deliberately stronger than CI. `.github/workflows/release.yml` **calls**
+`.github/workflows/ci.yml` as a reusable workflow rather than restating its steps, so every gate CI
+gains is automatically part of the next release. Before it did this, Release ran four gates and
+quietly missed the other seven plus the whole golden-path suite — nothing failed, the gates were
+simply absent.
+
+| Stage             | What it proves                                                                                                     |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------ |
+| CI gates (reused) | lint, typecheck, spec types, tests, build, formatting, all five `verify:*` gates, golden path on Windows and macOS |
+| `coverage`        | every package still meets its own coverage floors                                                                  |
+| `soak-unit`       | the unit suite passes five consecutive runs on all three OSes — a rare stall cannot hide behind one green run      |
+| `soak-e2e`        | the golden path passes three consecutive runs on Windows and macOS                                                 |
+| `llm-live`        | the shipped adapters still reach a real provider                                                                   |
+| `package-*`       | four installers build, one per OS/architecture                                                                     |
+| `smoke-windows`   | each installer silently installs and leaves a runnable app                                                         |
+| `smoke-macos`     | each dmg mounts and contains a complete, correctly-architected app bundle                                          |
+
+The soak jobs exist because a suite that passes once is not a suite that passes: the Windows SQLite
+I/O stall that turned `main` red had passed its own branch's CI and failed only after merging.
+
+### Required repository secrets
+
+`llm-live` fails loudly when its credential is absent. A release gate that quietly passes without
+its secret is the appearance of a gate, so a missing `DEEPSEEK_API_KEY` blocks the release with a
+message naming it.
+
+| Secret                    | Required | What it exercises                                                         |
+| ------------------------- | -------- | ------------------------------------------------------------------------- |
+| `DEEPSEEK_API_KEY`        | **yes**  | `/models` discovery, completion and streaming against the DeepSeek preset |
+| `OPENAI_COMPATA_API_KEY`  | no       | completion against a real OpenAI-compatible endpoint                      |
+| `OPENAI_COMPATA_BASE_URL` | no       | that endpoint's base URL                                                  |
+| `OPENAI_COMPATA_MODEL`    | no       | the model to probe there; defaults to the script's own                    |
+
+The compatible probe is skipped when its credential is absent, because the project never claimed to
+ship a particular third-party endpoint — but the DeepSeek adapter is the documented default and must
+be proven before a release ships. Nothing in the live job prints a credential, an HTTP body or a URL:
+`scripts/test-llm-connection.mjs` emits one sanitized JSON object per line and exits non-zero on
+failure.
 
 ## The application icon
 

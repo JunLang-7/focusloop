@@ -34,8 +34,18 @@ next step.
 
 ## Install
 
-Download `FocusLoop-Setup.exe` from the [releases page](https://github.com/nianpingy-cpu/focusloop/releases)
-(verify it against `SHA256SUMS.txt`). No Node.js or pnpm is needed. For macOS or other builds, see the
+Download an installer from the [releases page](https://github.com/nianpingy-cpu/focusloop/releases)
+and verify it against `SHA256SUMS.txt`. No Node.js or pnpm is needed.
+
+| Platform              | Artefact                    |
+| --------------------- | --------------------------- |
+| Windows (x64)         | `FocusLoop-Setup-x64.exe`   |
+| Windows on ARM        | `FocusLoop-Setup-arm64.exe` |
+| macOS (Apple Silicon) | `FocusLoop-Setup-arm64.dmg` |
+| macOS (Intel)         | `FocusLoop-Setup-x64.dmg`   |
+
+Neither installer is signed yet, so a first launch needs a right-click → **Open** to get past
+Gatekeeper on macOS and the SmartScreen prompt on Windows. For building from source, see the
 [development guide](docs/development.md#package).
 
 ## Quick start
