@@ -14,8 +14,13 @@
     "start": "pnpm run build:dev && electron dist/main/main.cjs",
     "serve": "pnpm run start",
     "package": "pnpm run build && electron-builder --win --config electron-builder.yml",
+    "package:win:x64": "pnpm run build && electron-builder --win --x64 --config electron-builder.yml",
+    "package:win:arm64": "pnpm run build && electron-builder --win --arm64 --config electron-builder.yml",
+    "package:mac": "pnpm run build && electron-builder --mac dmg --config electron-builder.yml",
+    "package:mac:arm64": "pnpm run build && electron-builder --mac dmg --arm64 --config electron-builder.yml",
+    "package:mac:x64": "pnpm run build && electron-builder --mac dmg --x64 --config electron-builder.yml",
     "package:dir": "pnpm run build && electron-builder --dir --config electron-builder.yml",
-    "package:mac:dir": "pnpm run build && electron-builder --mac --dir --config electron-builder.yml --config.mac.identity=null"
+    "package:mac:dir": "pnpm run build && electron-builder --mac --dir --config electron-builder.yml"
   },
   "dependencies": {
     "@focusloop/agent-core": "workspace:*",

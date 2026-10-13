@@ -30,7 +30,16 @@ FocusLoop **不做 ADHD 诊断**,也不评估临床严重程度。它只观察�
 
 ## 安装
 
-从 [Releases 页面](https://github.com/nianpingy-cpu/focusloop/releases) 下载 `FocusLoop-Setup.exe`(请用 `SHA256SUMS.txt` 校验)。无需安装 Node.js 或 pnpm。macOS 等其他构建方式见[开发指南](docs/development.md#package)(英文)。
+从 [Releases 页面](https://github.com/nianpingy-cpu/focusloop/releases) 下载对应平台的安装包(请用 `SHA256SUMS.txt` 校验)。无需安装 Node.js 或 pnpm。
+
+| 平台                  | 安装包                      |
+| --------------------- | --------------------------- |
+| Windows (x64)         | `FocusLoop-Setup-x64.exe`   |
+| Windows on ARM        | `FocusLoop-Setup-arm64.exe` |
+| macOS (Apple Silicon) | `FocusLoop-Setup-arm64.dmg` |
+| macOS (Intel)         | `FocusLoop-Setup-x64.dmg`   |
+
+两个安装包目前都未签名：macOS 首次启动需右键 → **打开** 以绕过 Gatekeeper，Windows 则需在 SmartScreen 提示中选择继续。从源码构建见[开发指南](docs/development.md#package)(英文)。
 
 ## 快速开始
 

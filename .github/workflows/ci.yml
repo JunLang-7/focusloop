@@ -5,6 +5,11 @@ on:
     branches: [main]
   push:
     branches: [main]
+  # The release workflow calls this one rather than copying its steps, so a
+  # gate added here is automatically part of every release. Duplicating the
+  # list is how Release once shipped with seven gates and the whole
+  # golden-path suite missing: the two files drifted and nothing noticed.
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.ref }}

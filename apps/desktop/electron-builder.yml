@@ -27,6 +27,19 @@ extraResources:
 
 mac:
   icon: resources/icon.icns
+  # Unsigned, like the Windows installer: there is no Apple Developer account
+  # behind this project yet. `identity: null` skips signing entirely rather than
+  # hunting for a certificate, so the build cannot fail for want of one. The
+  # cost is Gatekeeper — a downloaded dmg is quarantined, and the learner opens
+  # the app with right-click → Open the first time. Saying so in the release
+  # notes is better than shipping a package that silently will not launch.
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - arm64
+        - x64
+  artifactName: FocusLoop-Setup-${arch}.${ext}
 
 linux:
   icon: resources/icon.png
@@ -36,8 +49,15 @@ win:
     - target: nsis
       arch:
         - x64
+        # Windows on ARM has no x64 emulation guarantee for every host, and an
+        # arm64 build is the only way to serve those machines natively. It is a
+        # separate installer, so the two cannot overwrite each other.
+        - arm64
   icon: resources/icon.ico
-  artifactName: FocusLoop-Setup.${ext}
+  # `${arch}` keeps the two installers apart: `FocusLoop-Setup-x64.exe` and
+  # `FocusLoop-Setup-arm64.exe`. The unqualified `FocusLoop-Setup.exe` name is
+  # gone; the README, publishing guide and execution plan name the new files.
+  artifactName: FocusLoop-Setup-${arch}.${ext}
   # The v0.1 demo installer is unsigned. `signAndEditExecutable: false`
   # skips executable editing too, leaving Electron's icon and metadata.
   # That step requires winCodeSign, whose symlinks need admin rights on Windows.

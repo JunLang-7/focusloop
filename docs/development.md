@@ -42,10 +42,16 @@ Launchers on Windows:
 ## Package
 
 ```bash
-pnpm --filter @focusloop/desktop run package          # → apps/desktop/release/FocusLoop-Setup.exe
-pnpm --filter @focusloop/desktop run package:mac:dir  # → apps/desktop/release/mac-arm64/FocusLoop.app (Intel: mac/)
-pnpm --filter @focusloop/extension run build:zip      # → apps/extension/release/focusloop-extension.zip
+pnpm --filter @focusloop/desktop run package           # → FocusLoop-Setup-{x64,arm64}.exe
+pnpm --filter @focusloop/desktop run package:mac:arm64  # → FocusLoop-Setup-arm64.dmg
+pnpm --filter @focusloop/desktop run package:mac:x64    # → FocusLoop-Setup-x64.dmg
+pnpm --filter @focusloop/desktop run package:mac:dir    # → mac-arm64/FocusLoop.app (Intel: mac/)
+pnpm --filter @focusloop/extension run build:zip       # → focusloop-extension.zip
 ```
+
+Both installers land in `apps/desktop/release/`. The arch flags matter: without them
+electron-builder builds only the architecture of the machine it runs on, so the other one
+silently goes missing.
 
 The macOS bundle is unsigned. When run from source, Task Manager, the Dock and Finder show the stock
 **Electron** name; only packaged apps carry the FocusLoop name and icon. Packaged apps use a
