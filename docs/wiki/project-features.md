@@ -572,7 +572,7 @@ FocusLoop 不做 ADHD、智力、人格或心理健康诊断，也不根据行�
 4. **永不做什么**：日志不记 prompt 原文；Provider 不接收未授权字段；abort 后不提交迟到结果。
 5. **数据与边界**（计划）：`RuntimeResult { status, output, provider, usage, latency, degraded,
 failure }`、`ProviderHealth`。
-6. **状态与证据**：**已合并** — `AgentRuntime`（`llm-provider/src/runtime.ts`）：请求/信号拆分 #111、取消与总截止 #142→#147、预算 #143→#156、流式 #144→#161、重试与回退 #145→#162、AG9 一致性与 provider-failure 场景 `dc6b0de` (#165)；conformance 证据记于 `docs/ag9-conformance.md`，ADR 见 [ADR 0002](./0002-runtime-execution-boundary.md)。
+6. **状态与证据**：**已合并** — `AgentRuntime`（`llm-provider/src/runtime.ts`）：请求/信号拆分 #111、取消与总截止 #142→#147、预算 #143→#156、流式 #144→#161、重试与回退 #145→#162、AG9 一致性与 provider-failure 场景 `dc6b0de` (#165)；conformance 证据记于 `docs/ag9-conformance.md`，ADR 见 [ADR 0002](./adr/0002-runtime-execution-boundary.md)。
 7. **已知限制**：数据模型按分析（原 #10）拆为可序列化的 `RuntimeRequestData` 与仅进程内的 `RuntimeExecutionOptions { signal }`（#111，已合并）；「流式文本」与「最终结构化结果」分别定义（`executeStructured` / `executeStructuredViaStream`）。**尚无 skill 调用结构化门**——`ag9-conformance.md` 如实记为 outstanding，是 AG8 工具调用要进的门。
 8. **依赖**：共享 provider 契约；AG10 一致性测试。
 9. **怎么验证**：待实现；需要 conformance suite（成功/超时/401/限流/坏 JSON → fallback）。

@@ -20,7 +20,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -36,6 +36,8 @@ const PAGES = new Map([
   ['implementation-progress.md', 'Implementation-Progress.md'],
   ['resume-policy-and-success.md', 'Resume-Policy-and-Success.md'],
   ['adr/0001-agent-memory-deletion.md', 'Adr-0001-Agent-Memory-Deletion.md'],
+  ['adr/0002-runtime-execution-boundary.md', 'Adr-0002-Runtime-Execution-Boundary.md'],
+  ['adr/0003-tool-permission-matrix.md', 'Adr-0003-Tool-Permission-Matrix.md'],
 ]);
 
 /**
@@ -97,7 +99,13 @@ function publish(text, file, repository) {
     }
 
     const [path, anchor] = target.split('#');
-    const page = PAGES.get(path.replace(/^\.\//, ''));
+    // Markdown resolves a relative link against the file that holds it, and the wiki is published
+    // from pages that live in subdirectories, so a page under `adr/` links its sibling as
+    // `./0001-….md`. `PAGES` is keyed from `docs/wiki/`, so the link is resolved against the
+    // linking file's own directory before the lookup — otherwise every such link is reported as
+    // unpublishable while being perfectly correct in the repository.
+    const resolved = join(dirname(file), path.replace(/^\.\//, '')).split(sep).join('/');
+    const page = PAGES.get(resolved);
     if (page === undefined) {
       console.error(
         `docs/wiki/${file}: ${whole} cannot be published. The wiki is flat, so every relative link ` +
@@ -137,9 +145,15 @@ const written = [];
 const pruned = [];
 
 // Nothing may be silently unpublished: a page here without a wiki page name would never appear.
-for (const name of readdirSync(source)) {
-  if (name.endsWith('.md') && !PAGES.has(name)) {
-    console.error(`docs/wiki/${name} has no wiki page; add it to PAGES.`);
+//
+// The walk is recursive, and that is the point. `adr/` is exactly where this went wrong: a flat
+// listing cannot see into the directory, so 0002 and 0003 were absent from PAGES while
+// `_sidebar.md` already linked to them — and the publish died on the first of those links with no
+// earlier warning to say a page was missing.
+for (const name of readdirSync(source, { recursive: true })) {
+  const relative = name.split(/[\\/]/).join('/');
+  if (relative.endsWith('.md') && !PAGES.has(relative)) {
+    console.error(`docs/wiki/${relative} has no wiki page; add it to PAGES.`);
     process.exit(1);
   }
 }
