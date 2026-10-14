@@ -303,6 +303,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- **An empty provider account is reported as an empty account, not as a malformed reply.** The nightly
+  `llm-live` gate went red the day after its secrets were added and printed one line:
+  `{"provider":"compatible","ok":false,"reason":"bad-response"}` — which reads as a broken adapter, and
+  was in fact the endpoint answering **HTTP 402 Insufficient account balance**. `mapStatusToReason` had no
+  name for it: every status that was not 401/403/429 fell through to `bad-response`, the reason the retry
+  policy classifies as a deterministic contract violation, so a billing problem looked exactly like a
+  malformed body — on the completion path, during model discovery, and in the learner's own Test connection
+  button. `ProviderFailureReason` gains `quota-exceeded`, terminal like `unauthorized` because only a human
+  topping the account up clears it (429's window moves on its own); the completion, streaming and discovery
+  paths share one `mapStatusToReason` so a status cannot mean two things in one workspace; `ProviderError`
+  carries the numeric status it came from; and the smoke script prints it, so the same failure now reads
+  `{"reason":"quota-exceeded","status":402}`. Reproduced against the live endpoint before the change:
+  `/models` answers 200 while every completion answers 402 `insufficient_balance`, and the adapter reports
+  it as `quota-exceeded` carrying the status and no key, body or URL. The interface has a sentence for that
+  reason in both locales, so it sends the reader to the account balance rather than to the model ID.
 - **Three transitive advisories are pinned out of the tree.** Dependabot reports fourteen, and none of
   them is reachable from the app's own code: `nx` pins `axios` (nine of the fourteen) and `smol-toml`,
   and `source-map-js` arrives through vitest's coverage instrumentation. Three of the four packages

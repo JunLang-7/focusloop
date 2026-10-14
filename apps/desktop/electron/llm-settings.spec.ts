@@ -238,6 +238,16 @@ describe('explicit connection testing', () => {
     expect(JSON.stringify(result)).not.toContain('SECRET');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
+  it('reports an empty account as quota-exceeded, not as a malformed reply', async () => {
+    // The reason the learner's own connection test exists: 402 is the account, and calling it
+    // bad-response would send them to check the model ID and the compatibility options instead.
+    const fetchImpl = vi.fn<typeof fetch>(async () => response(402));
+    const { manager } = setup({}, fetchImpl);
+    manager.save({ provider: custom, apiKey: 'SECRET' });
+    const result = await manager.test(selection);
+    expect(result).toEqual({ ok: false, reason: 'quota-exceeded' });
+    expect(JSON.stringify(result)).not.toContain('SECRET');
+  });
   it('does not record stale verification when a configuration changes mid-test', async () => {
     let resolve!: (value: Response) => void;
     const fetchImpl = vi.fn<typeof fetch>(

@@ -154,6 +154,27 @@ describe('DeepSeekProvider requests', () => {
     });
   });
 
+  it('maps 402 to quota-exceeded and keeps the status, not the body', async () => {
+    // The live probe's own failure: an account with no balance answers 402 with an error body, and
+    // "insufficient balance" must not be reported as a malformed reply.
+    const fetchImpl = vi.fn(async () =>
+      jsonResponse({ error: { message: 'Insufficient account balance', key: 'secret-key' } }, 402),
+    );
+    const provider = new DeepSeekProvider({
+      apiKey: 'secret-key',
+      fetchImpl: fetchImpl as unknown as typeof fetch,
+    });
+    await expect(provider.complete({ prompt: 'hi' })).rejects.toMatchObject({
+      reason: 'quota-exceeded',
+      status: 402,
+    });
+    try {
+      await provider.complete({ prompt: 'hi' });
+    } catch (error) {
+      expect(String((error as Error).message)).not.toContain('secret-key');
+    }
+  });
+
   it('treats an empty completion as a bad response', async () => {
     const fetchImpl = vi.fn(async () => jsonResponse({ choices: [{ message: { content: '' } }] }));
     const provider = new DeepSeekProvider({

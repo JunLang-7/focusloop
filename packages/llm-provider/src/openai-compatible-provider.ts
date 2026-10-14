@@ -5,6 +5,7 @@ import {
   type CompletionResult,
 } from '@focusloop/shared-types';
 import { ProviderError } from './errors';
+import { mapStatusToReason } from './http-status';
 import { readCompletionUsage } from './budgets';
 import { controlledStream } from './stream-control';
 import { MAX_STREAM_OUTPUT_CHARACTERS, sseData, type ProviderStreamEvent } from './streaming';
@@ -212,6 +213,7 @@ export class OpenAICompatibleProvider implements ExecutableAIProvider {
         response.ok ? 'bad-response' : mapStatusToReason(response.status),
         this.id,
         'Provider stream response unavailable',
+        response.ok ? undefined : response.status,
       );
     }
     const reader = response.body.getReader();
@@ -356,6 +358,7 @@ export class OpenAICompatibleProvider implements ExecutableAIProvider {
         mapStatusToReason(response.status),
         this.id,
         `Provider request failed with status ${response.status}`,
+        response.status,
       );
     }
 
@@ -383,10 +386,4 @@ export class OpenAICompatibleProvider implements ExecutableAIProvider {
       latencyMs: this.now() - started,
     };
   }
-}
-
-function mapStatusToReason(status: number): 'unauthorized' | 'rate-limited' | 'bad-response' {
-  if (status === 401 || status === 403) return 'unauthorized';
-  if (status === 429) return 'rate-limited';
-  return 'bad-response';
 }

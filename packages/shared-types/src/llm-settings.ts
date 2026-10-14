@@ -67,6 +67,7 @@ export interface TestModelResult {
     | 'timeout'
     | 'unauthorized'
     | 'rate-limited'
+    | 'quota-exceeded'
     | 'bad-response'
     | 'busy';
   readonly latencyMs?: number;

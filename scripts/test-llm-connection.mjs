@@ -2,6 +2,10 @@
  * Opt-in live adapter smoke test; excluded from the offline test suite and CI.
  * Credentials can come from the environment (CI/cloud) or an explicitly named env file.
  * Example: node scripts/test-llm-connection.mjs --env-file .env --provider compatible --model <model-id>
+ *
+ * A failing run prints the numeric HTTP status when there was one: `quota-exceeded` with a 402
+ * says the account needs topping up, and a `bad-response` without a status says the provider's reply
+ * broke the published contract. The two used to be the same line of output.
  */
 import { createRequire } from 'node:module';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -102,13 +106,18 @@ try {
         if (!completed || characters === 0) process.exitCode = 1;
       }
     } catch (error) {
-      // No raw HTTP bodies, exception text, URLs or credentials leave this script.
-      writeResult({
+      // No raw HTTP bodies, exception text, URLs or credentials leave this script. The status is a
+      // number, not a payload, and it is what tells an empty account (402) apart from a provider
+      // whose reply broke the contract — a distinction the reason alone does not always carry.
+      const status = error?.status;
+      const failure = {
         provider: values.provider,
         model,
         ok: false,
         reason: error?.reason ?? 'bad-response',
-      });
+        ...(typeof status === 'number' ? { status } : {}),
+      };
+      writeResult(failure);
       process.exitCode = 1;
     }
   }

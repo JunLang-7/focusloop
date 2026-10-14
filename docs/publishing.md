@@ -165,6 +165,12 @@ be proven before a release ships. Nothing in the live job prints a credential, a
 `scripts/test-llm-connection.mjs` emits one sanitized JSON object per line and exits non-zero on
 failure.
 
+A red `llm-live` run is not always a code defect. The job exercises a real account, so an account out
+of credit answers HTTP 402, and the adapter reports that as `quota-exceeded` with the status beside it
+rather than as `bad-response`: the fix is to top the account up (or unset the optional
+`OPENAI_COMPATA_*` pair so the probe skips), not to look for a malformed reply. That distinction is why
+the live probe's first red run after a balance ran out read as an adapter bug.
+
 ### The wiki publishes with no secret at all
 
 `docs/wiki/` is published to the GitHub Wiki by `wiki-sync.yml` on every push to `main` that touches

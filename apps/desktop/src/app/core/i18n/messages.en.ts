@@ -305,6 +305,8 @@ const en = {
   'llm.test.unauthorized':
     'The provider rejected authentication. Check the key and account permissions.',
   'llm.test.rate-limited': 'The provider rate-limited the request. Try again later.',
+  'llm.test.quota-exceeded':
+    'The account has no credit or quota left for this provider. Add funds or raise the quota, then test again.',
   'llm.test.bad-response':
     'The model returned an invalid response. Check the model ID and API compatibility.',
   'llm.test.busy': 'Another connection test is already running.',

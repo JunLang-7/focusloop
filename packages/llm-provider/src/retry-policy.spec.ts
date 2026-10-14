@@ -21,6 +21,7 @@ const EXPECTED_CLASSIFICATION: Record<ProviderFailureReason, FailureClassificati
   'rate-limited': 'retryable',
   unauthorized: 'terminal',
   'not-configured': 'terminal',
+  'quota-exceeded': 'terminal',
   'bad-response': 'terminal',
 };
 
@@ -45,9 +46,10 @@ describe('the retry classification is a closed policy', () => {
     expect(Object.isFrozen(TERMINAL_FAILURE_REASONS)).toBe(true);
   });
 
-  it('never retries unauthorized, not-configured or bad-response', () => {
+  it('never retries unauthorized, not-configured, quota-exceeded or bad-response', () => {
     expect(classifyFailure('unauthorized')).toBe('terminal');
     expect(classifyFailure('not-configured')).toBe('terminal');
+    expect(classifyFailure('quota-exceeded')).toBe('terminal');
     expect(classifyFailure('bad-response')).toBe('terminal');
   });
 });

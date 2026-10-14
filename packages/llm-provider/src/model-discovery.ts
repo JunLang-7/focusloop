@@ -1,5 +1,6 @@
 import { normalizeLlmBaseUrl, type ModelDefinition } from '@focusloop/shared-types';
 import { ProviderError } from './errors';
+import { mapStatusToReason } from './http-status';
 import { RuntimeDeadlineError, withExecution } from './execution';
 
 /** Opt-in OpenAI-compatible /models discovery. No credential persistence or fallback. */
@@ -20,13 +21,12 @@ export async function fetchModelList(options: {
           signal,
         });
         if (!response.ok) {
-          const reason =
-            response.status === 401 || response.status === 403
-              ? 'unauthorized'
-              : response.status === 429
-                ? 'rate-limited'
-                : 'bad-response';
-          throw new ProviderError(reason, options.providerId, 'Model discovery failed');
+          throw new ProviderError(
+            mapStatusToReason(response.status),
+            options.providerId,
+            'Model discovery failed',
+            response.status,
+          );
         }
         const raw: unknown = await response.json();
         if (

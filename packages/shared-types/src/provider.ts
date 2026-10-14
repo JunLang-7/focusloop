@@ -30,8 +30,21 @@ export interface AIProvider {
   complete(request: CompletionRequest): Promise<CompletionResult>;
 }
 
+/**
+ * Every way a provider call can fail. `quota-exceeded` is the account-level one — HTTP 402, an empty
+ * balance or an exhausted hard quota — and it is separate from the transient `rate-limited` window
+ * because nothing but a human topping the account up clears it. Without that name a rejected payment
+ * arrives as `bad-response` and reads as a malformed reply, which is how an empty live-probe account
+ * once looked like a broken adapter.
+ */
 export type ProviderFailureReason =
-  'offline' | 'timeout' | 'unauthorized' | 'rate-limited' | 'bad-response' | 'not-configured';
+  | 'offline'
+  | 'timeout'
+  | 'unauthorized'
+  | 'rate-limited'
+  | 'quota-exceeded'
+  | 'bad-response'
+  | 'not-configured';
 
 /**
  * Degraded mode contract: a provider failure must never break the golden path.

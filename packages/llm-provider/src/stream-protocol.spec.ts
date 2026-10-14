@@ -76,9 +76,15 @@ it('detailed events expose accurate model, caps, selected usage and no opaque da
   });
   expect(JSON.stringify(events)).not.toContain('private');
 });
-it.each([401, 403, 429, 500])(
+it.each([
+  [401, 'unauthorized'],
+  [403, 'unauthorized'],
+  [402, 'quota-exceeded'],
+  [429, 'rate-limited'],
+  [500, 'bad-response'],
+] as const)(
   'HTTP %i fails before text and records fallback origin/reason',
-  async (status) => {
+  async (status, reason) => {
     const t = fixture(undefined, status);
     const events = [];
     for await (const event of t.runtime.streamEvents({ prompt: 'q' })) events.push(event);
@@ -87,11 +93,7 @@ it.each([401, 403, 429, 500])(
     expect(events.at(-1)).toMatchObject({
       type: 'complete',
       result: {
-        failure: {
-          reason:
-            status === 429 ? 'rate-limited' : status === 500 ? 'bad-response' : 'unauthorized',
-          providerId: 'deepseek',
-        },
+        failure: { reason, providerId: 'deepseek' },
       },
     });
   },

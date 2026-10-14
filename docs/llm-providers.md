@@ -83,4 +83,8 @@ node scripts/test-llm-connection.mjs --provider compatible --model YOUR_MODEL_ID
 
 `OPENAI_COMPATA_MODEL` can replace `--model`. `DEEPSEEK_BASE_URL` and `DEEPSEEK_MODEL` optionally
 customize the DeepSeek smoke test. There are no provider-specific variables for custom vendors and
-no fixed custom model IDs in the script. Output excludes keys, URLs, response bodies and raw exceptions.
+no fixed custom model IDs in the script. Output excludes keys, URLs, response bodies and raw exceptions,
+and a failing line carries the numeric HTTP status when there was one — `{"reason":"quota-exceeded","status":402}`
+is an account with nothing left on it, while a `bad-response` with no status is a reply that broke the
+published contract. The [retry policy](runtime-retry-policy.md) shows which of those reasons a caller
+may retry.

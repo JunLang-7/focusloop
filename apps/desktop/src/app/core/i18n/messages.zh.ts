@@ -272,6 +272,7 @@ export const zh: Record<MessageKey, string> = {
   'llm.test.timeout': '模型响应超时。',
   'llm.test.unauthorized': '服务商拒绝了认证，请检查密钥和账号权限。',
   'llm.test.rate-limited': '服务商限制了请求频率，请稍后重试。',
+  'llm.test.quota-exceeded': '该服务商账号的余额或配额已用尽，请充值或提升配额后重试。',
   'llm.test.bad-response': '模型返回了无效响应，请检查模型 ID 和 API 兼容选项。',
   'llm.test.busy': '另一个连接测试正在进行中。',
 

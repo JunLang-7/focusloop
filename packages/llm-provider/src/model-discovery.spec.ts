@@ -33,6 +33,7 @@ describe('model discovery', () => {
   });
   it.each([
     [401, 'unauthorized'],
+    [402, 'quota-exceeded'],
     [429, 'rate-limited'],
     [404, 'bad-response'],
   ] as const)(
@@ -41,6 +42,7 @@ describe('model discovery', () => {
       const fetchImpl = vi.fn<typeof fetch>(async () => new Response('SECRET', { status }));
       await expect(fetchModelList({ ...connection, fetchImpl })).rejects.toMatchObject({
         reason,
+        status,
         message: 'Model discovery failed',
       });
       expect(fetchImpl).toHaveBeenCalledTimes(1);

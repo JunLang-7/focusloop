@@ -14,12 +14,13 @@ adding an unclassified reason is a compile error, so retry behaviour cannot drif
 | `offline`        | retryable | A dropped transport often succeeds on a second try.                                                                  |
 | `timeout`        | retryable | Transient slowness; the absolute deadline still bounds the whole operation.                                          |
 | `rate-limited`   | retryable | Ends when the quota window moves.                                                                                    |
+| `quota-exceeded` | terminal  | The account has no credit or quota left; only a human topping it up changes that.                                    |
 | `unauthorized`   | terminal  | Needs a human to fix a key; repeating the identical request cannot help.                                             |
 | `not-configured` | terminal  | Configuration, not transport.                                                                                        |
 | `bad-response`   | terminal  | Deterministic contract violation; the same request reproduces it. Schema content gets its own bounded retry instead. |
 
-`unauthorized`, `not-configured`, `bad-response`, caller cancellation and the absolute deadline are
-never retried, on any path.
+`unauthorized`, `not-configured`, `quota-exceeded`, `bad-response`, caller cancellation and the
+absolute deadline are never retried, on any path.
 
 ## Policy, defaults and injection
 

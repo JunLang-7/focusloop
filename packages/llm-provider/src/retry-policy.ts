@@ -22,13 +22,15 @@ export const RETRYABLE_FAILURE_REASONS = Object.freeze([
 ] as const satisfies readonly ProviderFailureReason[]);
 
 /**
- * `unauthorized`/`not-configured` need a human to fix configuration, and `bad-response` is a
- * deterministic contract violation: repeating the identical request reproduces it. Schema
- * validation has its own bounded retry for the *content* case, so `bad-response` adds no value here.
+ * `unauthorized`/`not-configured` need a human to fix configuration, `quota-exceeded` needs a human
+ * to add credit, and `bad-response` is a deterministic contract violation: repeating the identical
+ * request reproduces it. Schema validation has its own bounded retry for the *content* case, so
+ * `bad-response` adds no value here.
  */
 export const TERMINAL_FAILURE_REASONS = Object.freeze([
   'unauthorized',
   'not-configured',
+  'quota-exceeded',
   'bad-response',
 ] as const satisfies readonly ProviderFailureReason[]);
 
