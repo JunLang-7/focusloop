@@ -9,6 +9,7 @@ import type {
 import {
   buildInsightsSummary,
   buildStateTimeline,
+  currentStreak,
   localDateKey,
   recordedSessionMs,
   type InsightsSessionSource,
@@ -70,6 +71,22 @@ describe('localDateKey', () => {
   it('formats a local calendar date, zero-padded', () => {
     expect(localDateKey(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
     expect(localDateKey(new Date(2026, 11, 31, 0, 0))).toBe('2026-12-31');
+  });
+});
+
+describe('currentStreak', () => {
+  it('counts consecutive active days back from today', () => {
+    expect(currentStreak(new Set(['2026-06-13', '2026-06-14', '2026-06-15']), '2026-06-15')).toBe(
+      3,
+    );
+  });
+
+  it('stays alive while today is still open and yesterday was active', () => {
+    expect(currentStreak(new Set(['2026-06-13', '2026-06-14']), '2026-06-15')).toBe(2);
+  });
+
+  it('is over once a whole day has been missed', () => {
+    expect(currentStreak(new Set(['2026-06-12', '2026-06-13']), '2026-06-15')).toBe(0);
   });
 });
 

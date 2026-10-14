@@ -517,6 +517,35 @@ describe('FocusLoopStore', () => {
     });
   });
 
+  describe('mood entries', () => {
+    it('stores one answer per day, and a second answer replaces the first', () => {
+      store.saveMoodEntry({ date: '2026-06-15', mood: 3, note: 'ok', updatedAt: T0 });
+      expect(store.getMoodEntry('2026-06-15')).toEqual({
+        date: '2026-06-15',
+        mood: 3,
+        note: 'ok',
+        updatedAt: T0,
+      });
+
+      // The date is the key: "how was today" has one answer, not a stream of them.
+      store.saveMoodEntry({ date: '2026-06-15', mood: 5, note: '', updatedAt: T0 });
+      expect(store.listMoodEntries()).toHaveLength(1);
+      expect(store.getMoodEntry('2026-06-15')?.mood).toBe(5);
+    });
+
+    it('reads history newest day first, up to the limit', () => {
+      store.saveMoodEntry({ date: '2026-06-13', mood: 2, note: '', updatedAt: T0 });
+      store.saveMoodEntry({ date: '2026-06-15', mood: 4, note: '', updatedAt: T0 });
+      store.saveMoodEntry({ date: '2026-06-14', mood: 3, note: '', updatedAt: T0 });
+
+      expect(store.listMoodEntries(2).map((entry) => entry.date)).toEqual([
+        '2026-06-15',
+        '2026-06-14',
+      ]);
+      expect(store.getMoodEntry('2026-06-12')).toBeNull();
+    });
+  });
+
   describe('data integrity', () => {
     it('persists across close and reopen for a file-backed database', () => {
       const file = join(tmpdir(), `focusloop-test-${randomUUID()}.sqlite`);

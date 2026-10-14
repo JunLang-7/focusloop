@@ -297,6 +297,7 @@ export class AppComponent implements OnInit, OnDestroy {
       this.stateService.theme.set(settings.theme);
       this.stateService.showMaterialText.set(settings.showMaterialText);
       this.stateService.ambientSound.set(settings.ambientSound);
+      this.stateService.clockFormat.set(settings.clockFormat);
     });
     void this.stateService.refresh();
     this.unsubscribe = this.stateService.subscribeToEvents();

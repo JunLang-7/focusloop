@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   IPC_CHANNELS,
   AGENT_MEMORY_SCOPES,
+  CLOCK_FORMATS,
   INSIGHT_RANGES,
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
@@ -24,8 +25,11 @@ import {
   parseResolveIntervention,
   parseResumeDecision,
   parseSessionId,
+  parseListMoods,
+  parseSaveMood,
   parseSetLocale,
   parseSetAmbientSound,
+  parseSetClockFormat,
   parseSetTheme,
   parseSimulatorCommand,
   parseStartSession,
@@ -151,6 +155,31 @@ describe('the preload and the main process agree on every payload', () => {
         parseSetAmbientSound(IPC_CHANNELS.setAmbientSound, payload.setAmbientSound(ambientSound)),
       ).toEqual({ ambientSound });
     }
+  });
+
+  it('the clock channel accepts what the preload sends, and refuses anything else', () => {
+    for (const clockFormat of CLOCK_FORMATS) {
+      expect(
+        parseSetClockFormat(IPC_CHANNELS.setClockFormat, payload.setClockFormat(clockFormat)),
+      ).toEqual({ clockFormat });
+    }
+    expect(() =>
+      parseSetClockFormat(IPC_CHANNELS.setClockFormat, { clockFormat: '13h' }),
+    ).toThrowError(/unsupported clock format/);
+  });
+
+  it('the mood channels accept what the preload sends, and refuse a value the screen cannot offer', () => {
+    expect(parseSaveMood(IPC_CHANNELS.saveMood, payload.saveMood(4, 'fine'))).toEqual({
+      mood: 4,
+      note: 'fine',
+    });
+    expect(parseListMoods(IPC_CHANNELS.listMoods, payload.listMoods(14))).toEqual({ limit: 14 });
+    expect(() => parseSaveMood(IPC_CHANNELS.saveMood, { mood: 6, note: '' })).toThrowError(
+      /between 1 and 5/,
+    );
+    expect(() => parseListMoods(IPC_CHANNELS.listMoods, { limit: 10_000 })).toThrowError(
+      /between 0 and 366/,
+    );
   });
 
   it('the insights channel accepts what the preload sends', () => {

@@ -400,3 +400,43 @@ test('the home page starts a session, browses courses, and takes material in', a
     rmSync(profile, { recursive: true, force: true });
   }
 });
+
+/**
+ * The daily check-in, on its own launch: it is about a day, not about a session, and running it
+ * inside the page test above would make it depend on whatever that test left in the store.
+ */
+test('the daily check-in records how the day feels, and the choice survives a reload', async () => {
+  const profile = mkdtempSync(join(tmpdir(), 'focusloop-mood-'));
+  const app = await electron.launch({
+    args: [MAIN, `--user-data-dir=${profile}`],
+    env: hermeticEnv(),
+  });
+  try {
+    const page = await app.firstWindow();
+    await page.waitForLoadState('domcontentloaded');
+    await page.setViewportSize({ width: 1280, height: 1000 });
+
+    await expect(page.getByTestId('mood-checkin')).toBeVisible();
+    await page.getByTestId('mood-4').click();
+    await expect(page.getByTestId('mood-4')).toHaveAttribute('aria-pressed', 'true');
+    await page.getByTestId('mood-note').fill('focused but tired');
+    await page.getByTestId('mood-save').click();
+    await expect(page.getByTestId('mood-saved')).toBeVisible();
+    await expect(page.locator('.banner--error')).toHaveCount(0);
+
+    // The answer belongs to the store, not to the page: leaving and coming back remounts the check-in
+    // and it reads today's answer from the store, which is what "one answer per day" has to mean.
+    await page.evaluate(() => {
+      location.hash = '#/dashboard';
+    });
+    await page.evaluate(() => {
+      location.hash = '#/home';
+    });
+    await expect(page.getByTestId('mood-checkin')).toBeVisible();
+    await expect(page.getByTestId('mood-4')).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.getByTestId('mood-note')).toHaveValue('focused but tired');
+  } finally {
+    await closeElectronApp(app);
+    rmSync(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
+  }
+});

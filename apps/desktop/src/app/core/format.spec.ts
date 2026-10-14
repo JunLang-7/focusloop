@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDuration } from './format';
+import { formatClock, formatDuration } from './format';
 
 const MINUTE = 60_000;
 const HOUR = 60 * MINUTE;
@@ -40,5 +40,20 @@ describe('formatDuration', () => {
     expect(formatDuration(-1)).toBe('0:00');
     expect(formatDuration(Number.NaN)).toBe('0:00');
     expect(formatDuration(Number.POSITIVE_INFINITY)).toBe('0:00');
+  });
+});
+
+describe('formatClock', () => {
+  // A local 13:05. The two clocks write it differently in every locale the app supports, which is the
+  // assertion — the exact AM/PM wording is the runtime's business, not this test's.
+  const afternoon = new Date(2026, 0, 2, 13, 5, 0).toISOString();
+
+  it('writes a time of day in the chosen clock', () => {
+    expect(formatClock(afternoon, '12h')).not.toBe(formatClock(afternoon, '24h'));
+  });
+
+  it('says it has nothing rather than inventing a time', () => {
+    expect(formatClock(undefined, '24h')).toBe('—');
+    expect(formatClock('not-a-date', '12h')).toBe('—');
   });
 });

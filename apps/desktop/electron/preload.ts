@@ -121,6 +121,8 @@ const api: FocusLoopApi = {
     ),
   setAmbientSound: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.setAmbientSound, payload.setAmbientSound(request.ambientSound)),
+  setClockFormat: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setClockFormat, payload.setClockFormat(request.clockFormat)),
 
   getModelSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getModelSettings, payload.none()),
   getLlmSettings: () => ipcRenderer.invoke(IPC_CHANNELS.getLlmSettings, payload.none()),
@@ -144,6 +146,11 @@ const api: FocusLoopApi = {
 
   getInsights: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.getInsights, payload.insights(request.range)),
+  getMood: () => ipcRenderer.invoke(IPC_CHANNELS.getMood, payload.none()),
+  listMoods: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.listMoods, payload.listMoods(request.limit)),
+  saveMood: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.saveMood, payload.saveMood(request.mood, request.note)),
 
   /**
    * The engine's own pushes (#204), whole.

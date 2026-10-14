@@ -292,7 +292,7 @@ export class MorePage {
       ? []
       : suggestionRowViews(
           result.candidates,
-          (iso) => (iso === null ? '—' : formatClock(iso)),
+          (iso) => (iso === null ? '—' : formatClock(iso, this.state.clockFormat())),
           new Date().toISOString(),
         );
   });
@@ -302,7 +302,9 @@ export class MorePage {
     const week = this.state.weeklyReflection();
     return week === null
       ? null
-      : reflectionView(week, (iso) => (iso === null ? '—' : formatClock(iso)));
+      : reflectionView(week, (iso) =>
+          iso === null ? '—' : formatClock(iso, this.state.clockFormat()),
+        );
   });
 
   /** Newest run first, so the log reads top-down as most-recent-first. */

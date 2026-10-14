@@ -356,7 +356,7 @@ export class DataControlsComponent implements OnDestroy {
   }
 
   protected clock(iso: string | null): string {
-    return iso === null ? '—' : formatClock(iso);
+    return iso === null ? '—' : formatClock(iso, this.state.clockFormat());
   }
 
   protected askClearMemory(): void {

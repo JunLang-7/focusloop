@@ -1,6 +1,7 @@
 import { Injectable, effect, signal, computed } from '@angular/core';
 import {
   DEFAULT_AMBIENT_SOUND,
+  DEFAULT_CLOCK_FORMAT,
   DEFAULT_INSIGHT_RANGE,
   DEFAULT_LOCALE,
   DEFAULT_SHOW_MATERIAL_TEXT,
@@ -9,6 +10,8 @@ import {
 import type {
   AppSettings,
   AnswerSourceResponse,
+  ClockFormat,
+  MoodEntry,
   BridgeInfo,
   Course,
   DashboardSummary,
@@ -238,6 +241,8 @@ export class AppStateService {
    * on its own.
    */
   readonly ambientSound = signal<boolean>(DEFAULT_AMBIENT_SOUND);
+  /** `24h` writes `13:05`, `12h` writes `1:05 PM`. A display preference, stored by the store. */
+  readonly clockFormat = signal<ClockFormat>(DEFAULT_CLOCK_FORMAT);
   /**
    * Where the database is, as the main process resolved it.
    *
@@ -253,6 +258,14 @@ export class AppStateService {
    * silently reset it to "today" every time an event arrived would be a bug.
    */
   readonly todayInsights = signal<InsightsSummary | null>(null);
+  /**
+   * The day's wellbeing check-in and its recent history.
+   *
+   * Its own read, not part of the insights window: "how do I feel today" is a question about the day,
+   * not about whichever range the dashboard happens to be showing.
+   */
+  readonly moodToday = signal<MoodEntry | null>(null);
+  readonly moodHistory = signal<readonly MoodEntry[]>([]);
 
   readonly state = computed<LearningState>(() => this.snapshot()?.session.state ?? 'READY');
   readonly hasSession = computed(() => this.snapshot() !== null);
@@ -337,6 +350,7 @@ export class AppStateService {
         theme: DEFAULT_THEME,
         showMaterialText: DEFAULT_SHOW_MATERIAL_TEXT,
         ambientSound: DEFAULT_AMBIENT_SOUND,
+        clockFormat: DEFAULT_CLOCK_FORMAT,
       };
     }
   }
@@ -374,6 +388,13 @@ export class AppStateService {
     await this.run(async () => {
       const settings = await this.api.setAmbientSound({ ambientSound });
       this.ambientSound.set(settings.ambientSound);
+    });
+  }
+
+  async setClockFormat(clockFormat: ClockFormat): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setClockFormat({ clockFormat });
+      this.clockFormat.set(settings.clockFormat);
     });
   }
 
@@ -480,6 +501,7 @@ export class AppStateService {
       this.locale.set(settings.locale);
       this.theme.set(settings.theme);
       this.showMaterialText.set(settings.showMaterialText);
+      this.clockFormat.set(settings.clockFormat);
 
       await this.refresh();
       await this.reloadInsightsQuietly();
@@ -837,6 +859,21 @@ export class AppStateService {
    * Re-aggregates the dashboard for a window. The main process owns the maths;
    * the renderer only decides which range the learner asked for.
    */
+  async loadMood(): Promise<void> {
+    await this.run(async () => {
+      this.moodToday.set(await this.api.getMood());
+      this.moodHistory.set(await this.api.listMoods({ limit: 14 }));
+    });
+  }
+
+  async saveMood(mood: number, note: string): Promise<void> {
+    await this.run(async () => {
+      const entry = await this.api.saveMood({ mood, note });
+      this.moodToday.set(entry);
+      this.moodHistory.set(await this.api.listMoods({ limit: 14 }));
+    });
+  }
+
   async loadInsights(range: InsightRange): Promise<void> {
     this.insightRange.set(range);
     await this.run(async () => {

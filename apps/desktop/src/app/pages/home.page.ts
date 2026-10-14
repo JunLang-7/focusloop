@@ -4,6 +4,7 @@ import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { STATE_KEYS } from '../core/i18n/labels';
 import type { MessageKey } from '../core/i18n/messages.en';
+import { MoodCheckinComponent } from '../components/mood-checkin.component';
 import { formatDuration } from '../core/format';
 import {
   MATERIAL_FILE_MAX_BYTES,
@@ -26,6 +27,7 @@ type ImportProblem = 'missing' | 'format' | 'empty-text';
 @Component({
   selector: 'fl-home',
   standalone: true,
+  imports: [MoodCheckinComponent],
   template: `
     <header class="page-head">
       <div>
@@ -69,6 +71,12 @@ type ImportProblem = 'missing' | 'format' | 'empty-text';
         <p class="muted small">{{ t('home.start.back') }}</p>
       </section>
     }
+
+    <!--
+      The daily check-in, on the page the learner lands on. It asks one question and is not a modal:
+      the learning state is what the app can see, and how the day feels is what it has to be told.
+    -->
+    <fl-mood-checkin />
 
     <section>
       <h2 class="section-title">{{ t('home.courses.title') }}</h2>

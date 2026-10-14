@@ -38,6 +38,8 @@ test('sidebar keeps learning navigation; modal General and Models tabs persist p
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await page.getByTestId('material-text-toggle').click();
     await expect(page.getByTestId('material-text-toggle')).toHaveAttribute('aria-checked', 'false');
+    await page.getByTestId('clock-12h').click();
+    await expect(page.getByTestId('clock-12h')).toHaveAttribute('aria-pressed', 'true');
     await page.screenshot({ path: testInfo.outputPath('general-light-zh.png') });
     const navigation = await page.locator('.settings__nav').boundingBox();
     await page.getByTestId('settings-models-tab').click();
@@ -66,6 +68,7 @@ test('sidebar keeps learning navigation; modal General and Models tabs persist p
       'aria-checked',
       'false',
     );
+    await expect(second.getByTestId('clock-12h')).toHaveAttribute('aria-pressed', 'true');
     await second.getByTestId('theme-system').click();
     await expect(second.getByTestId('theme-system')).toHaveAttribute('aria-pressed', 'true');
   } finally {

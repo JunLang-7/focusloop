@@ -405,6 +405,55 @@ export function buildInsightsSummary(input: BuildInsightsInput): InsightsSummary
     stateShares,
     daily,
     maxDailyMs,
+    streakDays: allTimeStreakDays(input, now),
     courseShares,
   };
+}
+
+/**
+ * Consecutive active days ending today — the habit figure, and deliberately **not** windowed.
+ *
+ * A seven-day window would cap a three-week streak at seven, which is the one number a streak exists to
+ * report. A day is active exactly when the heatmap would colour it, so the two cannot disagree: it is
+ * built from the same credited timeline, over every session rather than only the ones inside the window.
+ *
+ * The streak survives today: if today has nothing yet but yesterday was active, it still counts, because
+ * the day is not over. If neither today nor yesterday is active, it is over.
+ */
+function allTimeStreakDays(input: BuildInsightsInput, nowMs: number): number {
+  const active = new Set<string>();
+  for (const source of input.sources) {
+    const endedMs =
+      source.session.endedAt === undefined ? nowMs : Date.parse(source.session.endedAt);
+    const untilMs = Number.isFinite(endedMs) ? Math.min(endedMs, nowMs) : nowMs;
+    const timeline = buildStateTimeline(
+      source.session,
+      source.events,
+      new Date(untilMs).toISOString(),
+      input.config,
+    );
+    for (const segment of timeline) {
+      for (const piece of splitByLocalDay(segment.fromMs, segment.toMs)) {
+        if (piece.ms > 0) active.add(piece.date);
+      }
+    }
+  }
+  return currentStreak(active, localDateKey(new Date(nowMs)));
+}
+
+/** The pure part of the streak, so the boundary can be tested without a session or a clock. */
+export function currentStreak(activeDates: ReadonlySet<string>, today: string): number {
+  const shift = (date: string, days: number): string => {
+    const parsed = new Date(`${date}T12:00:00`);
+    if (Number.isNaN(parsed.getTime())) return '';
+    parsed.setDate(parsed.getDate() + days);
+    return localDateKey(parsed);
+  };
+  let cursor = activeDates.has(today) ? today : shift(today, -1);
+  let streak = 0;
+  while (cursor !== '' && activeDates.has(cursor)) {
+    streak += 1;
+    cursor = shift(cursor, -1);
+  }
+  return streak;
 }

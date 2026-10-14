@@ -1,3 +1,5 @@
+import type { ClockFormat } from '@focusloop/shared-types';
+
 /** Presentation-only formatting helpers. No domain logic lives here. */
 
 /**
@@ -32,11 +34,19 @@ export function formatLatency(ms: number | null | undefined): string {
   return `${(ms / 1000).toFixed(1)} s`;
 }
 
-export function formatClock(iso: string | undefined): string {
+/**
+ * A time of day, in the learner's chosen clock. `format` is required rather than defaulted so a new
+ * caller cannot quietly pick 24h for someone who chose 12h.
+ */
+export function formatClock(iso: string | undefined, format: ClockFormat): string {
   if (iso === undefined) return '—';
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: format === '12h',
+  });
 }
 
 export function percent(value: number): string {

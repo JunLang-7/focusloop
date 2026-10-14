@@ -226,6 +226,15 @@ const DONUT_RADIUS = 42;
                     <span class="muted small">{{ t('dashboard.window.sessions') }}</span>
                     <strong>{{ data.sessionCount }}</strong>
                   </div>
+                  <!--
+                    The habit figure, and the one number here that is not windowed: a seven-day window
+                    would cap a three-week streak at seven. It lives beside the heatmap because it is
+                    the heatmap's sentence — the same days, counted in a row.
+                  -->
+                  <div class="heat__fact">
+                    <span class="muted small">{{ t('dashboard.window.streak') }}</span>
+                    <strong data-testid="insights-streak">{{ data.streakDays }}</strong>
+                  </div>
                 </div>
               </div>
             }

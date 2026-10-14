@@ -1,0 +1,79 @@
+/*
+ * The check-in is a quiet card, not a modal and not a banner. It sits in the page it belongs to and
+ * asks one question, so it takes the ordinary raised surface rather than an accent — the accent is for
+ * the answer that is chosen, not for the card.
+ */
+.mood {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.mood__head h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.mood__head p {
+  margin: 2px 0 0;
+}
+
+.mood__options {
+  display: flex;
+  gap: 8px;
+}
+
+.mood__option {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-soft);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background 120ms ease,
+    transform 120ms ease;
+}
+
+.mood__option:hover,
+.mood__option:focus-visible {
+  border-color: var(--accent-border);
+}
+
+.mood__option.is-selected {
+  border-color: var(--accent);
+  background: var(--accent-surface);
+  transform: translateY(-1px);
+}
+
+.mood__note {
+  width: 100%;
+  resize: vertical;
+}
+
+.mood__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.mood__history {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding-top: 2px;
+  font-size: 16px;
+  line-height: 1;
+}

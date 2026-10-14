@@ -355,6 +355,20 @@ export const MIGRATIONS: readonly Migration[] = [
       );
     `,
   },
+  {
+    id: '0010-mood-entries',
+    sql: `
+      -- One wellbeing check-in per local day. The date is the key, so a second answer for the same day
+      -- replaces the first rather than stacking: "how was today" has one answer.
+      CREATE TABLE IF NOT EXISTS mood_entries (
+        date TEXT PRIMARY KEY,
+        mood INTEGER NOT NULL,
+        note TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_mood_entries_date ON mood_entries(date DESC);
+    `,
+  },
 ];
 
 export function migrate(db: SqlDatabase): readonly string[] {

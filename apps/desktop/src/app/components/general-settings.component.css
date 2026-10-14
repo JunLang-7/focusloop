@@ -61,6 +61,37 @@
   padding: 22px 0;
   border-bottom: 1px solid var(--border);
 }
+.general__appearance-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+/* The clock's two states, in the heading row so the panel does not grow a third card row for them. */
+.clock-toggle {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-soft);
+}
+.clock-toggle__btn {
+  padding: 6px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.clock-toggle__btn + .clock-toggle__btn {
+  border-left: 1px solid var(--border);
+}
+.clock-toggle__btn.is-selected {
+  background: var(--accent-surface);
+  color: var(--text);
+  font-weight: 600;
+}
 .theme-cards {
   display: flex;
   align-items: stretch;

@@ -39,9 +39,32 @@ export function coerceTheme(value: unknown): ThemePreference {
   return isThemePreference(value) ? value : DEFAULT_THEME;
 }
 
+/**
+ * How a time of day is written.
+ *
+ * `24h` is `13:05`, `12h` is `1:05 PM`. A *duration* is never affected: `1:05` on the focus timer is
+ * minutes and seconds and reads the same in both. This is a display preference for timestamps, stored
+ * rather than derived from the locale because English is written both ways.
+ */
+export const CLOCK_FORMATS = ['24h', '12h'] as const;
+
+export type ClockFormat = (typeof CLOCK_FORMATS)[number];
+
+export const DEFAULT_CLOCK_FORMAT: ClockFormat = '24h';
+
+export function isClockFormat(value: unknown): value is ClockFormat {
+  return typeof value === 'string' && (CLOCK_FORMATS as readonly string[]).includes(value);
+}
+
+export function coerceClockFormat(value: unknown): ClockFormat {
+  return isClockFormat(value) ? value : DEFAULT_CLOCK_FORMAT;
+}
+
 export interface AppSettings {
   readonly locale: Locale;
   readonly theme: ThemePreference;
+  /** `24h` writes `13:05`, `12h` writes `1:05 PM`; see `ClockFormat`. */
+  readonly clockFormat: ClockFormat;
   /**
    * Whether a course shows the text it was generated from.
    *

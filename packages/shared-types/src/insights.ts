@@ -76,6 +76,13 @@ export interface InsightsSummary {
   readonly daily: readonly DailyActivity[];
   /** Longest day in the window; the heatmap scales against it. */
   readonly maxDailyMs: number;
+  /**
+   * Consecutive active days ending today (or yesterday, while today is still open).
+   *
+   * All-time, not windowed: a streak capped at the seven-day window would report seven for a
+   * three-week habit. A day counts exactly when the heatmap would colour it.
+   */
+  readonly streakDays: number;
   /** Descending by duration. Courses with no time are omitted. */
   readonly courseShares: readonly CourseShare[];
 }

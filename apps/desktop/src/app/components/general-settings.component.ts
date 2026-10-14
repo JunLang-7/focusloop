@@ -1,5 +1,11 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
-import { SUPPORTED_LOCALES, type Locale, type ThemePreference } from '@focusloop/shared-types';
+import {
+  CLOCK_FORMATS,
+  SUPPORTED_LOCALES,
+  type ClockFormat,
+  type Locale,
+  type ThemePreference,
+} from '@focusloop/shared-types';
 import { DataControlsComponent } from './data-controls.component';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService, LOCALE_LABELS } from '../core/i18n/i18n.service';
@@ -32,7 +38,28 @@ import { I18nService, LOCALE_LABELS } from '../core/i18n/i18n.service';
         </select>
       </section>
       <section class="general__appearance" aria-labelledby="appearance-title">
-        <h2 id="appearance-title">{{ t('settings.appearance') }}</h2>
+        <div class="general__appearance-head">
+          <h2 id="appearance-title">{{ t('settings.appearance') }}</h2>
+          <!--
+            The clock format rides in the appearance heading rather than taking a row of its own: it is
+            a two-state display preference beside the two other display preferences, and a whole row for
+            it pushed the panel past the height where it needs no scrollbar.
+          -->
+          <div class="clock-toggle" role="group" [attr.aria-label]="t('settings.clock')">
+            @for (format of clockFormats; track format) {
+              <button
+                type="button"
+                class="clock-toggle__btn"
+                [attr.data-testid]="'clock-' + format"
+                [class.is-selected]="state.clockFormat() === format"
+                [attr.aria-pressed]="state.clockFormat() === format"
+                (click)="chooseClock(format)"
+              >
+                {{ t(format === '24h' ? 'settings.clock24' : 'settings.clock12') }}
+              </button>
+            }
+          </div>
+        </div>
         <div class="theme-cards" role="group" [attr.aria-label]="t('app.theme.switch')">
           <button
             type="button"
@@ -106,11 +133,15 @@ export class GeneralSettingsComponent {
   protected readonly t = inject(I18nService).t;
   protected readonly locales = SUPPORTED_LOCALES;
   protected readonly labels = LOCALE_LABELS;
+  protected readonly clockFormats = CLOCK_FORMATS;
   protected chooseLocale(event: Event): void {
     void this.state.setLocale((event.target as HTMLSelectElement).value as Locale);
   }
   protected chooseTheme(theme: ThemePreference): void {
     void this.state.setTheme(theme);
+  }
+  protected chooseClock(format: ClockFormat): void {
+    void this.state.setClockFormat(format);
   }
   protected toggleMaterial(): void {
     void this.state.setShowMaterialText(!this.state.showMaterialText());

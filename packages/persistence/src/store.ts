@@ -17,6 +17,7 @@ import type {
   MaterialSource,
   MicroTask,
   MicroTaskKind,
+  MoodEntry,
   Quiz,
   AgentMemorySourceCount,
   ExplanationPreferenceValue,
@@ -1240,6 +1241,33 @@ export class FocusLoopStore {
 
   // ----------------------------------------------------------------- misc
 
+  // ----------------------------------------------------------------- mood
+
+  /** Upserts the day's check-in. One answer per day, replaced rather than appended. */
+  saveMoodEntry(entry: MoodEntry): void {
+    this.db
+      .prepare(
+        `INSERT INTO mood_entries (date, mood, note, updated_at) VALUES (?, ?, ?, ?)
+         ON CONFLICT(date) DO UPDATE SET mood = excluded.mood, note = excluded.note,
+           updated_at = excluded.updated_at;`,
+      )
+      .run(entry.date, entry.mood, entry.note, entry.updatedAt);
+  }
+
+  getMoodEntry(date: string): MoodEntry | null {
+    const row = this.db.prepare('SELECT * FROM mood_entries WHERE date = ?;').get(date) as
+      SqlRow | undefined;
+    return row === undefined ? null : mapMoodEntry(row);
+  }
+
+  /** Newest day first, so a history reads top-down the way a log does. */
+  listMoodEntries(limit = 30): MoodEntry[] {
+    const rows = this.db
+      .prepare('SELECT * FROM mood_entries ORDER BY date DESC LIMIT ?;')
+      .all(Math.max(0, Math.floor(limit))) as SqlRow[];
+    return rows.map(mapMoodEntry);
+  }
+
   setMeta(key: string, value: string): void {
     this.db
       .prepare(
@@ -1289,6 +1317,15 @@ function mapEvent(row: SqlRow): LearningEvent {
     at: readText(row, 'learning_events', 'at'),
     payload: parseJson<Record<string, unknown>>(readText(row, 'learning_events', 'payload'), {}),
   } as LearningEvent;
+}
+
+function mapMoodEntry(row: SqlRow): MoodEntry {
+  return {
+    date: readText(row, 'mood_entries', 'date'),
+    mood: readInt(row, 'mood_entries', 'mood'),
+    note: readText(row, 'mood_entries', 'note'),
+    updatedAt: readText(row, 'mood_entries', 'updated_at'),
+  };
 }
 
 function mapLearnerPreference(row: SqlRow): LearnerPreference {
