@@ -7,8 +7,11 @@
  */
 
 export * from './demo-course';
+export * from './course-copy';
+export * from './quiz';
 export * from './micro-task-generator';
 export * from './agent-context';
+export * from './model-language';
 export * from './tutor';
 export * from './tutor-ask';
 export * from './dashboard';

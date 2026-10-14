@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { MicroTask, MicroTaskKind } from '@focusloop/shared-types';
-import { KIND_GLYPHS, buildPlan } from './session-plan';
+import { BLOCK_PX, KIND_GLYPHS, buildPlan } from './session-plan';
 
 const task = (id: string, estimatedMinutes: number, kind: MicroTaskKind = 'read'): MicroTask => ({
   id,
@@ -14,23 +14,13 @@ const task = (id: string, estimatedMinutes: number, kind: MicroTaskKind = 'read'
 });
 
 describe('buildPlan', () => {
-  it('sizes a block in proportion to its estimate', () => {
-    const plan = buildPlan([task('a', 2), task('b', 4)], { pxPerMinute: 10, minBlockPx: 1 });
-    expect(plan.blocks[0]?.height).toBe(20);
-    expect(plan.blocks[1]?.height).toBe(40);
-  });
-
-  it('never renders a block shorter than the floor', () => {
-    const plan = buildPlan([task('a', 0), task('b', 1)], { pxPerMinute: 10, minBlockPx: 34 });
-    expect(plan.blocks[0]?.height).toBe(34);
-    expect(plan.blocks[1]?.height).toBe(34);
+  it('gives every block the same height, whatever the estimate says', () => {
+    const plan = buildPlan([task('a', 2), task('b', 8), task('c', 3)]);
+    expect(plan.blocks.map((block) => block.height)).toEqual([BLOCK_PX, BLOCK_PX, BLOCK_PX]);
   });
 
   it('tiles the column: each block starts exactly where the last one ended', () => {
-    const plan = buildPlan([task('a', 1), task('b', 5), task('c', 2)], {
-      pxPerMinute: 10,
-      minBlockPx: 34,
-    });
+    const plan = buildPlan([task('a', 1), task('b', 5), task('c', 2)]);
     expect(plan.blocks[0]?.offset).toBe(0);
     expect(plan.blocks[1]?.offset).toBe(plan.blocks[0]?.height);
     expect(plan.blocks[2]?.offset).toBe(
@@ -44,16 +34,16 @@ describe('buildPlan', () => {
     expect(plan.height).toBe((last?.offset ?? 0) + (last?.height ?? 0));
   });
 
-  it('sums the estimates, which the track height is not proportional to', () => {
+  it('sums the estimates, which the track height does not follow', () => {
     const plan = buildPlan([task('a', 2), task('b', 3), task('c', 8)]);
     expect(plan.totalMinutes).toBe(13);
-    expect(plan.height).toBeGreaterThan(plan.totalMinutes);
+    expect(plan.height).toBe(3 * BLOCK_PX);
   });
 
   it('treats a negative estimate as nothing rather than as a negative block', () => {
-    const plan = buildPlan([task('a', -5)], { pxPerMinute: 10, minBlockPx: 34 });
+    const plan = buildPlan([task('a', -5)]);
     expect(plan.blocks[0]?.minutes).toBe(0);
-    expect(plan.blocks[0]?.height).toBe(34);
+    expect(plan.blocks[0]?.height).toBe(BLOCK_PX);
     expect(plan.totalMinutes).toBe(0);
   });
 

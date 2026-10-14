@@ -49,6 +49,38 @@ describe('readImportFile', () => {
     expect(state.reads).toBe(0);
   });
 
+  /*
+   * A name the parser cannot place is refused here rather than sent: the import contract turns it
+   * into `Error invoking remote method 'focusloop:material:import': MaterialParseError: Cannot
+   * determine a supported format for outline.rst.`, which names a channel and an error class and
+   * nothing a learner can act on.
+   */
+  it('refuses a name the import cannot read, without reading the file', async () => {
+    const { state, file } = fakeFile('outline.rst', '# Outline\n\nSome text.\n');
+
+    await expect(readImportFile(file)).resolves.toEqual({ outcome: 'unsupported-format' });
+    expect(state.reads).toBe(0);
+  });
+
+  it('refuses a name with no extension at all', async () => {
+    await expect(readImportFile(fakeFile('notes', 'Some text.\n').file)).resolves.toEqual({
+      outcome: 'unsupported-format',
+    });
+    await expect(readImportFile(fakeFile('notes.', 'Some text.\n').file)).resolves.toEqual({
+      outcome: 'unsupported-format',
+    });
+  });
+
+  it('takes every extension the parser can read', async () => {
+    // The list is duplicated from `material-parser` (its hashing is not available to the renderer),
+    // so what it is copied from is pinned here: a name refused that the parser would have read is a
+    // form refusing a file it could have taken.
+    for (const name of ['notes.md', 'notes.MARKDOWN', 'notes.mdx', 'notes.txt', 'notes.TEXT']) {
+      const result = await readImportFile(fakeFile(name, 'Some text.\n').file);
+      expect([name, result.outcome]).toEqual([name, 'picked']);
+    }
+  });
+
   it('accepts a file exactly at the limit', async () => {
     const content = 'x'.repeat(MATERIAL_FILE_MAX_BYTES);
     const { state, file } = fakeFile('exact.md', content, MATERIAL_FILE_MAX_BYTES);
@@ -68,8 +100,10 @@ describe('readImportFile', () => {
     });
   });
 
-  it('refuses a file that is not text', async () => {
-    const { file } = fakeFile('notes.bin', 'PK\u0000\u0001binary');
+  it('refuses a text file that carries binary content', async () => {
+    // A `.txt` extension the parser accepts is the only way this check is reached now: an
+    // unreadable extension is refused before the file is read at all.
+    const { file } = fakeFile('notes.txt', 'PK\u0000\u0001binary');
 
     await expect(readImportFile(file)).resolves.toEqual({ outcome: 'not-text' });
   });

@@ -13,7 +13,7 @@ import { zh } from './i18n/messages.zh';
 import { TUTOR_FALLBACK_KEYS } from './i18n/labels';
 import {
   TUTOR_MODE_KEYS,
-  TUTOR_MODE_ORDER,
+  TUTOR_PANEL_MODES,
   TUTOR_PART_KEYS,
   buildTutorView,
   tutorAnswerApplies,
@@ -103,9 +103,22 @@ describe('the translation keys the tutor owns', () => {
      * catches a copy-paste: two modes sharing a key is a panel with the same words on two buttons, and
      * `Record<TutorMode, MessageKey>` cannot see it because both values are valid keys.
      */
-    expect([...TUTOR_MODE_ORDER].sort()).toEqual([...TUTOR_MODES].sort());
-    const keys = TUTOR_MODE_ORDER.map((mode) => TUTOR_MODE_KEYS[mode]);
+    expect(Object.keys(TUTOR_MODE_KEYS).sort()).toEqual([...TUTOR_MODES].sort());
+    const keys = TUTOR_MODES.map((mode) => TUTOR_MODE_KEYS[mode]);
     expect(new Set(keys).size).toBe(TUTOR_MODES.length);
+  });
+
+  it('offers three modes on the panel, all of them modes the contract has', () => {
+    /*
+     * The panel is a picker, and a picker that lists everything the contract can express makes the learner
+     * read a menu before they can ask anything. Pinned as a length and a membership rather than as the
+     * literal list here: which three is a copy decision that belongs in `tutor-view.ts`, where the words
+     * for them are, and this is the half that must not drift — three buttons, all of them real modes, and
+     * no duplicates.
+     */
+    expect(TUTOR_PANEL_MODES).toHaveLength(3);
+    expect(new Set(TUTOR_PANEL_MODES).size).toBe(3);
+    for (const mode of TUTOR_PANEL_MODES) expect(TUTOR_MODES).toContain(mode);
   });
 
   it('names every part kind in the contract, exactly once', () => {
@@ -307,7 +320,7 @@ describe('tutorPlaceholderKey', () => {
   });
 
   it('asks for a question in every other mode, and before a mode is chosen', () => {
-    for (const mode of TUTOR_MODE_ORDER) {
+    for (const mode of TUTOR_MODES) {
       if (mode === 'CHECK_MY_ANSWER') continue;
       expect(tutorPlaceholderKey(mode), mode).toBe('tutor.placeholder');
     }

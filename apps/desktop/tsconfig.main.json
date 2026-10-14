@@ -9,6 +9,6 @@
     "lib": ["ES2022"],
     "noEmit": true
   },
-  "include": ["electron/**/*.ts", "scripts/**/*.mjs"],
+  "include": ["electron/**/*.ts", "electron/**/*.d.ts", "scripts/**/*.mjs"],
   "exclude": ["electron/**/*.spec.ts"]
 }

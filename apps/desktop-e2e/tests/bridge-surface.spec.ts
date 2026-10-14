@@ -45,11 +45,12 @@ function submit(
 }
 
 /**
- * #135: the dashboard is the learner's own screen, and the bridge's address, protocol version,
- * connection count and token are machinery. They stay reachable, because connecting the browser
- * extension needs them - but behind a request, not in the body text of the numbers.
+ * #135: the bridge's address, protocol version, connection count and token are machinery. They stay
+ * reachable, because connecting the browser extension needs them - but behind a request, not in the
+ * body text of the numbers. They live on the record screen now, one click from the dashboard, so that
+ * is where the guarantee is asserted - including that the dashboard's own link is what gets there.
  */
-test('the dashboard keeps the bridge behind an explicit request', async () => {
+test('the record screen keeps the bridge behind an explicit request', async () => {
   const profile = mkdtempSync(join(tmpdir(), 'focusloop-bridge-surface-'));
   const app = await electron.launch({
     args: [MAIN, `--user-data-dir=${profile}`],
@@ -66,6 +67,10 @@ test('the dashboard keeps the bridge behind an explicit request', async () => {
     await expect(page.getByTestId('insights-total')).toBeVisible();
     await openSidebar(page);
 
+    // The dashboard still links there, and that link is the only way in from the app itself.
+    await page.getByTestId('dashboard-more').click();
+    await expect(page.getByTestId('more-back')).toBeVisible();
+
     /*
      * Nothing from the machinery reaches a learner who has not asked for it - in either language,
      * because the guarantee is the template's, not the translation's. A translator adding the address
@@ -77,7 +82,7 @@ test('the dashboard keeps the bridge behind an explicit request', async () => {
       await page.getByTestId('general-language').selectOption(locale);
       await expect(page.getByTestId('general-language')).toHaveValue(locale);
       await page.getByTestId('settings-close').click();
-      await expect(page.getByTestId('insights-total')).toBeVisible();
+      await expect(page.getByTestId('more-back')).toBeVisible();
       await expect(page.getByTestId('bridge-token')).toHaveCount(0);
       await expect(body).not.toContainText('ws://');
       await expect(body).not.toContainText('protocol v');
@@ -106,7 +111,7 @@ test('the dashboard keeps the bridge behind an explicit request', async () => {
         {
           timeout: 15_000,
           message:
-            'the dashboard never offered the bridge reveal control: the bridge is not running',
+            'the record screen never offered the bridge reveal control: the bridge is not running',
         },
       )
       .toBe('running');

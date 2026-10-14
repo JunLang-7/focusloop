@@ -157,13 +157,12 @@ try {
   await window.waitForTimeout(300);
   await shot(window, '01c-focus-agent-en');
   /*
-   * Answered with the notice's own control rather than folded, and rather than the "Not now" this used
-   * to click: inline, a BREAK offer renders only its accept button — "Not now" exists on the
-   * non-inline panel — and folding the notice would hide the resume card the next step captures,
-   * because the fold is remembered per session. Choosing "simplify" is what a learner does with a
-   * step that is too big, and it leaves the screen showing the result.
+   * Accepted from the panel that shows it: the focus screen's bottom slot carries the return card and
+   * nothing else, so the agent's suggestion is drawn in the step it is about and its own buttons are what
+   * answers it. This used to be the notice's "Make this step smaller", which was the same accept in a
+   * strip over the bottom of the screen.
    */
-  await window.getByTestId('notice-simplify').click();
+  await window.getByTestId('agent-offered').getByRole('button', { name: 'Try this' }).click();
   await window.waitForTimeout(400);
   await fireDemoEvent(window, 'distraction');
   await window.waitForTimeout(300);
@@ -182,11 +181,23 @@ try {
   await window.waitForTimeout(500);
   await shot(window, '02-dashboard-week-en');
 
-  // The window section is above the fold; this is the technical tail below it.
+  // Below the fold on a short window.
   await window.locator('.content').evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await window.waitForTimeout(400);
   await shot(window, '02b-dashboard-lower-en');
   await window.locator('.content').evaluate((el) => el.scrollTo(0, 0));
+
+  /*
+   * The record screen, reached the way the dashboard links to it: the week's evidence, the intervention
+   * and rescue results, the bridge's pairing details and the event log - the panels that answer neither
+   * of the dashboard's two questions.
+   */
+  await window.getByTestId('dashboard-more').click();
+  await window.getByTestId('more-back').waitFor();
+  await window.waitForTimeout(400);
+  await shot(window, '02c-record-en');
+  await window.getByTestId('more-back').click();
+  await window.waitForTimeout(300);
 
   // A different window, to check the controls and the empty state.
   await window.getByTestId('range-today').click();

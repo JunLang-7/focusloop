@@ -106,7 +106,7 @@ describe('the generation prompt carries what the docs say it carries, bounded (p
       });
       const context = ctx.engine.getAgentContext().context;
       expect(context).not.toBeNull();
-      const built = buildRescueSuggestionPrompt('HINT', context);
+      const built = buildRescueSuggestionPrompt('HINT', context, 'en');
       expect(built).not.toBeNull();
       expect(built!.system.length + built!.prompt.length).toBeLessThanOrEqual(
         TUTOR_LIMITS.inputCharacters,
@@ -123,7 +123,32 @@ describe('the generation prompt carries what the docs say it carries, bounded (p
   });
 
   it('has nothing to build when the context has no grounding to anchor on', () => {
-    expect(buildRescueSuggestionPrompt('HINT', null)).toBeNull();
+    expect(buildRescueSuggestionPrompt('HINT', null, 'en')).toBeNull();
+  });
+
+  it('writes the line in the interface’s language, whatever the material is in', () => {
+    const ctx = createTestEngine();
+    try {
+      const { session } = ctx.engine.startSession(DEMO_COURSE_ID);
+      ctx.engine.dispatch({
+        sessionId: session.id,
+        type: 'TASK_STARTED',
+        source: 'user',
+        payload: { taskId: 'rbt-t1' },
+      });
+      const context = ctx.engine.getAgentContext().context;
+      expect(context).not.toBeNull();
+      const english = buildRescueSuggestionPrompt('HINT', context, 'en');
+      const chinese = buildRescueSuggestionPrompt('HINT', context, 'zh');
+      expect(english).not.toBeNull();
+      expect(chinese).not.toBeNull();
+      expect(english!.system).toContain('English');
+      expect(chinese!.system).toContain('Simplified Chinese');
+      // The material’s own language no longer decides it: the only difference is the instruction.
+      expect(chinese!.prompt).toBe(english!.prompt);
+    } finally {
+      ctx.close();
+    }
   });
 });
 

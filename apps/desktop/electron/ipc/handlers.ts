@@ -1,13 +1,18 @@
-import { ipcMain, type IpcMainInvokeEvent } from 'electron';
+import { ipcMain, dialog, type IpcMainInvokeEvent } from 'electron';
 import {
+  ANSWER_SOURCE_EXTENSIONS,
   IPC_CHANNELS,
   BRIDGE_PROTOCOL_VERSION,
+  type AnswerSourceResponse,
   type DispatchEventResponse,
 } from '@focusloop/shared-types';
 import type { FocusLoopService } from '../service';
 import type { EventRouter } from '../event-router';
+import { extractAnswerSource } from '../answer-source';
 import {
   parseConfirmProposal,
+  parseAnswerQuiz,
+  parseAnswerSourcePath,
   parseCourseId,
   parseDeleteAllData,
   parseDispatchRequest,
@@ -139,6 +144,36 @@ export function createHandlers(service: FocusLoopService, router: EventRouter) {
       parse: parseDispatchRequest,
       handle: (request) => router.dispatch(request),
     }),
+    /*
+     * Through the router's publish, exactly as the simulator does it: a right answer moves the state
+     * machine to FOCUSED and a second wrong one moves it to CONFUSED, so the window has to be told in
+     * the same step rather than waiting for a tick to carry it (#204). The engine applies and this
+     * tells; the response the caller gets back is the same object.
+     */
+    defineHandler({
+      channel: IPC_CHANNELS.answerQuiz,
+      parse: parseAnswerQuiz,
+      handle: (request) => {
+        const response = engine.answerQuiz(request);
+        router.publish(response);
+        return response;
+      },
+    }),
+    /*
+     * Reading an answer out of a file. The dialog is here because a file can only be opened here; the
+     * reading itself is `extractAnswerSource`, which the second handler also uses for a path the window
+     * already has (a drop).
+     */
+    defineHandler({
+      channel: IPC_CHANNELS.pickAnswerSource,
+      parse: parseNoArgs,
+      handle: () => pickAndExtract(),
+    }),
+    defineHandler({
+      channel: IPC_CHANNELS.extractAnswerSource,
+      parse: parseAnswerSourcePath,
+      handle: (request) => extractAnswerSource(request.path),
+    }),
     defineHandler({
       channel: IPC_CHANNELS.listEvents,
       parse: parseSessionId,
@@ -238,7 +273,18 @@ export function createHandlers(service: FocusLoopService, router: EventRouter) {
     defineHandler({
       channel: IPC_CHANNELS.setLocale,
       parse: parseSetLocale,
-      handle: (request) => engine.setLocale(request.locale),
+      handle: (request) => {
+        const settings = engine.setLocale(request.locale);
+        /*
+         * The built-in course is written in the learner's language (#2), and `saveCourse` replaces a
+         * course's concepts, tasks and quizzes in place — the ids do not move, so a session that is
+         * already running keeps pointing at the same step. Without this the catalogue would keep the
+         * language it was first seeded in until the next restart, which is the mixing this exists to
+         * remove.
+         */
+        engine.refreshAuthoredCourses();
+        return settings;
+      },
     }),
     defineHandler({
       channel: IPC_CHANNELS.setTheme,
@@ -414,6 +460,35 @@ export function createHandlers(service: FocusLoopService, router: EventRouter) {
       handle: (request) => engine.askTutor(request),
     }),
   ] as const;
+}
+
+/**
+ * The file dialog, then the reader.
+ *
+ * One file, because an answer is one thing the learner produced — and the two filters are the two kinds
+ * this can actually read, taken from `ANSWER_SOURCE_EXTENSIONS` rather than restated, so a format added to
+ * the vocabulary cannot end up unofferable in the picker that is supposed to offer it.
+ *
+ * Cancelling returns a response with neither half set: it is not a refusal, and putting a warning on
+ * screen for pressing Cancel would be reporting the learner's own decision back to them as a failure.
+ */
+async function pickAndExtract(): Promise<AnswerSourceResponse> {
+  const picked = await dialog.showOpenDialog({
+    title: 'Choose a file to read',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Documents', extensions: extensionsFor('document') },
+      { name: 'Images', extensions: extensionsFor('image') },
+    ],
+  });
+  const chosen = picked.canceled ? undefined : picked.filePaths[0];
+  if (chosen === undefined) return { source: null, refusal: null };
+  return extractAnswerSource(chosen);
+}
+
+/** The dialog's extension list, without the leading dot it does not take. */
+function extensionsFor(kind: 'document' | 'image'): string[] {
+  return ANSWER_SOURCE_EXTENSIONS[kind].map((extension) => extension.replace(/^\./, ''));
 }
 
 export function registerIpcHandlers(service: FocusLoopService, router: EventRouter): () => void {

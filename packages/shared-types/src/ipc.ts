@@ -10,6 +10,8 @@ import type {
   DiscoverModelsResult,
 } from './llm-settings';
 import type { Course } from './course';
+import type { QuizAnswerRequest, QuizAnswerResult } from './quiz';
+import type { AnswerSourceResponse } from './answer-source';
 import type { LearningCheckpoint } from './checkpoint';
 import type { DashboardSummary } from './dashboard';
 import type { AgentProposalProposedEvent, LearningEvent, SessionEndReason } from './events';
@@ -61,6 +63,9 @@ export const IPC_CHANNELS = {
   getCurrentSession: 'focusloop:session:current',
   getSessionProgress: 'focusloop:session:progress',
   dispatchEvent: 'focusloop:event:dispatch',
+  answerQuiz: 'focusloop:quiz:answer',
+  pickAnswerSource: 'focusloop:answer:pick-source',
+  extractAnswerSource: 'focusloop:answer:extract-source',
   listEvents: 'focusloop:event:list',
   getCheckpoint: 'focusloop:checkpoint:latest',
   createCheckpoint: 'focusloop:checkpoint:create',
@@ -210,6 +215,24 @@ export interface DispatchEventResponse {
   readonly decision: InterventionDecision | null;
   readonly interventionId: string | null;
   readonly rescue: RescueView | null;
+}
+
+/**
+ * What answering a quiz comes back with.
+ *
+ * A dispatch's response *and* the verdict, because answering a quiz is a dispatch: the state machine
+ * moves on `QUIZ_CORRECT` / `QUIZ_INCORRECT`, the policy may speak, and the screen needs all of that
+ * as well as the right/wrong it has to show. Returning only the verdict would leave the screen to make
+ * a second call and reconcile two answers, and returning only the dispatch would leave the learner
+ * without the explanation.
+ */
+export interface QuizAnswerResponse extends DispatchEventResponse {
+  readonly quiz: QuizAnswerResult;
+}
+
+/** The path of a file the learner chose or dropped: the only input reading a file needs. */
+export interface AnswerSourceRequest {
+  readonly path: string;
 }
 
 export interface ResolveInterventionRequest {
@@ -393,6 +416,32 @@ export interface FocusLoopApi {
   getSessionProgress(sessionId: string): Promise<SessionProgress | null>;
 
   dispatchEvent(request: DispatchEventRequest): Promise<DispatchEventResponse>;
+  /**
+   * Answers the quiz attached to a step, and is told whether it was right.
+   *
+   * A channel of its own rather than a `dispatchEvent` with a `QUIZ_CORRECT` in it, because the screen
+   * does not know which of the two it is: it sends the option the learner picked and the main process
+   * compares it against the course row. A renderer that decided this would be grading its own
+   * homework — and it is the one caller that could be wrong about the answer without anyone noticing.
+   */
+  answerQuiz(request: QuizAnswerRequest): Promise<QuizAnswerResponse>;
+  /**
+   * Reads the text out of a file the learner picks, for the answer box.
+   *
+   * The dialog is in the main process because that is where a file can be read at all, and because the
+   * path never has to exist in the renderer: the learner names a file through the operating system's own
+   * picker and gets back text. Cancelling is not a refusal — the response has neither a source nor a
+   * reason for one.
+   */
+  pickAnswerSource(): Promise<AnswerSourceResponse>;
+  /**
+   * The same, for a path that is already known.
+   *
+   * Its caller is a drop: a file dragged onto the window arrives as a path, and asking the learner to
+   * pick it again from a dialog would be asking them to do the same thing twice. Nothing on screen types
+   * a path — the picker is the only producer of one — and the file is read locally and never sent.
+   */
+  extractAnswerSource(request: AnswerSourceRequest): Promise<AnswerSourceResponse>;
   listEvents(sessionId: string): Promise<readonly LearningEvent[]>;
 
   getLatestCheckpoint(sessionId: string): Promise<LearningCheckpoint | null>;

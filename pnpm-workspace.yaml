@@ -17,3 +17,9 @@ allowBuilds:
   # after recognising the name: it is published from electron/windows-installer
   # by the Electron organisation's own npm account.
   electron-winstaller: true
+  # tesseract.js is denied rather than approved. Its only install script is
+  # `opencollective-postinstall || true`, a funding message that contributes nothing to the package, and
+  # the reader is proven to work with it denied — `apps/desktop/electron/answer-source.spec.ts` reads a
+  # real PNG on a machine where it never ran. Approving a script means running a stranger's code at
+  # install time for every developer and every CI job; a banner is not a reason to.
+  tesseract.js: false

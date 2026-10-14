@@ -1,5 +1,6 @@
 import type { Concept, Course, MaterialDocument, MicroTask, Quiz } from '@focusloop/shared-types';
 import { slugify } from '@focusloop/material-parser';
+import { DEFAULT_TASK_COPY, type TaskCopy } from './course-copy';
 
 export interface GenerateCourseOptions {
   /** Deterministic override; defaults to a hash of the material. */
@@ -8,6 +9,14 @@ export interface GenerateCourseOptions {
   readonly maxConcepts?: number;
   /** Minimum body length before a practice task is added. */
   readonly practiceMinChars?: number;
+  /**
+   * The wording of the titles and instructions this generator writes.
+   *
+   * Passed in rather than chosen here, because it is the app's copy and not the material's: the
+   * sentences around a section heading have to be in the same language as the interface around
+   * them, and this package does not know which language that is. See `course-copy.ts`.
+   */
+  readonly copy?: TaskCopy;
 }
 
 export interface GeneratedCourse {
@@ -68,6 +77,7 @@ export function generateCourse(
   const warnings: string[] = [];
   const maxConcepts = options.maxConcepts ?? DEFAULT_MAX_CONCEPTS;
   const practiceMinChars = options.practiceMinChars ?? DEFAULT_PRACTICE_MIN_CHARS;
+  const copy = options.copy ?? DEFAULT_TASK_COPY;
 
   const usable = material.sections
     .filter((section) => section.body.trim().length > 0)
@@ -75,12 +85,10 @@ export function generateCourse(
     .slice(0, maxConcepts);
 
   if (usable.length === 0) {
-    warnings.push('No readable sections were found, so no micro tasks were generated.');
+    warnings.push(copy.emptyWarning);
   }
   if (material.sections.length > maxConcepts) {
-    warnings.push(
-      `Only the first ${maxConcepts} sections were used; the rest stays in the material.`,
-    );
+    warnings.push(copy.truncationWarning(maxConcepts));
   }
 
   const courseId = options.courseId ?? `course-${material.contentHash.slice(0, 12)}`;
@@ -117,8 +125,8 @@ export function generateCourse(
       id: `${courseId}-t${microTasks.length + 1}`,
       courseId,
       conceptId: concept.id,
-      title: `Read: ${section.heading}`,
-      instructions: `Read this section and summarise it in one sentence: "${firstSentence(body)}"`,
+      title: copy.readTitle(section.heading),
+      instructions: copy.readInstructions(firstSentence(body)),
       kind: 'read',
       estimatedMinutes: 3,
       order: microTasks.length,
@@ -129,8 +137,8 @@ export function generateCourse(
         id: `${courseId}-t${microTasks.length + 1}`,
         courseId,
         conceptId: concept.id,
-        title: `Practise: ${section.heading}`,
-        instructions: `Explain "${section.heading}" using a concrete example you invent yourself.`,
+        title: copy.practiseTitle(section.heading),
+        instructions: copy.practiseInstructions(section.heading),
         kind: 'practice',
         estimatedMinutes: 5,
         order: microTasks.length,
@@ -157,7 +165,7 @@ export function generateCourse(
       id: `${courseId}-q${index + 1}`,
       taskId: quizTaskId,
       conceptId: concept.id,
-      question: `Which statement belongs to "${concept.title}"?`,
+      question: copy.quizQuestion(concept.title),
       options: rotated,
       answerIndex: rotated.indexOf(concept.summary),
       explanation: `${concept.title}: ${concept.summary}`,
@@ -167,7 +175,7 @@ export function generateCourse(
   const course: Course = {
     id: courseId,
     title: material.title,
-    description: `Generated from ${material.title} (${material.format}).`,
+    description: copy.courseDescription(material.title, material.format),
     concepts,
     microTasks,
     quizzes,

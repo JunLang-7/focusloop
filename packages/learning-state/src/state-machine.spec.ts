@@ -341,6 +341,53 @@ describe('AGENT_PROPOSAL_EXECUTED', () => {
   });
 });
 
+/*
+ * Answering is not finishing.
+ *
+ * The learner writing something for the step they are on is a decision worth recording — it is what the
+ * agent is shown while the step is still running — but it moves nothing: they are on the same task, with
+ * the same clock, and `transitionCount` is the number the "did anything change" questions read.
+ */
+describe('TASK_ANSWERED', () => {
+  it('records the words without moving the learner', () => {
+    const before = run(createInitialState(T0), [event('TASK_STARTED', { taskId: 't1' }, 1_000)]);
+    const result = reduceState(
+      before,
+      event('TASK_ANSWERED', { taskId: 't1', text: 'A BST keeps order.' }, 2_000),
+    );
+
+    expect(result.transition).toBeNull();
+    expect(result.state.state).toBe('FOCUSED');
+    expect(result.state.currentTaskId).toBe('t1');
+    expect(result.state.transitionCount).toBe(before.transitionCount);
+    expect(result.state.lastEventAt).toBe(at(2_000));
+  });
+
+  it('does not complete the step it is written for', () => {
+    const before = run(createInitialState(T0), [event('TASK_STARTED', { taskId: 't1' }, 1_000)]);
+    const after = reduceState(
+      before,
+      event('TASK_ANSWERED', { taskId: 't1', text: 'x' }, 2_000),
+    ).state;
+
+    expect(after.completedTaskIds).toEqual([]);
+    expect(after.currentTaskId).toBe('t1');
+  });
+
+  it('does not count as being confused, however many are written', () => {
+    // Only a wrong *answer* to a question is evidence about understanding; writing is not.
+    let state = run(createInitialState(T0), [event('TASK_STARTED', { taskId: 't1' }, 1_000)]);
+    for (let index = 0; index < 4; index += 1) {
+      state = reduceState(
+        state,
+        event('TASK_ANSWERED', { taskId: 't1', text: 'x' }, 2_000 + index),
+      ).state;
+    }
+    expect(state.state).toBe('FOCUSED');
+    expect(state.consecutiveIncorrect).toBe(0);
+  });
+});
+
 describe('TASKS_REORDERED', () => {
   /** A learner mid-session, with one task running, which is when reordering happens. */
   function focused(): StateEngineState {

@@ -8,7 +8,7 @@ never needs one.
 ```mermaid
 flowchart TB
   subgraph Renderer["Angular renderer (sandboxed)"]
-    PAGES[Home · Course · Focus Workspace · Dashboard]
+    PAGES[Home · Course · Focus Workspace · Dashboard · More data]
     STATE[AppStateService signals]
   end
 
@@ -94,12 +94,49 @@ action forces someone to decide how it reads in both languages.
 Interpolated values that are _content_ rather than _chrome_ — a concept title, a task title, a
 learner's own note — are never translated, because they are the learner's material and not ours.
 
+The two courses the app writes itself are chrome around the learner's material, so they follow the
+same rule. `agent-core` takes their wording as an argument — `TaskCopy` and `DemoCopy` in
+`packages/agent-core/src/course-copy.ts` — and the shell supplies the bundle for the locale the store
+holds (`apps/desktop/electron/course-copy.ts`). A section heading, a sentence from the learner's
+notes, stays exactly as written; the `Read:` in front of it and the built-in course's own prose
+follow the interface. The wording is re-written when the language changes, for the built-in course
+and for every course generated from a stored document — safe because the ids are a function of the
+material, so nothing the learner did points at anything else afterwards. English is not written
+twice: the domain's default bundle _is_ the English one, so a locale with no bundle of its own gets
+the wording the app shipped before this was configurable.
+
+The same rule reaches the model. The tutor's system prompt and the rescue suggestion's carry the
+interface's language (`replyLanguageInstruction` in `packages/agent-core/src/model-language.ts`), so
+an answer is written in the language it will be read next to. Imported material, a learner's question
+and a task's own words stay exactly as written; the answer does not follow them. The sentence is part
+of the system prompt the prompt builders measure, so it is charged against the same character ceiling
+as the rest of the prompt rather than appended after the budget was computed.
+
 The locale itself is persisted by the store (`app_meta.locale`), not by the renderer, and the store
 is reached through the same validated IPC bridge as everything else (`settings:get`,
 `settings:set-locale`). The renderer holds no durable state, so switching language survives a
 restart.
 
 ## The state engine
+
+The desktop Focus workspace also owns a small renderer-local commitment timer. Its four phases
+(`ready`, `active`, `paused`, `expired`) describe the learner's short countdown, not the domain
+`LearningState` below. The pure timer transitions take timestamps as arguments and represent an active
+countdown with an end timestamp, so delayed ticks can reconcile elapsed wall time deterministically.
+`FocusTimerService` retains that timer across route changes in the current renderer and synchronizes
+it to the current session/task owner. It is not currently a SQLite session field and is not restored
+after an application restart. See [focus-mode.md](focus-mode.md) for the user workflow and full
+screen-state boundaries, and [focus-mode-refinement-plan.md](focus-mode-refinement-plan.md) for the
+responsive plan-panel design and its pending browser acceptance.
+
+The Focus plan keeps one centered `min(100%, 860px)` column in both disclosure states. Every block is
+the same height, so the column is the list of what is left rather than a chart of how long each part
+takes — the estimate is written on each row, where it can be read exactly. At viewport widths up to
+480 CSS pixels it switches to a natural-flow vertical task list with wrapping titles and a separate
+action row. Pointer reordering measures the rendered row rectangles, so rows of any height remain
+valid drop targets. The focus header does not
+shrink vertically, and the content reserves a stable scrollbar gutter to prevent width shifts when
+scrolling starts or ends. These responsive details are covered by the plan's browser acceptance work.
 
 `learning-state` is the heart of the project and the reason FocusLoop is an agent rather than a
 prompt wrapper.
@@ -267,6 +304,14 @@ this is built for.
 
 ## Insights: the dashboard is derived, never stored
 
+Screen 5 answers two questions and links to a third: the window ("how have I been doing lately"), the
+session ("how is this one going", including what happened after each interruption), and, one click away
+on `#/more`, the record itself — the week as counts with their evidence, the extension bridge's pairing
+details and the folded event log. None of the three on `#/more` is a number the learner acts on while
+studying, and the change-offer dialog is modal, so the log has to be a route rather than a dialog: it is
+what says whether an offer was applied while that dialog is still on screen.
+([#8](https://github.com/nianpingy-cpu/focusloop/issues/8), [#135](https://github.com/nianpingy-cpu/focusloop/issues/135))
+
 The dashboard's aggregates are **not** a second source of truth. `agent-core/src/insights.ts` rebuilds
 them from the event log every time the window changes, and two rules make that safe:
 
@@ -278,11 +323,13 @@ state or a transition needs no dashboard change at all.
 **2. Silence is not focus, and it is not away either.** A learner who walks away emits no events, so a
 naive reconstruction counts the whole gap as `FOCUSED`. The engine would not have: its idle threshold
 would have moved them to `DISTRACTED`. But the opposite guess — charging the gap as `DISTRACTED` — is
-worse than the first, because it invents an absence nobody observed. So silence is credited to the state
-it was in for at most `idleThresholdMs` and **not counted past that**, and an absence the app actually
-witnessed (`TAB_LEFT`, an idle report) keeps its whole stretch. The consequence is that a window's
-`totalMs` is the time the app can stand behind, **not** the wall-clock its sessions were open; the labels
-that read it say so, as does `docs/wiki/project-features.md` §D2.
+worse than the first, because it invents an absence nobody observed. So every stretch is credited to the
+state it was in for at most `idleThresholdMs` and **not counted past that**, witnessed or not. A witnessed
+absence (`TAB_LEFT`, an idle report) used to keep its whole stretch, because the bridge had observed it;
+that is right as a report of an absence and wrong as recorded time, and it read a night away as a day of
+study. The consequence is that a window's `totalMs` is the time the app can stand behind as **study
+time**, not the wall-clock its sessions were open and not the full length of an observed absence; the
+labels that read it say so, as does `docs/wiki/project-features.md` §D2.
 
 **3. One session is measured by the same rule as a window.** That rule was once only the dashboard's:
 the focus screen's `elapsed` and the dashboard's `session duration` were `startedAt` → `now`, and a
@@ -309,7 +356,9 @@ The log is an audit tail, and left raw it is mostly noise: the demo command alon
 `HELP_REQUESTED` events for one press, which used to draw three identical cards. `events-view.ts`
 folds a run of consecutive events sharing a type _and_ a source into one row, rendered in the
 learner's words with the exact vocabulary on each part's `title` — `You asked for help ×3`, and
-`HELP_REQUESTED` on hover (see [#8](https://github.com/nianpingy-cpu/focusloop/issues/8)).
+`HELP_REQUESTED` on hover (see [#8](https://github.com/nianpingy-cpu/focusloop/issues/8)). It renders on
+the record screen (`#/more`), not on the dashboard: it is a record of what happened, not one of the
+numbers the learner acts on.
 
 Two constraints keep that honest:
 
@@ -426,14 +475,17 @@ grid. The button itself stays visible during the peek, lifted above the
 panel and hidden in favour of the panel's own mark: the peek opens on the button's `mouseenter` and
 closes on its `mouseleave`, so an anchor that vanished under the pointer would hand the hover to
 another element mid-gesture and fold the panel shut under the cursor. Peek state is pure pointer
-state: never stored, and cancelled by navigation. On the focus screen the fold
-also leaves the workspace's column in place — `padding-left: 256px`, the open grid's 232px track plus
-the base padding — so the stage never reflows into the freed space and the peeked panel can only ever
-cover the empty gutter: the countdown neither moves nor disappears behind the glass. The panel's own
-header control is a toggle rather than a collapse button: its label and what a press does both follow
-the mode, while its icon stays the sidebar glyph — a panel outline with its own edge drawn in, the
-shape every editor uses for this — and the focus-folded layout hides it, where the shell is not what
-folded and the floating button is the way back.
+state: never stored, and cancelled by navigation. On the focus screen the fold hands the column back
+to the workspace — the only thing left reserved is the floating button's own 62px corner, the same one
+every other screen keeps — so the one screen the learner is meant to be looking at is not two thirds
+width with a band of nothing down its left. The peeked panel therefore does cover the stage's left edge
+on a window narrower than about 1370px, which is what a drawer over a page does, and it covers nothing
+else: the countdown lives in the stage's right-hand column, so it is never under the panel and never
+moves, because the peek still lifts the panel out of the grid instead of reflowing the page. The
+panel's own header control is a toggle rather than a collapse button: its label and what a press does
+both follow the mode, while its icon stays the sidebar glyph — a panel outline with its own edge drawn
+in, the shape every editor uses for this — and the focus-folded layout hides it, where the shell is not
+what folded and the floating button is the way back.
 
 **The content column is capped.** `.content > *` carries `--measure` (1120px) plus
 `margin-inline: auto`. Putting it on the children rather than on the scroller keeps the scrollbar on
@@ -500,6 +552,9 @@ sequenceDiagram
 - The event id is remembered in a bounded ring, so a reconnect storm cannot double-count.
 - If the bridge cannot start (port taken), the app still runs and says so; the app's own sensor still
   records the learner leaving and returning, so the demo does not depend on the bridge.
+- The address, the protocol version, the connection count and the token are shown on the record screen
+  (`#/more`), behind a deliberate request — a learner opens the dashboard for their own numbers, so
+  nothing from the machinery is rendered until they ask for it (#135).
 
 ## Determinism and testability
 

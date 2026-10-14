@@ -8,6 +8,7 @@ import {
 } from '@focusloop/shared-types';
 import type {
   AppSettings,
+  AnswerSourceResponse,
   BridgeInfo,
   Course,
   DashboardSummary,
@@ -33,6 +34,8 @@ import type {
   TestModelResult,
   DiscoverModelsRequest,
   DiscoverModelsResult,
+  QuizAnswerResponse,
+  QuizAnswerResult,
   ResumeCardView,
   RescueView,
   TutorAnswer,
@@ -46,10 +49,11 @@ import type {
   PreferenceDeleteResult,
   WeeklyReflection,
 } from '@focusloop/shared-types';
-
 import type { FocusNoticeFold } from './focus-notice';
 import type { MessageKey } from './i18n/messages.en';
+import { answerSourceNote, insertAnswerText } from './step-answer';
 import { shouldSuggestRescueText } from './rescue-suggestion';
+import { LEARNER_ANSWER_CHARACTERS } from '@focusloop/shared-types';
 
 declare global {
   interface Window {
@@ -177,6 +181,47 @@ export class AppStateService {
     readonly taskId: string | null;
     readonly answer: TutorAnswer;
   } | null>(null);
+  /**
+   * A request from a step's answer box to the tutor panel: this text, in this mode, opened.
+   *
+   * The panel consumes it by setting it back to `null`, so each request is acted on exactly once. It is
+   * deliberately still a signal rather than a callback: the panel is created and destroyed with the step
+   * it sits in, and a request that is never consumed must not be lost when its consumer is.
+   *
+   * The alternative — remembering the last request inside the panel — was tried and failed, because the
+   * panel does not outlive the step: the next step's panel remembered nothing, found this signal still
+   * set, and opened over the new step quoting the answer from the previous one.
+   */
+  readonly tutorCheckRequest = signal<{ readonly mode: TutorMode; readonly text: string } | null>(
+    null,
+  );
+  /**
+   * The step's answer box, its chosen option and its verdict, as one piece of state.
+   *
+   * One, rather than one per surface, because three surfaces can show that box: the step itself, the
+   * resume notice above it, and the resume card on every other route. Two copies of "what the learner
+   * wrote" would mean an answer written in the notice vanishing the moment the notice was continued —
+   * and the learner's own words are the one thing in this app that must not be lost between two places
+   * that look like the same field.
+   *
+   * Held here rather than in the page for the same reason the tutor's request is: the state outlives
+   * the component that shows it. It is cleared when a step starts and when one is finished, never when
+   * a route changes — a half-written answer that survives a trip to the dashboard is a feature, not a
+   * leak.
+   */
+  readonly stepAnswer = signal('');
+  readonly stepChoice = signal<number | null>(null);
+  readonly stepVerdict = signal<QuizAnswerResult | null>(null);
+  /**
+   * What to say about the last file attached to the box, or `null` when there is nothing to say.
+   *
+   * A key and a file name rather than a sentence: the wording is the shell's, in both languages, and the
+   * name is the learner's own file. Cleared with the step, like the box it is about.
+   */
+  readonly answerSourceNote = signal<{
+    readonly key: MessageKey;
+    readonly params: { readonly name: string };
+  } | null>(null);
   readonly locale = signal<Locale>(DEFAULT_LOCALE);
   readonly theme = signal<ThemePreference>(DEFAULT_THEME);
   /**
@@ -301,6 +346,13 @@ export class AppStateService {
       const settings = await this.api.setLocale({ locale });
       // The store is the authority; reflect what it actually kept.
       this.locale.set(settings.locale);
+      /*
+       * The built-in course is written in the language the learner just chose and the main process
+       * re-seeds it here, so the catalogue is re-read rather than left showing the language it was
+       * seeded in. A course that is already running is unaffected: the ids do not move, only their
+       * words.
+       */
+      await this.refresh();
     });
   }
 
@@ -523,6 +575,89 @@ export class AppStateService {
        */
       this.tutorAnswer.set(null);
     });
+  }
+
+  /**
+   * Hands the step's answer to the tutor panel, with the mode that checks it.
+   *
+   * The panel owns whether it is open, what is in its box and which mode is chosen, so this asks rather
+   * than does. It fills the box and opens; it does **not** send. A model call the learner did not press
+   * for — spending a request, on text they can no longer edit — is the one thing this must not do, and
+   * leaving the last press to them is also what lets them correct a typo before it costs anything.
+   */
+  requestTutorCheck(mode: TutorMode, text: string): void {
+    this.tutorCheckRequest.set({ mode, text });
+  }
+
+  /**
+   * The box and its verdict belong to one step: nothing of them survives starting another.
+   *
+   * Called when a step starts and when one is finished, and by the notice when it is showing a
+   * *different* step's box than the one on screen — the rule is "one answer, for the step in front of
+   * you", and every caller is a moment where that step has changed.
+   */
+  clearStepAnswer(): void {
+    this.stepAnswer.set('');
+    this.stepChoice.set(null);
+    this.stepVerdict.set(null);
+    this.answerSourceNote.set(null);
+  }
+
+  /**
+   * Asks for a file and puts what is in it into the box.
+   *
+   * The reading happens in the main process — a PDF, a Word document and a photograph are three readers
+   * that need a file system — and this is the shell's half: the picker, then the text, then the line that
+   * says where the text came from. A refusal is a value rather than an exception, because it is about the
+   * learner's own document (the wrong kind, too large, a scan with no words on it) and a red banner about
+   * an internal error is the wrong way to say any of those.
+   */
+  async attachAnswerSource(): Promise<void> {
+    const response = await this.pickAnswerSource();
+    if (response === null) return;
+
+    this.answerSourceNote.set(answerSourceNote(response));
+    if (response.source === null) return;
+    const { text } = response.source;
+    this.stepAnswer.update((current) => insertAnswerText(current, text, LEARNER_ANSWER_CHARACTERS));
+  }
+
+  /**
+   * The picker, which is a call of its own so the caller gets a value rather than a closure.
+   *
+   * `run` reports a failed call in the banner and returns nothing, which is right for every other channel
+   * here — and wrong for this one, whose result is the whole point. So the request is raised through it
+   * and its answer is handed back, exactly as `answerQuiz` does for the same reason.
+   */
+  private async pickAnswerSource(): Promise<AnswerSourceResponse | null> {
+    let response: AnswerSourceResponse | null = null;
+    await this.run(async () => {
+      response = await this.api.pickAnswerSource();
+    });
+    return response;
+  }
+
+  /**
+   * Answers the quiz this step asks, and returns the verdict for the screen to show.
+   *
+   * The grading is the main process's (see `focusloop:quiz:answer`): the screen sends the option and is
+   * told whether it was right, which is also what makes the event the state machine reacts to a fact
+   * rather than a renderer's opinion about a question it happens to be holding.
+   */
+  async answerQuiz(taskId: string, choiceIndex: number): Promise<QuizAnswerResponse | null> {
+    const snapshot = this.snapshot();
+    if (snapshot === null) return null;
+    let response: QuizAnswerResponse | null = null;
+    await this.run(async () => {
+      response = await this.api.answerQuiz({
+        sessionId: snapshot.session.id,
+        taskId,
+        choiceIndex,
+      });
+      this.applyResponse(response);
+      await this.reloadSnapshot();
+    });
+    return response;
   }
 
   /**

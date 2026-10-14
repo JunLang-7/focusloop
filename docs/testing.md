@@ -56,8 +56,9 @@ and `@ts-expect-error` cases now have an actual compiler checking them.
 ## Hermetic launch
 
 Every Electron process the suite and its helper scripts start (`golden-path.spec.ts`,
-`focus-notice.spec.ts`, `bridge-surface.spec.ts`, `window-bounds.spec.ts`, `capture-ui.mjs`,
-`monitor-ui.mjs`, `probe-material.mjs`) builds its child environment with `hermeticEnv()` in
+`focus-notice.spec.ts`, `bridge-surface.spec.ts`, `home.spec.ts`, `window-bounds.spec.ts`,
+`capture-ui.mjs`, `monitor-ui.mjs`, `probe-material.mjs`) builds its child environment with
+`hermeticEnv()` in
 `apps/desktop-e2e/hermetic-env.mjs`: `process.env` passes through so PATH and DISPLAY survive, and
 provider credentials are deleted. Without that, a developer machine that exports
 `FOCUSLOOP_DEEPSEEK_API_KEY` would run the golden path against the real provider — spending the key on
@@ -181,9 +182,9 @@ has to prove that the pieces are wired together — it does not re-prove the rul
   array is left alone.
 - The modal focus arithmetic: Tab and Shift+Tab wrap at both ends, focus entering the dialog from the
   container lands on the right control, and a dialog with no controls reports nothing to do.
-- The session plan geometry: block heights are proportional to the estimates, the floor keeps a
-  two-minute task readable, the blocks tile the column with no gap or overlap, a negative estimate
-  counts as nothing, and every kind has its own glyph.
+- The session plan geometry: every block is the same height whatever the estimate says, the blocks
+  tile the column with no gap or overlap, a negative estimate counts as nothing, and every kind has
+  its own glyph.
 - Reordering the plan: a named order wins over the course order, an unnamed task follows the named
   ones rather than holding its course index, an id that names no task is skipped rather than given a
   position, a repeated id means one thing, nothing is ever lost or duplicated, a move to the index it
@@ -219,8 +220,9 @@ launch (hermetic env: no provider key) → assert offline mock indicator
 Plus: the agent offers a break on overload and the learner can decline it, the resume card is the
 only surface that offers `RESUME`, the sidebar's ambient summary refreshes on a new event without
 changing the window the dashboard is showing, three identical events from one click collapse into a
-single `×3` row, the remaining work renders as contiguous blocks whose heights differ with the
-estimates, the resume card takes focus and keeps it inside itself until Escape closes it, the app's
+single `×3` row, the remaining work renders as a plan of equal rows — contiguous blocks one row tall,
+each carrying its own estimate — the resume card takes focus and keeps it inside itself until Escape
+closes it, the app's
 getting-started block is there with nothing running — three steps as an actual list, ending on the
 premise — and gone while a session is, without anything having been dismissed, ending a session
 leaves the app with nothing current, the interface can be switched to Chinese with the
@@ -229,6 +231,15 @@ row by its grip, by pressing the arrow keys on it, and by activating it (Enter o
 down, with Shift up) — the order surviving a real restart, the drop marker appearing before the
 release, the keyboard staying on the row it moved, the step in progress untouched by every path, and
 the whole thing put back the way it was found.
+
+`home.spec.ts` takes the first screen as a page of its own, which the golden path only touches where
+the loop needs it: the current-session card and the button back into the session, the
+getting-started block standing in for it while nothing runs, course cards carrying both ways in, a
+file chosen, dragged and pasted, a re-import of the same text that adds no second course, and the
+form's three rules — a name, a name the parser can read, and something to import — with each stated
+in words on the control that refuses it. It also answers the question an import has to answer: the
+imported course is opened, one of its micro tasks is started and completed in a real session, and the
+progress the session reports moves.
 
 There is no `test` target for this project on purpose. When there was one it ran Playwright under
 `pnpm test`, which meant the unit run tried to launch Electron without a build — CI could never go

@@ -10,10 +10,12 @@ import {
   ADAPTIVE_TASK_LIMITS,
   TUTOR_LIMITS,
   type AgentContext,
+  type Locale,
   type RescueAction,
   type RescueGrounding,
 } from '@focusloop/shared-types';
 import { buildRescueGrounding } from './rescue-grounding';
+import { replyLanguageInstruction } from './model-language';
 
 export interface RescueSuggestionPrompt {
   readonly system: string;
@@ -38,6 +40,7 @@ const SUGGESTION_SYSTEM =
 export function buildRescueSuggestionPrompt(
   action: RescueAction,
   context: AgentContext | null,
+  locale: Locale,
 ): RescueSuggestionPrompt | null {
   if (context === null) return null;
   const anchor = buildRescueGrounding(action, context);
@@ -47,11 +50,17 @@ export function buildRescueSuggestionPrompt(
     anchor.source === 'material-sentence'
       ? `Material passage: ${anchor.text}`
       : `Concept: ${anchor.text}`,
-    `Write one short ${action === 'HINT' ? 'hint' : 'example'} line for this step, in the same language as the material.`,
+    /*
+     * No language clause here. The line is written in the interface's language, which is not
+     * necessarily the material's, and the system prompt is where that is decided and counted; a
+     * second instruction here could only disagree with it.
+     */
+    `Write one short ${action === 'HINT' ? 'hint' : 'example'} line for this step.`,
   ].join('\n');
+  const system = `${SUGGESTION_SYSTEM}\n\n${replyLanguageInstruction(locale)}`;
   // Bounded at build, not after: a request that could not fit is a request not made.
-  if (SUGGESTION_SYSTEM.length + prompt.length > TUTOR_LIMITS.inputCharacters) return null;
-  return { system: SUGGESTION_SYSTEM, prompt };
+  if (system.length + prompt.length > TUTOR_LIMITS.inputCharacters) return null;
+  return { system, prompt };
 }
 
 /**

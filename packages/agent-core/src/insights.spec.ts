@@ -10,6 +10,7 @@ import {
   buildInsightsSummary,
   buildStateTimeline,
   localDateKey,
+  recordedSessionMs,
   type InsightsSessionSource,
 } from './insights';
 
@@ -109,8 +110,13 @@ describe('buildStateTimeline', () => {
     ]);
   });
 
-  it('keeps a measured absence whole — away is what the bridge reported, not what silence hints at', () => {
-    // `TAB_LEFT` then `TAB_RETURNED`: the learner really was away, and the whole hour is theirs to see.
+  it('bounds a measured absence at the idle threshold — away is observed, but it is not study time', () => {
+    /*
+     * `TAB_LEFT` then `TAB_RETURNED`: the learner really was away, and the first version kept the whole
+     * hour visible because the bridge had observed the absence. It is still an absence, and an overnight
+     * one put twenty-two hours of 离开中 into the dashboard's recorded total, which then read as a day of
+     * study. The threshold is what the app credits, witnessed or not.
+     */
     const events = [
       event('e1', 'TASK_STARTED', at(15, 10), { taskId: 't1' }),
       event('e2', 'TAB_LEFT', at(15, 10, 1)),
@@ -125,8 +131,23 @@ describe('buildStateTimeline', () => {
     expect(away).toEqual({
       state: 'DISTRACTED',
       fromMs: Date.parse(at(15, 10, 1)),
-      toMs: Date.parse(at(15, 11, 1)),
+      toMs: Date.parse(at(15, 10, 3)),
     });
+  });
+
+  it('does not count an overnight absence as study time', () => {
+    // The report in its own shape: leave at 20:05, come back the next afternoon, end the session.
+    const events = [
+      event('e1', 'TASK_STARTED', at(15, 20), { taskId: 't1' }),
+      event('e2', 'TAB_LEFT', at(15, 20, 5)),
+      event('e3', 'TAB_RETURNED', at(16, 18), { awayMs: 22 * 60 * 60_000 }),
+    ];
+    const studied = recordedSessionMs(
+      { session: session(at(15, 20), at(16, 18, 10)), events, interruptionAt: [], outcomes: [] },
+      at(16, 18, 10),
+    );
+    // Five minutes on task, and two minutes of the absence — nothing like the twenty-two hours.
+    expect(studied).toBeLessThanOrEqual(10 * 60_000);
   });
 
   it('honours a custom idle threshold', () => {

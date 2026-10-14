@@ -26,6 +26,8 @@ import type {
   ProposalConfirmResult,
   ProposalDeclineResult,
   ProposalExecuteResult,
+  QuizAnswerRequest,
+  QuizAnswerResponse,
   ResolveInterventionRequest,
   ResumeCardView,
   RescueView,
@@ -78,6 +80,7 @@ import {
   isTaskRewrite,
   isTaskRewriteAction,
   message,
+  normaliseLearnerAnswer,
 } from '@focusloop/shared-types';
 import { buildAgentContext } from './agent-context';
 import { buildRescueGrounding } from './rescue-grounding';
@@ -135,7 +138,9 @@ import {
   type InsightsSessionSource,
 } from './insights';
 import { demoCourse, demoInterruption } from './demo-course';
+import { DEFAULT_COURSE_COPY, type CourseCopy } from './course-copy';
 import { generateCourse } from './micro-task-generator';
+import { gradeQuiz, quizForTask } from './quiz';
 import { buildTutorPrompt, buildTutorRetryPrompt, isRetryable, readTutorReply } from './tutor';
 import {
   confirmAgentProposal,
@@ -172,14 +177,22 @@ export const AMBIENT_SOUND_KEY = 'ambient-sound';
 /**
  * A request the engine refuses, carrying the code the caller branches on — so a rejection is a value
  * rather than a message to parse.
- */
-export class EngineError extends Error {
+ */ export class EngineError extends Error {
   readonly code:
     | 'session-not-found'
     | 'session-ended'
     | 'course-not-found'
     | 'checkpoint-not-found'
-    | 'simulator-disabled';
+    | 'simulator-disabled'
+    /**
+     * The step has no quiz to answer, or the chosen option is not one of its options.
+     *
+     * One code for both because they are the same refusal from the caller's side: the screen only
+     * offers the options it was given, so either means the request did not come from the screen it
+     * claims to. Refusing loudly is the point — a silently "incorrect" verdict for a choice that does
+     * not exist would write a wrong answer into the learner's record for them.
+     */
+    | 'quiz-not-answerable';
 
   constructor(code: EngineError['code'], message: string) {
     super(message);
@@ -197,6 +210,14 @@ export interface FocusLoopEngineOptions {
   readonly stateConfig?: Partial<StateEngineConfig>;
   readonly policyConfig?: Partial<InterventionPolicyConfig>;
   readonly simulatorEnabled?: boolean;
+  /**
+   * The wording the built-in course and a generated course are written in, by locale.
+   *
+   * The engine knows the locale the learner chose — it stores it — but not the words, so the shell
+   * that owns the interface's copy supplies both. Defaults to the English wording the app shipped
+   * before this was configurable, which is what a test that constructs an engine gets.
+   */
+  readonly courseCopy?: (locale: Locale) => CourseCopy;
 }
 
 /**
@@ -232,6 +253,7 @@ export class FocusLoopEngine {
   private readonly simulatorEnabled: boolean;
   private readonly stateConfig: Partial<StateEngineConfig>;
   private readonly policyConfig: Partial<InterventionPolicyConfig>;
+  private readonly courseCopy: (locale: Locale) => CourseCopy;
   /**
    * The tutor's conversations, keyed by session, in memory.
    *
@@ -251,6 +273,12 @@ export class FocusLoopEngine {
     this.stateConfig = options.stateConfig ?? {};
     this.policyConfig = options.policyConfig ?? {};
     this.simulatorEnabled = options.simulatorEnabled ?? true;
+    this.courseCopy = options.courseCopy ?? (() => DEFAULT_COURSE_COPY);
+  }
+
+  /** The wording in force, which follows the language the learner chose. */
+  private copy(): CourseCopy {
+    return this.courseCopy(this.getSettings().locale);
   }
 
   initialize(): void {
@@ -272,7 +300,31 @@ export class FocusLoopEngine {
 
   /** Idempotent: safe on every boot. */
   seedBuiltInCourses(): void {
-    this.store.saveCourse(demoCourse(), { source: 'builtin' });
+    this.store.saveCourse(demoCourse(this.copy().demo), { source: 'builtin' });
+  }
+
+  /**
+   * Re-writes the wording of every course the app authored, in the language in force (#2).
+   *
+   * The generated course is derived from a stored document, deterministically, so its rows are the
+   * app's own sentences wrapped around the learner's material — and a course imported while the app
+   * was in English would otherwise keep that English for as long as the learner kept it. Regenerating
+   * is safe because nothing the learner did lives in those rows: the ids are a function of the
+   * material, so every session, checkpoint and completion still points at the same step, and the order
+   * the learner dragged their steps into belongs to the session, not to the course.
+   *
+   * A material whose course is gone is left alone: deleting a course the learner can still see in
+   * their material list is not this method's business.
+   */
+  refreshAuthoredCourses(): void {
+    this.seedBuiltInCourses();
+
+    const copy = this.copy().task;
+    for (const material of this.store.listMaterials()) {
+      const generated = generateCourse(material, { copy });
+      if (this.store.getCourse(generated.course.id) === null) continue;
+      this.store.saveCourse(generated.course, { source: 'imported', materialId: material.id });
+    }
   }
 
   /**
@@ -351,7 +403,7 @@ export class FocusLoopEngine {
     const material: MaterialDocument = existing ?? document;
     if (existing === null) this.store.saveMaterial(material);
 
-    const generated = generateCourse(material);
+    const generated = generateCourse(material, { copy: this.copy().task });
     const courseExists = this.store.getCourse(generated.course.id) !== null;
     if (!courseExists) {
       this.store.saveCourse(generated.course, { source: 'imported', materialId: material.id });
@@ -593,6 +645,8 @@ export class FocusLoopEngine {
       context,
       question: request.question,
       turns: this.transcript.list(request.sessionId),
+      // The answer is shown beside the interface, so the interface's language decides it.
+      locale: this.getSettings().locale,
     });
 
     if (built.status === 'refused') {
@@ -925,7 +979,7 @@ export class FocusLoopEngine {
       at,
       type: request.type,
       source: request.source,
-      payload: request.payload ?? {},
+      payload: storedPayload(request),
     } as unknown as LearningEvent;
 
     const stored = this.store.appendEvent(event);
@@ -979,6 +1033,52 @@ export class FocusLoopEngine {
 
   listEvents(sessionId: string): LearningEvent[] {
     return this.store.listEvents(sessionId);
+  }
+
+  /**
+   * Answers the quiz attached to the step in front of the learner.
+   *
+   * The grading is here rather than on the screen because the screen must not be able to decide it:
+   * a renderer that compared the choice against `answerIndex` would be marking its own homework, and
+   * the learner's record — the quiz event, the state machine, the dashboard's "progressed" count —
+   * would be built from whatever it said. So the screen sends the option and this returns the verdict.
+   *
+   * The step it may be asked about is the running one, the same rule the tutor keeps: a request about
+   * any other step is refused rather than recorded, because a quiz answered for a task the learner is
+   * not on would move the state machine on the strength of a question that is not in front of them.
+   *
+   * A refusal here is an `EngineError`, not a verdict: only this screen produces these requests, and it
+   * offers the options the course holds. One arriving for something else is a caller that has got out
+   * of step with the course, which is worth failing loudly for — an "incorrect" written for a choice
+   * that does not exist would be the learner's own record, wrong, with nobody to correct it.
+   */
+  answerQuiz(request: QuizAnswerRequest): QuizAnswerResponse {
+    const record = this.requireSession(request.sessionId);
+    if (record.engineState.currentTaskId !== request.taskId) {
+      throw new EngineError(
+        'quiz-not-answerable',
+        `task ${request.taskId} is not the step in front of the learner`,
+      );
+    }
+    const course = this.getCourse(record.session.courseId);
+    if (course === null) {
+      throw new EngineError('course-not-found', `no course for session ${request.sessionId}`);
+    }
+    const quiz = quizForTask(course, request.taskId);
+    const verdict = quiz === null ? null : gradeQuiz(quiz, request.choiceIndex);
+    if (quiz === null || verdict === null) {
+      throw new EngineError(
+        'quiz-not-answerable',
+        `task ${request.taskId} has no option ${request.choiceIndex} to answer`,
+      );
+    }
+    const response = this.dispatch({
+      sessionId: request.sessionId,
+      type: verdict.correct ? 'QUIZ_CORRECT' : 'QUIZ_INCORRECT',
+      source: 'user',
+      payload: { taskId: request.taskId, quizId: quiz.id },
+    });
+    return { ...response, quiz: verdict };
   }
 
   /**
@@ -1380,7 +1480,11 @@ export class FocusLoopEngine {
     if (this.providers.primary.offline) return null;
     const record = this.store.getSession(sessionId);
     if (record === null) return null;
-    const built = buildRescueSuggestionPrompt(view.plan.action, this.contextFor(record).context);
+    const built = buildRescueSuggestionPrompt(
+      view.plan.action,
+      this.contextFor(record).context,
+      this.getSettings().locale,
+    );
     if (built === null) return null;
     // Through the runtime's finite default budgets — the same door `enrich` has always used.
     const completion = await this.enrich(built.prompt, built.system);
@@ -2529,6 +2633,44 @@ export class FocusLoopEngine {
 function findTask(course: Course | null, taskId: string | null): MicroTask | null {
   if (course === null || taskId === null) return null;
   return course.microTasks.find((task) => task.id === taskId) ?? null;
+}
+
+/**
+ * The payload as it will be stored, which is the only place a learner's words get their bound.
+ *
+ * The screen bounds its own box, because a textarea that accepts more than the record keeps is a lie
+ * about what was kept — but the screen is not the only writer: the bridge and the simulator dispatch
+ * through the same door. Normalising here means one answer, and one answer only, whatever route the
+ * completion arrived by; and an answer that is empty once trimmed is *removed* rather than stored as
+ * `''`, so "they wrote nothing" keeps being the absence of a field rather than a blank string that a
+ * later reader would have to know how to read.
+ *
+ * Deliberately narrow: it touches the two events whose payload *is* the learner's prose and nothing
+ * else. Every other event's payload is its builder's business, and a general sanitiser here would
+ * quietly become the place where event shapes are decided.
+ *
+ * `TASK_ANSWERED` loses the field rather than the event, and the difference matters: `text` is why that
+ * event exists, so a payload whose text normalises to nothing is stored without it and then fails the
+ * agent-context projection, which reports it as an invalid event left out rather than showing a model a
+ * row that says "they answered, and the answer was nothing". Only a caller that is not this screen can
+ * reach that state — the box refuses to send an empty answer — which is exactly who should be told.
+ */
+function storedPayload(request: DispatchEventRequest): Record<string, unknown> {
+  const payload = { ...(request.payload ?? {}) };
+  if (request.type === 'TASK_ANSWERED') {
+    const raw = payload['text'];
+    const text = typeof raw === 'string' ? normaliseLearnerAnswer(raw) : null;
+    if (text === null) delete payload['text'];
+    else payload['text'] = text;
+    return payload;
+  }
+  if (request.type !== 'TASK_COMPLETED') return payload;
+
+  const raw = payload['answer'];
+  const answer = typeof raw === 'string' ? normaliseLearnerAnswer(raw) : null;
+  if (answer === null) delete payload['answer'];
+  else payload['answer'] = answer;
+  return payload;
 }
 
 function toSession(

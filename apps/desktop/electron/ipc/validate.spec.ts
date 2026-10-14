@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   INSIGHT_RANGES,
   IPC_CHANNELS,
+  LEARNER_ANSWER_CHARACTERS,
+  QUIZ_LIMITS,
   SUPPORTED_LOCALES,
   THEME_PREFERENCES,
   TUTOR_LIMITS,
@@ -9,6 +11,7 @@ import {
 } from '@focusloop/shared-types';
 import {
   IpcValidationError,
+  parseAnswerQuiz,
   parseDeleteAllData,
   parseDispatchRequest,
   parseEndSession,
@@ -204,6 +207,120 @@ describe('parseResumeDecision', () => {
   it('requires a checkpoint id', () => {
     expect(parseResumeDecision(CHANNEL, { checkpointId: 'cp1' })).toEqual({ checkpointId: 'cp1' });
     expectFailure(() => parseResumeDecision(CHANNEL, {}));
+  });
+});
+
+describe('the answer a completion carries', () => {
+  const valid = {
+    sessionId: 's1',
+    type: 'TASK_COMPLETED',
+    source: 'user',
+    payload: { taskId: 't1' },
+  };
+
+  it('accepts an answer within the record\u2019s bound', () => {
+    const answer = 'x'.repeat(LEARNER_ANSWER_CHARACTERS);
+    const parsed = parseDispatchRequest(CHANNEL, {
+      ...valid,
+      payload: { taskId: 't1', answer },
+    });
+    expect(parsed.payload).toEqual({ taskId: 't1', answer });
+  });
+
+  /*
+   * Refused rather than cut: the engine normalises what it stores, but a payload this size means the
+   * caller is not the screen — nothing in the app writes an answer longer than the box it draws — and a
+   * caller that is out of step with the product should be told so rather than quietly served.
+   */
+  it('rejects an answer longer than the record keeps', () => {
+    expectFailure(() =>
+      parseDispatchRequest(CHANNEL, {
+        ...valid,
+        payload: { taskId: 't1', answer: 'x'.repeat(LEARNER_ANSWER_CHARACTERS + 1) },
+      }),
+    );
+  });
+
+  it('rejects an answer that is not a string', () => {
+    for (const answer of [42, null, { text: 'hi' }, ['hi']]) {
+      expectFailure(() =>
+        parseDispatchRequest(CHANNEL, { ...valid, payload: { taskId: 't1', answer } }),
+      );
+    }
+  });
+
+  it('leaves every other event type\u2019s payload alone', () => {
+    const payload = { taskId: 't1', answer: 42 };
+    expect(
+      parseDispatchRequest(CHANNEL, { ...valid, type: 'TASK_STARTED', payload }).payload,
+    ).toEqual(payload);
+  });
+});
+
+/*
+ * The answer a learner writes for a step they are still on.
+ *
+ * Read rather than carried, and strictly: this event has nothing but the learner's prose, so a payload
+ * missing it is not a thinner event — it is one that would be stored without its own subject and then
+ * dropped from every agent context. A refusal at the door is what keeps that from being a silent loss.
+ */
+describe('the words a step answer carries', () => {
+  const valid = {
+    sessionId: 's1',
+    type: 'TASK_ANSWERED',
+    source: 'user',
+    payload: { taskId: 't1', text: 'A BST keeps its order.' },
+  };
+
+  it('accepts words within the record\u2019s bound', () => {
+    expect(parseDispatchRequest(CHANNEL, valid).payload).toEqual({
+      taskId: 't1',
+      text: 'A BST keeps its order.',
+    });
+  });
+
+  it('accepts exactly the bound', () => {
+    const text = 'x'.repeat(LEARNER_ANSWER_CHARACTERS);
+    expect(
+      parseDispatchRequest(CHANNEL, { ...valid, payload: { taskId: 't1', text } }).payload,
+    ).toEqual({ taskId: 't1', text });
+  });
+
+  it.each([
+    ['no words at all', { taskId: 't1' }],
+    ['an empty string', { taskId: 't1', text: '' }],
+    ['only whitespace', { taskId: 't1', text: '   \n ' }],
+    ['words that are not a string', { taskId: 't1', text: 42 }],
+    [
+      'more than the record keeps',
+      { taskId: 't1', text: 'x'.repeat(LEARNER_ANSWER_CHARACTERS + 1) },
+    ],
+    ['no step to attach them to', { text: 'a sentence' }],
+    ['an empty step id', { taskId: '', text: 'a sentence' }],
+  ])('rejects %s', (_name, payload) => {
+    expectFailure(() => parseDispatchRequest(CHANNEL, { ...valid, payload }));
+  });
+});
+
+describe('parseAnswerQuiz', () => {
+  const valid = { sessionId: 's1', taskId: 't4', choiceIndex: 1 };
+
+  it('accepts a choice inside the range a quiz may have', () => {
+    expect(parseAnswerQuiz(CHANNEL, valid)).toEqual(valid);
+    expect(parseAnswerQuiz(CHANNEL, { ...valid, choiceIndex: 0 })).toMatchObject({
+      choiceIndex: 0,
+    });
+  });
+
+  it('rejects an index that is not an integer in range', () => {
+    for (const choiceIndex of [-1, 1.5, Number.NaN, QUIZ_LIMITS.options, '1', null, undefined]) {
+      expectFailure(() => parseAnswerQuiz(CHANNEL, { ...valid, choiceIndex }));
+    }
+  });
+
+  it('requires a session and a task', () => {
+    expectFailure(() => parseAnswerQuiz(CHANNEL, { ...valid, sessionId: '' }));
+    expectFailure(() => parseAnswerQuiz(CHANNEL, { ...valid, taskId: '' }));
   });
 });
 

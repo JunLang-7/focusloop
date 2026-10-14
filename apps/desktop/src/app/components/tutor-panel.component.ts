@@ -2,11 +2,11 @@ import { Component, computed, effect, inject, signal, viewChild } from '@angular
 import type { ElementRef, OnDestroy } from '@angular/core';
 import type { TutorMode } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
-import { I18nService } from '../core/i18n/i18n.service';
+import { I18nService, type MessageKey } from '../core/i18n/i18n.service';
 import { resolvePanelPlacement, type PanelPlacement } from '../core/panel-placement';
 import {
   TUTOR_MODE_KEYS,
-  TUTOR_MODE_ORDER,
+  TUTOR_PANEL_MODES,
   buildTutorView,
   tutorAnswerApplies,
   tutorEntryVisible,
@@ -20,7 +20,8 @@ const PANEL_GAP_PX = 8;
 /**
  * "Ask about this step" (AG3 step three).
  *
- * The entry point, the six modes, the question, and the one screen that stands in when there is no answer.
+ * The entry point, the three modes, the question, and the one screen that stands in when there is no
+ * answer.
  * The decisions behind all of it — whether the entry is offered, how a reply is labelled, what a refusal
  * looks like, where the "not included" list comes from, and which way the panel opens — live in
  * `core/*.ts` so they are falsifiable without a window; this file is the markup that calls them, plus the
@@ -101,6 +102,14 @@ const PANEL_GAP_PX = 8;
               </button>
             </div>
 
+            <!--
+              Ask is inert until both halves of a request are there, and an inert button says nothing
+              about which half is missing. This is that half, named.
+            -->
+            @if (askHintKey(); as hint) {
+              <p class="tutor__hint muted small" data-testid="tutor-hint">{{ t(hint) }}</p>
+            }
+
             @if (view(); as result) {
               <div class="tutor__result" role="status" data-testid="tutor-result">
                 @if (result.status === 'answered') {
@@ -145,7 +154,7 @@ export class TutorPanelComponent implements OnDestroy {
   private readonly i18n = inject(I18nService);
 
   protected readonly t = this.i18n.t;
-  protected readonly modes = TUTOR_MODE_ORDER;
+  protected readonly modes = TUTOR_PANEL_MODES;
 
   private readonly openState = signal(false);
   protected readonly open = this.openState.asReadonly();
@@ -220,8 +229,8 @@ export class TutorPanelComponent implements OnDestroy {
     });
 
     /*
-     * Measured, not assumed. The panel's height is its content — six mode buttons wrap to two rows in a
-     * narrow window, and an answer adds a result block — so the decision has to follow the element. A
+     * Measured, not assumed. The panel's height is its content — the mode buttons wrap to a second row in
+     * a narrow window, and an answer adds a result block — so the decision has to follow the element. A
      * ResizeObserver reports both the first layout and every later change, which is why there is no
      * "measure once when it opens" call here, and why a panel that grows past the room under it flips.
      *
@@ -245,6 +254,26 @@ export class TutorPanelComponent implements OnDestroy {
       onCleanup(() => {
         observer.disconnect();
       });
+    });
+
+    /*
+     * What the step's answer box asked for: the panel opens, on the mode that checks an answer, with the
+     * learner's own words already in the box.
+     *
+     * Consumed by clearing it, which is what makes "once" mean once. Remembering the last request inside
+     * this component was not enough: the component is created and destroyed with the step (`fl-tutor-panel`
+     * lives in the running step's control row), so a request left on the signal was re-consumed by the
+     * next step's panel — which opened itself over the new step, quoting the answer the learner had
+     * written for the one before it. The signal is the message and the consumer is the only one who knows
+     * it has arrived; leaving it set was a second, weaker copy of that knowledge.
+     */
+    effect(() => {
+      const request = this.state.tutorCheckRequest();
+      if (request === null) return;
+      this.state.tutorCheckRequest.set(null);
+      this.openState.set(true);
+      this.chosen.set(request.mode);
+      this.question.set(request.text);
     });
 
     window.addEventListener('resize', this.onWindowResize);
@@ -286,6 +315,19 @@ export class TutorPanelComponent implements OnDestroy {
   protected readonly canAsk = computed(
     () => this.chosen() !== null && this.question().trim().length > 0 && !this.asking(),
   );
+
+  /**
+   * What the panel says while Ask is inert: which of the two it is still waiting for, or nothing.
+   *
+   * The button is disabled for a reason the learner cannot see — six mode buttons and an empty box look
+   * like a form that is ready. Reported as a key rather than a sentence because this is the renderer and
+   * the words are its own; `null` while Ask can be pressed, so the line never sits under a button that
+   * works.
+   */
+  protected readonly askHintKey = computed<MessageKey | null>(() => {
+    if (this.chosen() === null) return 'tutor.hint.mode';
+    return this.question().trim().length === 0 ? 'tutor.hint.question' : null;
+  });
 
   /** The button's words, from the map the contract's vocabulary is keyed by. */
   protected modeKey(mode: TutorMode): string {

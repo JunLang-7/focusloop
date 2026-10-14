@@ -241,6 +241,9 @@ which is what the unsigned v0.1 demo wants. `signAndEditExecutable: false` is th
 skips the executable's icon and metadata too, leaving the icons set under `nsis` as the only ones (the
 installer, the uninstaller and the header), and is the fallback if a release run cannot apply them.
 
+The policy that governs signing a Windows release — what is signed, who approves it, and the
+conditions a release has to meet — is in [code-signing-policy.md](code-signing-policy.md).
+
 ## Before pushing
 
 ```bash

@@ -1,54 +1,42 @@
 /**
  * The session as a plan the learner can see.
  *
- * The idea, taken from Tiimo: time is *shown* rather than described. Every remaining micro task
- * becomes a block whose height is proportional to its estimate, stacked so the column reads as one
- * continuous plan instead of a list of interchangeable rows.
+ * Every remaining micro task is one block, in the order the learner put it in, and every block is
+ * the same height. The column is the list of what is left rather than a chart of how long each part
+ * takes: an even row is what makes a task findable again after a reorder, and a length is a poor
+ * place to read a number from — the estimate stays on the row, written out, where it can be read
+ * exactly rather than estimated from a bar.
  *
- * It matters more here than it would in a generic planner. "How much is left, and how long will it
- * take" is precisely the question someone with time blindness cannot answer for themselves, and the
- * previous "Up next" list answered neither: every task looked identical and none of them said how
- * long it would take.
- *
- * Pure functions and no DOM, so proportion, the floor and contiguity are unit-tested rather than
- * eyeballed.
+ * Pure functions and no DOM, so the tiling is unit-tested rather than eyeballed.
  */
 import type { MicroTask, MicroTaskKind } from '@focusloop/shared-types';
 
 /**
- * Vertical space one minute of estimate earns.
+ * The height of every block, in pixels.
  *
- * Chosen against the estimates the domain actually produces (2–8 minutes) rather than for a
- * general calendar: much smaller and the floor swallows the differences, much larger and a
- * five-task plan is taller than the window.
+ * One value for all of them: tall enough to hold the grip, the label, the estimate and the Start
+ * control on one line, and no taller, so a five-task plan still fits the panel it opens in.
  */
-export const PX_PER_MINUTE = 14;
-
-/**
- * Nothing renders shorter than this.
- *
- * A two-minute task at the real scale is a hairline, and a block too small to hold its own label
- * and Start control is not a plan, it is decoration.
- */
-export const MIN_BLOCK_PX = 34;
+export const BLOCK_PX = 48;
 
 /** One block of the plan. */
 export interface PlanBlock {
   readonly id: string;
   readonly title: string;
   readonly kind: MicroTaskKind;
-  /** The estimate, clamped at zero. */
+  /** The estimate, clamped at zero. Written on the row; it no longer sizes it. */
   readonly minutes: number;
   /** Distance from the top of the track. */
   readonly offset: number;
+  /** Always `BLOCK_PX`. Carried per block because that is what the row binds its height to. */
   readonly height: number;
 }
 
 export interface SessionPlan {
   readonly blocks: readonly PlanBlock[];
-  /** Total height of the track: the sum of the block heights, not of the minutes. */
+  /** Total height of the track: the blocks, end to end. */
   readonly height: number;
-  /** The sum of the estimates. The track height is deliberately not proportional to this. */
+  /** The sum of the estimates, which the track height is deliberately independent of. */
   readonly totalMinutes: number;
 }
 
@@ -65,30 +53,21 @@ export const KIND_GLYPHS: Record<MicroTaskKind, string> = {
   quiz: '?',
 };
 
-export interface PlanOptions {
-  readonly pxPerMinute?: number;
-  readonly minBlockPx?: number;
-}
-
 /**
- * Lays the remaining tasks out as contiguous blocks.
+ * Lays the remaining tasks out as equal, contiguous blocks.
  *
- * Offsets accumulate the *rendered* heights rather than the true minutes, so the blocks tile the
- * column exactly: no gaps, no overlaps, and no block pushed below the floor losing its neighbour's
- * position. The cost is that the track height is the sum of the rendered heights, which is why
- * `totalMinutes` is reported separately instead of being derived from it.
+ * Offsets accumulate the rendered heights, so the rows tile the column exactly: no gaps, no
+ * overlaps, and nothing that shifts when an estimate changes. The track height is therefore a
+ * function of how many tasks are left, which is why `totalMinutes` is reported separately instead
+ * of being derived from it.
  */
-export function buildPlan(tasks: readonly MicroTask[], options: PlanOptions = {}): SessionPlan {
-  const pxPerMinute = options.pxPerMinute ?? PX_PER_MINUTE;
-  const minBlockPx = options.minBlockPx ?? MIN_BLOCK_PX;
-
+export function buildPlan(tasks: readonly MicroTask[]): SessionPlan {
   const blocks: PlanBlock[] = [];
   let offset = 0;
   let totalMinutes = 0;
 
   for (const task of tasks) {
     const minutes = Math.max(0, task.estimatedMinutes);
-    const height = Math.max(minBlockPx, minutes * pxPerMinute);
 
     blocks.push({
       id: task.id,
@@ -96,10 +75,10 @@ export function buildPlan(tasks: readonly MicroTask[], options: PlanOptions = {}
       kind: task.kind,
       minutes,
       offset,
-      height,
+      height: BLOCK_PX,
     });
 
-    offset += height;
+    offset += BLOCK_PX;
     totalMinutes += minutes;
   }
 

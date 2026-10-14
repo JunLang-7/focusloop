@@ -3,15 +3,24 @@ import { Router } from '@angular/router';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService } from '../core/i18n/i18n.service';
 import { STATE_KEYS } from '../core/i18n/labels';
+import type { MessageKey } from '../core/i18n/messages.en';
 import { formatDuration } from '../core/format';
 import {
   MATERIAL_FILE_MAX_BYTES,
   describeBytes,
   describeLimit,
   isFileDrag,
+  isImportableFileName,
   readImportFile,
   type ImportFileOutcome,
 } from '../core/import-file';
+
+/**
+ * What an import is missing, in the order the form asks for it: a name, a name the parser can read,
+ * and something to import. Each one is stated under the button rather than sent to the main process
+ * to come back as a channel error.
+ */
+type ImportProblem = 'missing' | 'format' | 'empty-text';
 
 /** Screen 1 of 5: continue, browse courses, import material. */
 @Component({
@@ -175,15 +184,24 @@ import {
           <summary>{{ t('home.import.pasteSummary') }}</summary>
           <label class="field">
             <span>{{ t('home.import.content') }}</span>
-            <textarea rows="6" [value]="content()" (input)="onContent($event)"></textarea>
+            <textarea
+              rows="6"
+              [placeholder]="t('home.import.contentPlaceholder')"
+              [value]="content()"
+              (input)="onContent($event)"
+            ></textarea>
           </label>
         </details>
         <!--
           The button is disabled rather than allowed to fail. An empty file name used to reach the
-          IPC boundary and come back as a validation error naming the channel and the field, which
-          is the main process describing its own contract rather than telling the learner what to
-          do about it. The rule is applied here, where the mistake is, and the reason is stated
-          next to the control instead of in a banner.
+          IPC boundary and come back as a validation error naming the channel and the field, and a
+          name the parser cannot place still did: importing typed.rst answered with "Error invoking
+          remote method 'focusloop:material:import': MaterialParseError: Cannot determine a supported
+          format for typed.rst." — the main process describing its own contract rather than telling
+          the learner what to do about it. There are three rules now, and the third is the text: an
+          import with nothing in it made a course with no concepts in it, which reads as success and
+          is not one. All three are applied here, where the mistake is, and the reason is stated next
+          to the control instead of in a banner. One line states whichever rule is being broken.
         -->
         <div class="row">
           <button
@@ -195,9 +213,9 @@ import {
           >
             {{ t('home.import.action') }}
           </button>
-          @if (!canImport()) {
+          @if (importProblem(); as problem) {
             <span class="muted small" data-testid="import-needs-name">{{
-              t('home.import.needFileName')
+              t(PROBLEM_KEYS[problem])
             }}</span>
           } @else if (importSummary(); as summary) {
             <span class="muted small" data-testid="import-summary">{{ summary }}</span>
@@ -224,14 +242,29 @@ export class HomePage {
   protected readonly pickNotice = signal<string | null>(null);
   protected readonly fileName = signal('notes.md');
   /**
-   * A name of nothing but spaces is still nothing. The main process rejects an empty `fileName`
-   * (`asString` in `electron/ipc/validate.ts`), and the renderer applies the same rule before
-   * sending rather than letting the learner meet it as a channel error.
+   * What the import is still missing, if anything — `null` when it may go ahead.
+   *
+   * Three rules, one line under the button. A name of nothing but spaces is still nothing: the main
+   * process rejects an empty `fileName` (`asString` in `electron/ipc/validate.ts`), and the renderer
+   * applies the same rule before sending rather than letting the learner meet it as a channel error.
+   * A name the parser cannot read is the same kind of mistake — no extension, or one it does not
+   * know — and it has the same answer: say so where the name is, rather than send it and come back
+   * with `Error invoking remote method 'focusloop:material:import': MaterialParseError: …`, which
+   * names a channel and an error class and not one thing to do about it. And the text has to be
+   * there: an import of nothing made a course with no concepts in it and reported it as a success.
    */
-  protected readonly canImport = computed(() => this.fileName().trim().length > 0);
-  protected readonly content = signal(
-    '# Rotations\n\nA rotation restructures three nodes while preserving the in-order sequence.\n\n## Left rotation\n\nA left rotation moves the pivot down and to the right.\n',
-  );
+  protected readonly importProblem = computed<ImportProblem | null>(() => {
+    if (this.fileName().trim().length === 0) return 'missing';
+    if (!isImportableFileName(this.fileName())) return 'format';
+    return this.content().trim().length === 0 ? 'empty-text' : null;
+  });
+  protected readonly canImport = computed(() => this.importProblem() === null);
+  protected readonly PROBLEM_KEYS: Record<ImportProblem, MessageKey> = {
+    missing: 'home.import.needFileName',
+    format: 'home.import.needFormat',
+    'empty-text': 'home.import.needText',
+  };
+  protected readonly content = signal('');
   /** True while a file is being dragged over the zone, which is the zone's only visible feedback. */
   protected readonly dragging = signal(false);
   /**
@@ -242,7 +275,7 @@ export class HomePage {
    */
   protected readonly picked = signal<{ name: string; size: string } | null>(null);
   /** The formats the chooser offers, and the size it accepts. Both stated on the zone itself. */
-  protected readonly ACCEPTED_TYPES = '.txt,.md,.markdown,text/plain,text/markdown';
+  protected readonly ACCEPTED_TYPES = '.txt,.text,.md,.markdown,.mdx,text/plain,text/markdown';
   protected readonly fileLimit = describeLimit(MATERIAL_FILE_MAX_BYTES);
 
   protected currentMeta(completed: number, total: number): string {
@@ -361,6 +394,8 @@ export class HomePage {
         return this.t('home.import.reject.tooLarge', { limit: describeLimit(result.limitBytes) });
       case 'empty':
         return this.t('home.import.reject.empty');
+      case 'unsupported-format':
+        return this.t('home.import.reject.unsupportedFormat');
       case 'not-text':
         return this.t('home.import.reject.notText');
       case 'unreadable':
@@ -381,6 +416,15 @@ export class HomePage {
   }
 
   protected importMaterial(): void {
+    /*
+     * The last answer goes before the new import is sent.
+     *
+     * The line under the button answers "what did that press make", and it was left standing until the
+     * next answer arrived: while an import was in flight the counts on screen belonged to the press
+     * before it, and an import that came back empty or not at all left those counts standing as if
+     * they were its own. Clearing it keeps the line to the one import it describes.
+     */
+    this.importSummary.set(null);
     void this.state.importMaterial(this.fileName(), this.content()).then((result) => {
       this.importSummary.set(
         result === null

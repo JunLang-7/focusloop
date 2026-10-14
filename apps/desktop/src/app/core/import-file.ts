@@ -37,9 +37,32 @@ export interface PickedFile {
   text(): Promise<string>;
 }
 
+/**
+ * The extensions the parser behind the import can read anything into.
+ *
+ * Spelled out here rather than imported from it: that package hashes with `node:crypto`, which the
+ * renderer's bundle does not have, so the list is duplicated — and the duplication is the risk, not
+ * the answer. A name refused here but readable there is a form refusing a file it could have taken,
+ * and the reverse is the jargon error this check exists to prevent, so `import-file.spec.ts` pins
+ * the list and the parser's own suite pins the one it is copied from.
+ */
+const IMPORTABLE_EXTENSIONS = ['.md', '.markdown', '.mdx', '.txt', '.text'];
+
+/**
+ * Whether the import can tell what this name is, which is the same question the parser asks of it
+ * before it will read anything. Without an extension — or with one nobody can parse — an import
+ * cannot know whether the text is Markdown, so it refuses.
+ */
+export function isImportableFileName(fileName: string): boolean {
+  const lower = fileName.toLowerCase();
+  const dot = lower.lastIndexOf('.');
+  return dot >= 0 && IMPORTABLE_EXTENSIONS.includes(lower.slice(dot));
+}
+
 export type ImportFileOutcome =
   | { readonly outcome: 'picked'; readonly fileName: string; readonly content: string }
   | { readonly outcome: 'too-large'; readonly limitBytes: number }
+  | { readonly outcome: 'unsupported-format' }
   | { readonly outcome: 'empty' }
   | { readonly outcome: 'not-text' }
   | { readonly outcome: 'unreadable' };
@@ -47,13 +70,22 @@ export type ImportFileOutcome =
 /**
  * Reads one picked file, or says why it will not be read.
  *
- * The size is checked before the read rather than after it, which is the entire point of the check:
- * finding out that a file was too big by reading it into a string first is how the window freezes.
+ * The two checks that need no read come first, cheapest answer first: the size, and then whether the
+ * import can place the name at all. Reading a file to find out that it is too big to keep, or that
+ * its extension means nothing to the parser, is work whose only outcome is a refusal.
  */
 export async function readImportFile(file: PickedFile): Promise<ImportFileOutcome> {
   if (file.size > MATERIAL_FILE_MAX_BYTES) {
     return { outcome: 'too-large', limitBytes: MATERIAL_FILE_MAX_BYTES };
   }
+
+  /*
+   * A drop bypasses the chooser's `accept` filter entirely, and the chooser itself always offers
+   * "All files", so a name the parser cannot read does reach here. Refusing it in the same place as
+   * the other refusals is what keeps it from arriving as `Error invoking remote method
+   * 'focusloop:material:import': MaterialParseError: Cannot determine a supported format for …`.
+   */
+  if (!isImportableFileName(file.name)) return { outcome: 'unsupported-format' };
 
   let content: string;
   try {

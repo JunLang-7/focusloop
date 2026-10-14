@@ -1,5 +1,4 @@
 import {
-  TUTOR_MODES,
   type MaterialExcerpt,
   type SessionSnapshot,
   type TutorAnswer,
@@ -14,22 +13,31 @@ import { TUTOR_FALLBACK_KEYS } from './i18n/labels';
  *
  * Here rather than in the component for the reason `stuck-picker.ts` is: this app runs its tests in a
  * `node` environment with no TestBed, so a page's methods are only reachable by launching Electron. The
- * decisions below — which of the six modes is offered, what a reply looks like once it is labelled, what
+ * decisions below — which modes are offered, what a reply looks like once it is labelled, what
  * the learner is told when there is no answer, and above all **which parts of the result are worth
  * showing at all** — are the whole of step three's logic, and every one of them is falsifiable here.
  * The component that calls them is covered by the end-to-end suite, where the buttons are really pressed.
  */
 
 /**
- * The modes, in the order they are offered.
+ * The three the panel offers, in the order it offers them.
  *
- * Straight from the contract's list rather than a second one written here: a seventh mode should appear on
- * the panel because the contract gained it, not because somebody remembered this file.
+ * The contract carries six `TutorMode`s because a mode is what the prompt and the parser are built per,
+ * and two of the three that are *not* here are reached from elsewhere: the rescue card asks for an
+ * `EXAMPLE` when reading is not producing understanding, and a quiz step's `CHECK_MY_ANSWER` is what the
+ * step's own "have the tutor look at it" button opens. What is left for a learner to pick from, with one
+ * step on screen, is the three moments that step can put them in — not understanding it, not being able
+ * to start it, and having written something they want judged. Six buttons turned that into a menu they
+ * had to read before they could ask anything.
  */
-export const TUTOR_MODE_ORDER: readonly TutorMode[] = TUTOR_MODES;
+export const TUTOR_PANEL_MODES: readonly TutorMode[] = ['EXPLAIN', 'HINT', 'CHECK_MY_ANSWER'];
 
 /**
  * How each mode reads on its button.
+ *
+ * Every mode in the contract, so adding a seventh to it fails to compile until somebody decides how it
+ * reads. The three the panel does not offer still need their words: the rescue card's `EXAMPLE` and the
+ * quiz step's `CHECK_MY_ANSWER` are labelled with them wherever they are reached from.
  *
  * Namespaced `tutor.mode.*` rather than reusing `agent.action.*`, which is the *policy's* vocabulary: an
  * intervention **action** the agent chose for the learner against a **mode** the learner chose for

@@ -1,27 +1,19 @@
-import type { InterventionAction } from '@focusloop/shared-types';
-
-export type FocusNotice = 'resume' | 'help' | 'time-up';
+export type FocusNotice = 'resume';
 
 const FOCUS_ROUTE = '/focus';
 
 /**
- * Product precedence (#77): recover the position before helping with it; an explicit
- * request (or an existing policy suggestion) takes precedence over the clock. Losing
- * candidates remain in their original state — selecting a slot never resolves them.
+ * The focus screen's one notice: the position you left, given back when you come back.
+ *
+ * It used to be a three-way slot — a resume card, the agent's proposal with three quick choices, and an
+ * expired-timer offer — and every one of those is still reachable, just not as a strip pinned over the
+ * bottom of the screen the learner is working in. The agent's suggestion is drawn in the step it is about
+ * (`focus.page.ts`), and an expired timer is answered by the control that already turns into "+1 minute"
+ * when the commitment runs out. What is left is the only genuinely *interruptive* case: the learner has
+ * just come back from somewhere else and needs their place found for them.
  */
-export function selectFocusNotice(input: {
-  readonly resume: boolean;
-  readonly rescue: boolean;
-  readonly action: InterventionAction | null;
-  readonly expired: boolean;
-}): FocusNotice | null {
-  if (input.resume) return 'resume';
-  if (
-    input.rescue ||
-    (input.action !== null && input.action !== 'NO_ACTION' && input.action !== 'RESUME')
-  )
-    return 'help';
-  return input.expired ? 'time-up' : null;
+export function selectFocusNotice(input: { readonly resume: boolean }): FocusNotice | null {
+  return input.resume ? 'resume' : null;
 }
 
 export interface FocusNoticeFold {

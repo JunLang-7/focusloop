@@ -1,5 +1,9 @@
 # FocusLoop Learning Agent Wiki
 
+For the desktop Focus workspace user guide and design boundaries, see [Focus mode](../focus-mode.md).
+The responsive plan-panel implementation and verification checklist are in
+[Focus mode refinement plan](../focus-mode-refinement-plan.md).
+
 > **事实基线**：默认分支 `main` @
 > [`e596d6f`](https://github.com/nianpingy-cpu/focusloop/commit/e596d6fd0e4e33e3810744811272eccd9a580437)，
 > 核对日期 2026-09-22。本页标注的状态只对应该 commit；`main` 前进后必须同步复核。

@@ -61,10 +61,9 @@
   --radius: 12px;
   --radius-sm: 8px;
   /*
-   * The plan sheet's ceiling, named once: the sheet and the scroll room reserved for it must agree, or
-   * a sheet ends up taller than the space kept for it. See the sheet itself for the rest.
+   * The plan list's height limit keeps a long timeline inside its own scroll area.
    */
-  --plan-sheet-max: min(62vh, 560px);
+  --plan-panel-max: min(62vh, 560px);
   /*
    * The widest the content column grows before it stops and centres. Not a colour,
    * so it is not duplicated in the light block. A card stretched across a 2560px
@@ -810,26 +809,43 @@ body:has(fl-focus .focus-workspace[data-rail])
 }
 
 /*
- * On focus, reserve the whole column the open sidebar occupied — its 232px track plus
- * the base 24px padding. The fold hides the sidebar's chrome, not the workspace's
- * place: the stage never reflows into the freed space, so the peeked panel can only
- * ever slide over the empty gutter, and the countdown stays exactly where it was —
- * through the peek, and through pinning the panel back open.
+ * On focus the fold leaves nothing behind: the workspace takes the window, and the inset that remains is
+ * the floating recall button's own column — `clamp(62px, 5vw, 68px)`, which floors above the button's
+ * 56px right edge and is the *same on both sides*.
+ *
+ * Both numbers are deliberate. The left inset used to be a leftover of the fold: it kept the 232px the
+ * open sidebar occupied, so the workspace sat off-centre with a band of nothing down its left, and on a
+ * 1140-wide window the stage was 822px wide beside 256px of empty page. And a fixed 62 on the left with
+ * a `5vw` right made the two sides differ by a few pixels at every width in between — enough to see on a
+ * wide window, where the content's own measure caps it and the centring is all that is left.
+ *
+ * The peek pays for it instead: the panel slides over the stage's left edge on a window narrower than
+ * about 1370px, which is what a drawer over a page does. It never covers the countdown, which sits in the
+ * stage's right-hand column.
  */
-body:has(fl-focus .focus-workspace[data-rail]) .shell:not(.is-forced-open) .content {
-  padding-left: 256px;
+body:has(fl-focus .focus-workspace[data-rail]) .content {
+  padding: 18px clamp(62px, 5vw, 68px) 96px;
 }
 
 /*
- * The home screen's own vertical rhythm, and it was missing rather than wrong.
+ * A page's own vertical rhythm, and it was missing rather than wrong.
  *
- * `.content` gaps its children by 22px, but that reaches `fl-home` — one child — and stops: the
- * header, the guidance block and the two sections inside it sat flush against each other, measured
+ * `.content` gaps its children by 22px, but that reaches the page element — one child — and stops:
+ * the header, the guidance block and the sections inside it sat flush against each other, measured
  * at 1280 as a run of blocks at 46, 129, 344, 528 with zero space between any two of them. The page
  * read as a stack of full-width bands for that reason more than for any other. Same gap as the
  * scroller above, so the two rhythms agree instead of nesting two different ones.
+ *
+ * Home was the first to get this and the others were left behind: measured the same way, the record
+ * screen's five sections started at 126, 178, 265, 351, 441 with 0px between a section and the next
+ * one's title, the dashboard's at 389 and 499 with the first two touching, and the course page's
+ * header, map, concepts and table at 46, 129, 527, 1088 all flush. The rhythm belongs to the page
+ * element, so every page element asks for it here.
  */
-fl-home {
+fl-home,
+fl-dashboard,
+fl-more,
+fl-course {
   display: flex;
   flex-direction: column;
   gap: 22px;
@@ -867,7 +883,7 @@ fl-home {
 }
 
 .card {
-  padding: 16px;
+  padding: 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elevated);
@@ -892,11 +908,21 @@ fl-home {
    */
   grid-template-columns: repeat(auto-fit, minmax(260px, 320px));
   justify-content: start;
-  gap: 12px;
+  gap: 16px;
 }
 
 .grid--4 {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+/*
+ * A pair of cards that fill the row they are on. `1fr` rather than the bounded tracks `.grid` uses,
+ * because two of them share the row instead of leaving a lone card beside its own slack - and the pair
+ * stops short of the full measure so each card still reads as a card.
+ */
+.grid--pair {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  max-width: 680px;
 }
 
 .course {
@@ -907,14 +933,19 @@ fl-home {
 
 .concepts {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   padding-left: 20px;
 }
 
 .ticks {
-  margin-top: 6px;
+  margin-top: 8px;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+/* The key points are separate facts on separate lines; without this they read as one wrapped block. */
+.ticks li + li {
+  margin-top: 4px;
 }
 
 .row {
@@ -1005,8 +1036,12 @@ fl-home {
    * A log, not a stack of cards — the same reasoning as `.task-list`. One bordered card
    * per event made nine events the heaviest thing on the dashboard, and three of them
    * were the same event repeated.
+   *
+   * 10px rather than 7px: the rows are a wall of hairlines, and at 7px the two lines around
+   * a row sat closer to the text than the rows sat to each other, so the list read as ruled
+   * paper rather than as entries.
    */
-  padding: 7px 2px;
+  padding: 10px 2px;
   border-bottom: 1px solid var(--border);
   font-size: 13px;
 }
@@ -1018,6 +1053,22 @@ fl-home {
 
 .timeline li:last-child {
   border-bottom: 0;
+}
+
+/*
+ * The week's lines, the claims and the suggestions: a label, its value and the evidence behind it.
+ *
+ * Margins rather than a flex `gap`, because the marker is part of what these lists are — they are
+ * facts, not a table — and a flex row would take it away. The horizontal one is not decoration
+ * either: Angular drops whitespace-only text nodes, so a row written as three consecutive elements
+ * renders as "给出的帮助289289 次观察", the value welded to the evidence that explains it.
+ */
+.data-rows > li + li {
+  margin-top: 8px;
+}
+
+.data-rows li > * + * {
+  margin-left: 8px;
 }
 
 /* Fixed width so the times form a column rather than a ragged left edge. */
@@ -1072,8 +1123,8 @@ fl-home {
   right: 0;
   display: flex;
   /*
-   * Top-aligned, not centred. A tall block means "this takes a while", and the label marks where
-   * it starts; centring the label in a 112px block made it read as an empty card instead.
+   * Top-aligned, not centred. The row is one line of label, estimate and control, and the grip beside
+   * it is stretched to the block's height; the label is the anchor that line hangs from.
    */
   align-items: flex-start;
   gap: 10px;
@@ -1117,14 +1168,19 @@ fl-home {
  * because the typefaces that carry a grip character are not the ones this app can rely on being
  * installed.
  *
- * Stretched to the block's full height while the dots stay at the top: the handle is the whole row's,
- * but a 112px task should not have its dots floating in the middle, away from the label they belong
- * to. `touch-action: none` is what stops the browser claiming the gesture for scrolling, which in the
+ * Stretched to the block's full height while the dots stay at the row's own line: the handle is the
+ * whole row's, but its dots belong beside the label, not floating in the middle of a taller block.
+ * `touch-action: none` is what stops the browser claiming the gesture for scrolling, which in the
  * plan would mean a task dragged on a trackpad that never moves.
  */
 .plan__grip {
   flex: 0 0 auto;
   align-self: stretch;
+  /* A button centres its content, which floated the dots into the middle of a 112px block — away from
+     the label they belong to. Top-aligned like the row's own line of text. */
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   width: 18px;
   padding: 0;
   border: 0;
@@ -1211,7 +1267,7 @@ fl-home {
 .table th,
 .table td {
   text-align: left;
-  padding: 8px 10px;
+  padding: 12px 10px;
   border-bottom: 1px solid var(--border);
   vertical-align: top;
 }
@@ -1538,6 +1594,40 @@ textarea:focus {
   white-space: pre-wrap;
 }
 
+/*
+ * The card's check-in, in the reserved slot above the summary.
+ *
+ * It is the step's own answer block — the same element, so the box, the options, the marks and the
+ * verdict cannot drift apart between the two screens — separated by a rule rather than boxed, because
+ * the card already is a box.
+ *
+ * The three `--focus-accent*` tokens are named once inside `.focus-workspace`, and this is the one other
+ * surface that shows the block: the card is a sibling of the workspace rather than inside it, so without a
+ * mapping the block's own rules would resolve to nothing here. They take `--accent`, which is also what the
+ * workspace sets now — the two were kept apart while the workspace was warm and are one colour since.
+ */
+.resume__recall {
+  --focus-accent: var(--accent);
+  --focus-accent-quiet: color-mix(in srgb, var(--accent) 18%, transparent);
+  --focus-accent-faint: color-mix(in srgb, var(--accent) 8%, transparent);
+
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+/* The same heading treatment as the two beside it, so the card reads as one card. */
+.resume__recall h3 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.resume__recall .step-answer__question {
+  color: var(--text);
+}
+
 /* ------------------------------------------------------- data controls (#10) */
 
 /*
@@ -1699,6 +1789,11 @@ textarea:focus {
   gap: 8px;
 }
 
+/* Which half of a request is still missing, under the button that is waiting for it. */
+.tutor__hint {
+  margin: 8px 0 0;
+}
+
 .tutor__result {
   margin-top: 12px;
   padding-top: 10px;
@@ -1747,7 +1842,7 @@ textarea:focus {
 
 /* Segmented control — the window switcher. */
 .window {
-  margin-bottom: 4px;
+  margin-bottom: 0;
 }
 
 .segmented {
@@ -1823,7 +1918,7 @@ textarea:focus {
    panels darker than the page in light mode and lighter in dark mode gave the two
    themes opposite depth languages. */
 .panel {
-  padding: 14px 16px;
+  padding: 16px 18px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--bg-elevated);
@@ -2021,7 +2116,7 @@ textarea:focus {
 .bars {
   display: flex;
   flex-direction: column;
-  gap: 11px;
+  gap: 14px;
 }
 
 .bar__head {
@@ -2082,14 +2177,19 @@ code {
    Focus workspace
 
    This is intentionally a canvas rather than another dashboard card. The
-   focus page owns one warm time object and one next action; supporting context
+   focus page owns one accent time object and one next action; supporting context
    is allowed to recede until the learner asks for it.
+
+   The time object used to be warm, to set the running clock apart from the rest of the app. It is the
+   accent blue now, the same colour every other primary surface uses: the warm hue made the screen the
+   learner spends the most time on the only one that was not the app's own colour, and the plan's edge
+   and the return card beside it had already moved to the accent.
    =========================================================================== */
 
 .focus-workspace {
-  --focus-warm: var(--warn);
-  --focus-warm-quiet: color-mix(in srgb, var(--warn) 18%, transparent);
-  --focus-warm-faint: color-mix(in srgb, var(--warn) 8%, transparent);
+  --focus-accent: var(--accent);
+  --focus-accent-quiet: color-mix(in srgb, var(--accent) 18%, transparent);
+  --focus-accent-faint: color-mix(in srgb, var(--accent) 8%, transparent);
   --focus-ink-quiet: color-mix(in srgb, var(--text) 76%, var(--text-muted));
   --focus-stage-width: 920px;
   display: flex;
@@ -2101,6 +2201,7 @@ code {
 
 .focus-stage__topbar {
   display: flex;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -2129,6 +2230,31 @@ code {
   margin-bottom: 1px;
 }
 
+/*
+ * The session's own row: one state label and two controls.
+ *
+ * It had no rule at all, so it was three inline things in a plain block — the space between them was
+ * whatever the whitespace happened to make, and the type was three sizes: the label and the end button
+ * inherited the body's 14px while the ambient toggle carried `btn--small` at 12px in a smaller box. The
+ * row is where the learner glances to see where the session stands, so it reads as one row now: one size
+ * for all three, and real space between them.
+ *
+ * The size is pinned here rather than left to inheritance because `btn--small` outranks nothing: a button
+ * in this row wearing it would shrink back out of line without a word.
+ */
+.focus-stage__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+}
+
+.focus-stage__actions .btn,
+.focus-stage__actions .focus-stage__state {
+  font-size: 14px;
+}
+
 .focus-stage {
   display: flex;
   flex: 1 1 auto;
@@ -2137,7 +2263,13 @@ code {
   width: min(100%, var(--focus-stage-width));
   min-height: 0;
   margin: 0 auto;
-  padding: clamp(28px, 5vh, 54px) 4px clamp(22px, 4vh, 42px);
+  padding: clamp(16px, 3vh, 34px) 4px clamp(14px, 2.5vh, 26px);
+}
+
+.focus-stage > .focus-progress-strip,
+.focus-stage > .focus-task,
+.focus-stage > .focus-plan {
+  flex-shrink: 0;
 }
 
 .focus-task {
@@ -2224,6 +2356,173 @@ code {
   min-width: 0;
 }
 
+/*
+ * The step's answer, and the quiz it may ask instead.
+ *
+ * Inside the copy column rather than beside it: it is part of what the step asks the learner to do, and
+ * it sits where the instructions are. Every colour is a token, and the accent is the focus screen's own
+ * warm one, because this is the running step and not a separate surface.
+ */
+.step-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+  max-width: 620px;
+}
+
+.step-answer .eyebrow {
+  color: var(--focus-accent);
+}
+
+.step-answer__input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  color: var(--text);
+  font: inherit;
+  resize: vertical;
+}
+
+/*
+ * The chosen option, and — once there is a verdict — which one was right. The two are separate marks
+ * because the learner's own choice has to stay visible when it was the wrong one: telling somebody the
+ * answer without showing what they picked is not a correction.
+ */
+.step-answer__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.step-answer__option {
+  text-align: left;
+}
+
+.step-answer__option.is-chosen {
+  border-color: var(--focus-accent);
+  background: var(--focus-accent-faint);
+  color: var(--focus-accent);
+}
+
+.step-answer__option[data-mark='right'] {
+  border-color: var(--focus-accent);
+  background: var(--focus-accent-quiet);
+  color: var(--text);
+  font-weight: 600;
+}
+
+.step-answer__option[data-mark='wrong'] {
+  border-color: var(--danger);
+  color: var(--danger);
+  text-decoration: line-through;
+}
+
+.step-answer__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/*
+ * The box and its button, side by side.
+ *
+ * On the card the answer is a sentence or two, and a button on its own row under it costs a row of the
+ * notice — the row #77 reserves and the step needs. The step's own block keeps the button underneath,
+ * where the box is a paragraph and the button is the step's main action.
+ */
+.step-answer__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-answer__row .step-answer__input {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.step-answer__row .step-answer__actions {
+  flex: 0 0 auto;
+}
+
+/*
+ * In the task card the box is three rows tall, so its buttons line up with its bottom edge instead of
+ * floating halfway up it. Scoped to the task card: the notice's box is one row tall, and the centre
+ * alignment above is what lines that one up.
+ */
+.focus-task .step-answer__row {
+  align-items: flex-end;
+}
+
+.step-answer__hint,
+.step-answer__verdict {
+  margin: 0;
+}
+
+/*
+ * The line explaining why writing is worth it arrives with the caret, not before it.
+ *
+ * It is the one piece of chrome here that helps only at the moment of writing, and on a step that
+ * already carries a title, instructions, a timer and a box, a line about the line is what makes the
+ * step read as a form. The space stays reserved (`visibility`, not `display`) so revealing it cannot
+ * move the box, the control under it, or the step's own action.
+ */
+.step-answer__hint {
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.step-answer:focus-within .step-answer__hint {
+  visibility: visible;
+  opacity: 1;
+}
+
+/*
+ * A line about the file that was just read is not the explanation that waits for the caret: it is the
+ * answer to a button the learner pressed, so it is visible whether or not the box has focus. It takes the
+ * same slot, so reading a file cannot move the box or the buttons under it.
+ */
+.step-answer__source {
+  visibility: visible;
+  opacity: 1;
+}
+
+.step-answer__verdict[data-correct='true'] {
+  color: var(--focus-accent);
+}
+
+.step-answer__verdict[data-correct='false'] {
+  color: var(--danger);
+}
+
+.step-answer__error {
+  margin: 0;
+  color: var(--danger);
+}
+
+/*
+ * One place to write: while the resume notice is open, the notice carries the box.
+ *
+ * The resume notice renders the card, whose check-in *is* the step's box — the same state
+ * (`AppStateService`), the same question, one element. Showing both would be the same field printed
+ * twice, and the step's copy is the taller half of the step: the half #77 measures at 800x700 as having
+ * to fit above the notice.
+ *
+ * Only the resume notice, and precisely because it is the one that has the box: a help or time-up notice
+ * arrives while the learner is *working*, and taking their field away mid-sentence would be the opposite
+ * of helpful. Folded on purpose means they have put the notice away, so the step's box comes back for
+ * that as well — with whatever was typed still in it.
+ */
+.focus-workspace:has(.focus-notice[data-notice='resume'][data-folded='false'])
+  .focus-task--active
+  .step-answer {
+  display: none;
+}
+
 .focus-task__action-row {
   display: flex;
   flex-direction: column;
@@ -2259,35 +2558,58 @@ code {
 }
 
 .focus-task .eyebrow {
-  margin-bottom: 10px;
-  color: var(--focus-warm);
+  margin-bottom: 8px;
+  color: var(--focus-accent);
+  font-size: 12px;
+  letter-spacing: 0.04em;
 }
 
 .focus-task h2,
 .focus-task h1 {
-  max-width: 18ch;
-  margin-bottom: 14px;
+  max-width: 20ch;
+  margin-bottom: 10px;
   color: var(--text);
-  font-size: clamp(28px, 4vw, 46px);
+  font-size: clamp(24px, 3vw, 36px);
   font-weight: 600;
-  letter-spacing: -0.035em;
-  line-height: 1.08;
+  letter-spacing: -0.03em;
+  line-height: 1.12;
   text-wrap: balance;
 }
 
 .focus-task p:not(.eyebrow):not(.row) {
-  max-width: 48ch;
-  margin-bottom: 22px;
+  max-width: 52ch;
+  margin-bottom: 14px;
   color: var(--focus-ink-quiet);
-  font-size: clamp(15px, 1.5vw, 18px);
-  line-height: 1.6;
+  font-size: clamp(15px, 1.2vw, 17px);
+  line-height: 1.55;
   text-wrap: pretty;
 }
 
+/*
+ * Fine print stays fine print.
+ *
+ * `.focus-task p` above is a two-class-plus-element rule and `:not()` counts as a class, so it was
+ * beating `.muted.small` on the lines that ride under a box — the answer's own explanation and its
+ * verdict came out at body size, which is what made one screen carry four different text sizes and none
+ * of them obviously related. Matching that specificity here is the only way to say it.
+ */
+.focus-task p:not(.eyebrow):not(.row).muted,
+.focus-task p:not(.eyebrow):not(.row).small {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* The line under the box is fine print by definition: it is about the box, not part of the step. */
+.focus-task .step-answer__hint,
+.focus-task .step-answer__verdict {
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .focus-task .chip {
-  border-color: color-mix(in srgb, var(--focus-warm) 34%, var(--border));
-  background: var(--focus-warm-faint);
-  color: var(--focus-warm);
+  border-color: color-mix(in srgb, var(--focus-accent) 34%, var(--border));
+  background: var(--focus-accent-faint);
+  color: var(--focus-accent);
 }
 
 .focus-clock {
@@ -2299,12 +2621,15 @@ code {
   aspect-ratio: 1;
   justify-self: end;
   isolation: isolate;
+  /* The one dial, three sizes — the number is sized from the dial rather than from the viewport, so a
+     160px clock in the notice row and a 276px one on an idle screen both read as the same instrument. */
+  container-type: inline-size;
 }
 
 .focus-clock::before {
   position: absolute;
   inset: 13%;
-  border: 1px solid var(--focus-warm-quiet);
+  border: 1px solid var(--focus-accent-quiet);
   border-radius: 50%;
   content: '';
   pointer-events: none;
@@ -2330,32 +2655,46 @@ code {
 }
 
 .focus-clock__progress {
-  stroke: var(--focus-warm);
+  stroke: var(--focus-accent);
   stroke-linecap: round;
   transition:
     stroke-dashoffset 500ms ease,
     stroke 180ms ease;
 }
 
+/*
+ * The reading, and the state under it, in the dial's own centre line.
+ *
+ * Both in the same grid cell: as two auto-placed rows they were centred *as a pair*, which lifted the
+ * time above the middle of a circle drawn around it and left the two lines closer together the shorter
+ * the dial got. The time now sits on the centre and the state is pinned to the dial's lower third,
+ * where the ring's own inner edge gives it a line to sit on.
+ */
 .focus-clock__value {
   position: relative;
   z-index: 1;
+  grid-area: 1 / 1;
+  align-self: center;
+  justify-self: center;
   display: block;
   color: var(--text);
-  font-size: clamp(32px, 5vw, 48px);
+  font-size: clamp(20px, 17cqw, 44px);
   font-variant-numeric: tabular-nums;
   font-weight: 500;
-  letter-spacing: -0.06em;
+  letter-spacing: -0.04em;
   line-height: 1;
 }
 
 .focus-clock__status {
   position: relative;
   z-index: 1;
+  grid-area: 1 / 1;
+  align-self: end;
+  justify-self: center;
   display: block;
-  margin-top: 9px;
+  margin-bottom: 19%;
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: clamp(9px, 4cqw, 11px);
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
@@ -2375,18 +2714,64 @@ code {
 }
 
 .focus-controls .btn--primary {
-  border-color: var(--focus-warm);
-  background: var(--focus-warm);
+  border-color: var(--focus-accent);
+  background: var(--focus-accent);
   color: var(--on-accent);
 }
 
 .focus-controls .btn--primary:hover {
-  border-color: color-mix(in srgb, var(--focus-warm) 84%, var(--text));
-  background: color-mix(in srgb, var(--focus-warm) 84%, var(--text));
+  border-color: color-mix(in srgb, var(--focus-accent) 84%, var(--text));
+  background: color-mix(in srgb, var(--focus-accent) 84%, var(--text));
 }
 
 .focus-controls .btn--ghost {
   color: var(--focus-ink-quiet);
+}
+
+/*
+ * A control that cannot be pressed has to look like one.
+ *
+ * The tutor's Ask is disabled until a mode and something in the box are both there, and nothing made a
+ * disabled control look disabled: it kept its full contrast and its pointer cursor, so a press that could
+ * not happen read as a press that did nothing. It is stated here rather than beside `.btn` because the
+ * focus controls repaint `.btn--primary` with the same specificity, and a rule that loses the cascade is a
+ * rule that is not there — hence the four selectors and the position, both of which are load-bearing.
+ * `:hover` is caught too: a disabled control that lights up under the pointer promises an action.
+ */
+.btn:disabled,
+.btn:disabled:hover,
+.focus-controls .btn:disabled,
+.focus-controls .btn:disabled:hover {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--border);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+}
+
+/*
+ * The agent's suggestion, in the step's own control row.
+ *
+ * `.agent` is a floating bar everywhere else in the app; here it is one more item of the row that asked
+ * for it, on a line of its own below the controls. That is what keeps it from covering anything: it is
+ * in the flow of the task box, so the box grows rather than the suggestion landing on top of the
+ * buttons — which is exactly what the notice strip this replaced did.
+ */
+.focus-task fl-agent-panel {
+  display: block;
+  min-width: 0;
+  margin-top: 14px;
+}
+
+/* In the control row it is a wrapped flex item; in the other phases' boxes it is a block under the row. */
+.focus-controls fl-agent-panel {
+  flex-basis: 100%;
+}
+
+.focus-task fl-agent-panel .agent {
+  position: static;
+  width: 100%;
+  box-shadow: var(--shadow-sm);
 }
 
 /*
@@ -2438,8 +2823,16 @@ code {
   gap: 12px;
   width: min(100%, var(--focus-stage-width));
   margin: 0 auto clamp(26px, 5vh, 54px);
+  /*
+   * No rule of its own.
+   *
+   * It had `border-top: 1px solid var(--border)` while the header above it ends in
+   * `border-bottom: 1px solid var(--border)`, and the stage's 30px of padding sat between them: two
+   * parallel lines with nothing in the band they made, 31px apart, measured at 1280 as borders at
+   * y=97 and y=128. The header's underline already separates the two; a second one under it reads as
+   * a stray rule rather than as a division.
+   */
   padding: 12px 4px 0;
-  border-top: 1px solid var(--border);
   color: var(--text-muted);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
@@ -2473,16 +2866,24 @@ code {
   height: 100%;
   min-width: 0;
   border-radius: inherit;
-  background: var(--focus-warm);
+  background: var(--focus-accent);
   transition: width 240ms ease;
 }
 
 .focus-plan {
   align-self: center;
   width: min(100%, 860px);
+  flex: 0 0 auto;
   min-width: 0;
   padding: 14px 0 0;
   border-top: 1px solid var(--border);
+}
+
+.focus-plan__panel {
+  max-height: var(--plan-panel-max);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .focus-plan__summary {
@@ -2517,15 +2918,63 @@ code {
   content: '▴';
 }
 
+/*
+ * The sheet rises into place rather than appearing there.
+ *
+ * The name is part of the contract, not a detail: `golden-path.spec.ts` asserts the computed
+ * `animationName` is `plan-rise`, so a rewrite that renames it, or drops the rule while keeping the
+ * markup, fails the suite instead of changing the motion quietly.
+ */
+.focus-plan[data-open] {
+  animation: plan-rise 220ms ease-out;
+}
+
+@keyframes plan-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .focus-plan .plan {
   margin-top: 14px;
 }
 
+/*
+ * Every row is the same height, so the banding is what makes one task a block rather than a line of text
+ * in a column — the plan still has to read as a stack of tasks.
+ *
+ * The bands alternate blue and white down the column rather than filling each row with its own kind's
+ * colour: the left border and the glyph already carry the kind, and a stack whose every row was tinted
+ * differently was harder to scan than a regular stripe is. The stripe is the accent blue over the row's
+ * own surface, so it follows the theme instead of needing a colour of its own.
+ */
 .focus-plan .plan__block {
-  border-width: 0 0 1px;
-  border-left-width: 0;
-  border-radius: 0;
-  background: transparent;
+  border-width: 0 0 1px 4px;
+  border-left-style: solid;
+  /*
+   * The 4px edge is the accent blue on every row, like the stripe: the column is blue and white, and a
+   * spine that took its colour from the task kind put a third and fourth hue back into it. The glyph
+   * still carries the kind.
+   */
+  border-left-color: var(--accent);
+  border-radius: 0 6px 6px 0;
+}
+
+.focus-plan .plan__block:nth-child(even) {
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-elevated));
+}
+
+/* Saying what a block and the number on its right are, in one line. */
+.focus-plan__legend {
+  margin: 4px 0 0;
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 /* The imported text, shown as the author wrote it. The parser keeps the blank lines between
@@ -2599,87 +3048,39 @@ code {
  */
 
 body:has(fl-focus .focus-workspace[data-rail]) .content {
-  padding: 18px clamp(20px, 5vw, 68px) 96px;
+  padding: 18px clamp(62px, 5vw, 68px) 96px;
+}
+
+/*
+ * The scrollbar's width, given back.
+ *
+ * The inset above is the same on both sides on purpose, and the scroller takes 5px off the right one
+ * again: the content box ends where the scrollbar begins, so everything inside it — the workspace,
+ * and the plan sheet within it — sits 5px left of the window's centre line. Measured at 1264x801 with
+ * a step running: the sheet was 199.5px from the left edge and 204.5px from the right, against the
+ * 2px the assertion that calls it centred allows.
+ *
+ * Reserving the gutter rather than waiting for the page to need it is what keeps the column from
+ * jumping sideways when a step makes it scrollable, so the reserve stays; the right padding pays for
+ * it instead. `--dsh-scrollbar-width` is the custom scrollbar's own width — the amount the reserve
+ * takes — so the two cannot drift apart.
+ */
+body:has(fl-focus .focus-workspace[data-rail]) .content,
+body:has(fl-focus .focus-workspace) .content {
+  scrollbar-gutter: stable;
+  padding-right: calc(clamp(62px, 5vw, 68px) - var(--dsh-scrollbar-width));
 }
 
 /*
  * Focus mode keeps the plan trigger reachable while the task stays the visual centre.
  *
- * `:not([data-open])` is load-bearing rather than tidiness: this selector outranks
- * `.focus-plan[data-open]`, so without it the rail's `padding: 0; border: 0` also landed on the
- * open sheet and stripped its padding and border — during a step, which is exactly when the plan
- * gets opened. The screenshot behind #71 was taken in the ready phase, where `data-rail` is
- * absent, which is why the sheet looked right there and wrong in the state that mattered.
+ * The focus rail keeps the plan trigger compact while preserving its column width and alignment.
  */
-body:has(fl-focus .focus-workspace[data-rail]) .focus-plan:not([data-open]) {
+body:has(fl-focus .focus-workspace[data-rail]) .focus-plan {
   display: block;
-  align-self: start;
   min-width: 0;
   padding: 0;
   border: 0;
-}
-
-/*
- * The plan rises from the bottom edge as a sheet, instead of hanging off the top right corner.
- *
- * A sheet that arrives, reads in one look and folds away again is the shape that was asked for,
- * and it matches what `docs/focus-redesign-research.md` calls a drawer: the trigger sits in the
- * flow where it always did, and the sheet is what moves. Its open state belongs to the component
- * (`core/plan-visibility.ts`), which is what lets Escape, a click elsewhere and starting a step
- * lower it — as a `<details>` the summary was the only affordance that could (#71).
- *
- * `--plan-sheet-max` is the sheet's ceiling, named once because the room reserved for it below has to
- * agree with it: two `min(62vh, 560px)` expressions in two places is how a sheet ends up taller than
- * the space kept for it.
- */
-.focus-plan[data-open] {
-  position: fixed;
-  z-index: 12;
-  right: 16px;
-  bottom: 16px;
-  left: 16px;
-  width: min(560px, calc(100vw - 32px));
-  margin-inline: auto;
-  max-height: var(--plan-sheet-max);
-  overflow: auto;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-md);
-  animation: plan-rise 220ms ease-out;
-}
-
-/*
- * Room to scroll the step clear of the sheet, while the sheet is up.
- *
- * The sheet is anchored to the bottom edge and the column is laid out from the top, so the sheet's top
- * edge lands across the step's own controls — on a 1157x732 window its summary and the step's "Start
- * for 3 minutes" were painted through each other over 148x32 px, and the button could not be pressed.
- * Neither half of the obvious fix holds on its own: shrinking the sheet to the room left under the
- * step leaves 133px of a five-block plan, and reserving *layout* room moves nothing, because the step
- * is packed from the top. What the column can do is scroll, and `focus.page.ts` scrolls it by the
- * measured intersection — but only if there is that much left to scroll, which on a short window with
- * a full plan there was not.
- *
- * So this is scroll room, not layout room: padding at the bottom of the scroller makes the column
- * taller to scroll through, and takes nothing from where the step is drawn. Scrolling past the header
- * is the cost, and it is the smaller one — the sheet was covering the button that starts the step.
- */
-body:has(fl-focus .focus-plan[data-open]) .content {
-  padding-bottom: calc(var(--plan-sheet-max) + 40px);
-}
-
-@keyframes plan-rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 .focus-workspace[data-phase='paused'] .focus-clock__progress {
@@ -2772,14 +3173,51 @@ body:has(fl-focus .focus-plan[data-open]) .content {
 
 /* #77: a reserved bottom row, not an overlay over the learner's task. The task
    area scrolls independently in short windows; the notice never covers its action. */
+
+/*
+ * The frame the notice is the bottom row of, laid out rather than calculated.
+ *
+ * It used to be `height: calc(100dvh - 48px)`, which knows nothing about the column around it: that column
+ * carries 18px of padding at the top, 96px at the bottom and a 22px gap between its children, so the frame
+ * came out taller than the box it stood in and the *page* scrolled as well as the stage. At 1140x767 that
+ * put the frame 15px above the window's top edge with the notice stopping 62px short of the bottom: two
+ * nested scrollers, in a frame whose whole point is that nothing moves under the learner's task. It is
+ * worth naming what the arithmetic missed, because it is not a number anybody would guess: the column's
+ * first child is the empty `router-outlet`, and its 22px gap counts even at zero height.
+ *
+ * So `fl-focus` (the flex item) is told it may be shorter than its content, and `.focus-workspace` fills
+ * it. The negative margin lets the notice occupy the bottom row inside the content column's existing
+ * bottom padding, so the column still finishes inside the window while the stage owns its own scroll.
+ *
+ * The selector is `.content:has(...) > fl-focus` rather than `body:has(fl-focus ...:has(...))`, and that is
+ * not tidiness: `:has()` may not be nested inside another `:has()` either — Chromium rejects the selector
+ * and drops the whole rule, which is how the first two attempts at this did nothing at all, silently. One
+ * `:has()` per selector, and its argument a plain descendant chain.
+ */
+.content:has(.focus-notice) > fl-focus {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-bottom: -72px;
+}
+
 .focus-workspace:has(.focus-notice) {
-  height: calc(100dvh - 48px);
+  flex: 1 1 auto;
   min-height: 0;
 }
 
+/*
+ * The stage is the one scroller once the notice is present, and it now has to be able to bring the
+ * plan clear of the notice as well as the step.
+ *
+ * The bottom padding is what gives it somewhere to scroll to: without it the last row is pinned to the
+ * stage's bottom edge, and the lift has no room left to put the gap under it. The top pads the other
+ * direction, so scrolling to the plan does not start with the step's title already against the edge.
+ */
 .focus-workspace:has(.focus-notice) .focus-stage {
   overflow: auto;
-  padding-block: 12px;
+  padding-block: 12px 24px;
   scrollbar-gutter: stable;
 }
 
@@ -2793,7 +3231,7 @@ body:has(fl-focus .focus-plan[data-open]) .content {
 }
 
 .focus-workspace:has(.focus-notice) .focus-task--active {
-  padding-block: 12px;
+  padding-block: 8px;
   gap: 12px 24px;
 }
 
@@ -2820,11 +3258,24 @@ fl-focus-notice {
 .focus-notice {
   position: relative;
   z-index: 30;
-  border: 1px solid var(--border);
+  border: 1px solid var(--accent-border);
+  border-left: 4px solid var(--accent);
   border-radius: 14px;
-  background: var(--bg-elevated);
-  box-shadow: var(--shadow-md);
-  animation: plan-rise 220ms ease-out;
+  background: var(--accent-surface);
+  box-shadow: var(--shadow-lg);
+  animation: notice-rise 220ms ease-out;
+}
+
+@keyframes notice-rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .focus-notice__toggle {
@@ -2843,22 +3294,27 @@ fl-focus-notice {
   cursor: pointer;
 }
 
+/*
+ * The card shows everything it has, and the strip is bounded by what the step does not need.
+ *
+ * It used to be capped at `min(22dvh, 240px)`, which in a 700px-tall window is 154px — less than the
+ * resume card's own text — so the learner was handed a scrollbar inside a card that had room to grow,
+ * on a strip whose whole point is to be read at a glance. Two things changed: the card is leaner (see
+ * the summary row below), and the cap is now a share of the window rather than a slice of the viewport
+ * height: the strip may take under a third of the workspace, which is what the resume card needs at
+ * every window it is shown in, and the stage keeps the rest. The step scrolls within its own row at
+ * 800x700, which is the one place this is tight, and `focus-notice.spec.ts` is what says so.
+ *
+ * The body carries no animation of its own: it is rebuilt whenever the card is unfolded, so a second
+ * rise inside the card's rise replays on every unfold and reads as a stutter rather than arrival.
+ */
 .focus-notice__body {
-  max-height: min(22dvh, 240px);
+  max-height: min(calc((100dvh - 48px) * 0.46), 440px);
   overflow: auto;
-  padding: 0 16px 16px;
-  animation: plan-rise 220ms ease-out;
-}
-
-.focus-notice__choices {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  padding: 0 16px 12px;
 }
 
 /* Reuse the existing contents and lifecycle, but not their floating/modal shells. */
-.focus-notice .agent,
 .focus-notice .overlay,
 .focus-notice .resume {
   position: static;
@@ -2870,7 +3326,20 @@ fl-focus-notice {
   backdrop-filter: none;
 }
 
-.focus-notice .agent h3,
+/* The check-in, sized for a notice rather than for a page: the box is one line to start writing in (it
+   still drags open), and the line explaining what happens to what you write is left out — the heading and
+   the box's own prompt already say it, and this is the surface with the least room and the most competing
+   content. */
+.focus-notice .resume__recall .muted {
+  display: none;
+}
+
+.focus-notice .resume__recall .step-answer__input {
+  height: 46px;
+  min-height: 46px;
+  padding: 6px 10px;
+}
+
 .focus-notice .resume h2 {
   font-size: 15px;
 }
@@ -2889,31 +3358,79 @@ fl-focus-notice {
   margin-bottom: 4px;
 }
 
+/*
+ * The strip is a prompt to get back to work, not a report.
+ *
+ * It keeps what the learner needs to answer "where was I": the step they were on, and the next move.
+ * The completed/unresolved summary is the part of the card that is about the session rather than
+ * about returning to it — the dashboard is where that belongs, and it is 40px of the reserved row
+ * that the step below can use instead of being crushed to make room.
+ */
 .focus-notice .resume__grid {
-  margin-block: 4px;
+  display: none;
 }
 
-.focus-notice .resume__grid ul {
-  margin-block: 0;
-}
-
+/* The notice is a notice: where you were, and the check. Its own spacing is what tightens when the window
+   does, so that the row #77 reserves for the step goes on holding the step. */
 .focus-notice .resume__next {
-  padding: 6px 8px;
+  padding: 5px 8px;
 }
 
 .focus-notice .resume__actions {
   position: sticky;
   bottom: 0;
   flex-wrap: wrap;
-  margin-top: 4px;
+  margin-top: 10px;
   padding-block: 4px;
   background: var(--bg-elevated);
 }
 
 /* In a narrow window keep the clock beside, rather than above, the task. Leave
    enough copy width even with classic (space-consuming) scrollbars: an extra
-   instruction line otherwise pushes the task beyond the reserved notice row. */
+   instruction line otherwise pushes the task beyond the reserved notice row.
+   
+   The card gives up more here than it does anywhere else, because here it is the
+   only one of the two that can. Its prose says the same thing twice — the heading
+   names the step the learner was on, and the paragraph under it names that step
+   again before adding how long they were away — and at this width that repetition
+   costs the step the height it needs to show its own title and action, which is what
+   #77 keeps it from losing. So the strip keeps the decision: where you were, what is
+   next, and the three ways to answer it. */
 @media (max-width: 900px) {
+  .focus-notice .resume__header .muted {
+    display: none;
+  }
+
+  .focus-notice .resume__actions {
+    margin-top: 0;
+    padding-block: 2px;
+  }
+
+  /* The step's own label, for the same reason: at this width the row the card reserves is measured in
+     the step's title, its instructions and its box, and "Current task" is the one line above them
+     that the heading under it already says. Its own action row is untouched — every control the step
+     offers is still there, at its usual size. */
+  .focus-workspace:has(.focus-notice) .focus-task--active .focus-task__copy > .eyebrow {
+    display: none;
+  }
+
+  .focus-notice__body {
+    padding: 0 14px 12px;
+  }
+
+  /* The step's own controls, in the row the card is competing with: the same buttons, sized so the
+     toolbar stays on one line at this width instead of wrapping under the box the learner is typing
+     into. Their height is the design system's, so the touch target does not change. */
+  .focus-workspace:has(.focus-notice) .focus-controls {
+    gap: 8px;
+    margin-top: 12px;
+  }
+
+  .focus-workspace:has(.focus-notice) .focus-controls .btn {
+    padding-inline: 10px;
+    font-size: 13px;
+  }
+
   .focus-workspace:has(.focus-notice) .focus-task--active {
     grid-template-columns: minmax(0, 1fr) 80px;
     grid-template-areas: 'copy clock' 'controls controls';
@@ -2945,11 +3462,18 @@ fl-focus-notice {
     animation: none;
   }
 
-  /* The sheet still arrives — it just appears where it belongs instead of travelling there. */
-  .focus-plan[data-open],
-  .focus-notice,
-  .focus-notice__body {
+  /* The notice still appears with the same information, immediately. */
+  .focus-notice {
     animation: none;
+  }
+
+  /* The sheet still arrives — it just appears where it belongs instead of travelling there. */
+  .focus-plan[data-open] {
+    animation: none;
+  }
+
+  .step-answer__hint {
+    transition: none;
   }
 }
 
@@ -2957,12 +3481,19 @@ fl-focus-notice {
    wide canvases; let the timer become a clear second column only while a task
    is actually running. */
 .focus-task--ready .focus-task__meta,
-.focus-task--complete .focus-task__meta {
+.focus-task--complete .focus-task__meta,
+.focus-task--active .focus-task__meta {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin: 0 0 22px;
+  margin: 0 0 18px;
+}
+
+/* The running step's rows are read in one pass — kind, estimate, instructions, box — so the gap above
+   the box is the tighter one: the chips introduce it rather than preceding it. */
+.focus-task--active .focus-task__meta {
+  margin-bottom: 12px;
 }
 
 .focus-task--ready .focus-task__instructions,
@@ -3006,6 +3537,17 @@ fl-focus-notice {
 }
 
 @media (max-width: 600px) {
+  .focus-stage__topbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .focus-stage__actions {
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
   .focus-progress-strip {
     grid-template-columns: 1fr auto;
     gap: 8px 12px;
@@ -3023,5 +3565,80 @@ fl-focus-notice {
   .focus-task--complete,
   .focus-task--empty {
     width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .focus-plan__timeline {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    height: auto !important;
+  }
+
+  .focus-plan__block {
+    position: relative;
+    inset: auto;
+    top: auto !important;
+    display: grid;
+    grid-template-columns: 18px auto minmax(5rem, 1fr) auto;
+    grid-template-rows: auto auto;
+    gap: 6px 8px;
+    height: auto !important;
+    min-height: 56px;
+    overflow: visible;
+    padding: 8px;
+  }
+
+  .focus-plan__block .plan__grip {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    min-height: 38px;
+  }
+
+  .focus-plan__block .plan__glyph {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .focus-plan__block .plan__title {
+    grid-column: 3;
+    grid-row: 1;
+    min-width: 0;
+    overflow: visible;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+
+  .focus-plan__block .plan__estimate {
+    grid-column: 4;
+    grid-row: 1;
+    margin-left: 0;
+  }
+
+  .focus-plan__block > .btn {
+    grid-column: 3 / -1;
+    grid-row: 2;
+    justify-self: start;
+  }
+
+  .focus-notice .resume__recall .step-answer__row {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .focus-notice .resume__recall .step-answer__row .step-answer__input {
+    width: 100%;
+  }
+
+  .focus-notice .resume__recall .step-answer__row .step-answer__actions {
+    flex-wrap: wrap;
+  }
+
+  /* The task card's box and its two buttons cannot share a line this narrow either, and shrinking the
+     box to a sliver to keep them there costs more than the row the buttons take. */
+  .focus-task .step-answer__row {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

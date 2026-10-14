@@ -13,6 +13,16 @@ files:
   - dist/**/*
   - package.json
 
+# The file readers load their own assets from beside themselves at runtime: `tesseract.js` reads its
+# worker script and its WebAssembly core out of its own directory, and `@tesseract.js-data/*` points at
+# the language data inside its own. Both work from `node_modules` on disk and not from inside the asar
+# archive, so they are unpacked beside it.
+asarUnpack:
+  - node_modules/tesseract.js/**
+  - node_modules/@tesseract.js-data/**
+  - node_modules/pdf-parse/**
+  - node_modules/mammoth/**
+
 extraMetadata:
   main: dist/main/main.cjs
 

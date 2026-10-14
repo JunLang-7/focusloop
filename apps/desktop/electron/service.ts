@@ -20,6 +20,7 @@ import type { EventEngine } from './event-router';
 import { databaseFiles, deleteFiles } from './data-files';
 import { LlmSettingsManager } from './llm-settings';
 import { providerKeyFiles } from './model-key';
+import { courseCopyFor } from './course-copy';
 
 export interface FocusLoopService {
   readonly engine: FocusLoopEngine;
@@ -86,8 +87,9 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
     store,
     providers: llm.selection(),
     simulatorEnabled: options.simulatorEnabled ?? !app.isPackaged,
+    courseCopy: courseCopyFor,
   });
-  engine.seedBuiltInCourses();
+  engine.refreshAuthoredCourses();
 
   /**
    * What the model surface shows: the provider in force, and *why* it is in force.
@@ -185,7 +187,12 @@ export function createService(options: CreateServiceOptions = {}): FocusLoopServ
        * is what is replaced, which is the only way the app keeps running without a restart.
        */
       if (reopened) {
-        engine.seedBuiltInCourses();
+        /*
+         * Both halves of "start again": the courses the app authored are written again in the language in
+         * force — `refreshAuthoredCourses` reseeds the built-in one itself — and the model settings the
+         * deletion cleared are pushed back into the runtime, so the app keeps working without a restart.
+         */
+        engine.refreshAuthoredCourses();
         llm.reset();
         engine.setProviders(llm.selection());
       }

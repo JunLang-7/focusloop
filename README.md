@@ -28,7 +28,7 @@ next step.
 - **Focus sessions with live checkpoints** — the current concept, goal, what is mastered, what is unresolved, and the next best action are saved continuously.
 - **Interruption detection** — an 8-state, rule-based engine notices a lost window or an idle gap; nothing pops up while you are away.
 - **Resume Card** — on return, shows the exact cognitive position and records resume latency and whether the nudge helped.
-- **Insights & Dashboard** — time by learning state, daily activity, per-course breakdown, interruptions, resume latency and intervention outcomes, over a session, today, 7 days or all time.
+- **Insights & Dashboard** — time by learning state, daily activity, per-course breakdown, interruptions, resume latency and re-engagement, over a session, today, 7 days or all time. The week's evidence, the intervention and rescue results, the extension's pairing details and the event log are one click further on, under _More data_.
 - **Bring your own model, or none** — runs fully offline on a deterministic mock provider; optionally use DeepSeek, OpenAI or any OpenAI-compatible endpoint.
 - **Bilingual, themeable** — English and Simplified Chinese; light, dark or follow the OS.
 
@@ -47,6 +47,8 @@ and verify it against `SHA256SUMS.txt`. No Node.js or pnpm is needed.
 Neither installer carries a Developer ID, so a first launch needs a right-click → **Open** to get
 past Gatekeeper on macOS and the SmartScreen prompt on Windows. For building from source, see the
 [development guide](docs/development.md#package).
+
+Code signing for Windows releases is described in the [code signing policy](#code-signing-policy).
 
 ## Quick start
 
@@ -98,6 +100,13 @@ strictly validated metadata. Imported material is never uploaded. Full statement
 
 **Out of scope for v0.1:** diagnosis, camera/eye-tracking/microphone, mobile, accounts, a central
 server, collaboration, reinforcement learning.
+
+## Code signing policy
+
+Free code signing on Windows releases is provided by [SignPath.io](https://about.signpath.io),
+certificate by [SignPath Foundation](https://signpath.org). What is signed, who may approve a
+signature, the conditions a release has to meet and the privacy the certificate vouches for are in
+[docs/code-signing-policy.md](docs/code-signing-policy.md).
 
 ## Documentation
 

@@ -147,14 +147,14 @@ Target release: `v0.1.0-demo`.
 
 ### M3
 
-| #   | Issue                       | Acceptance                                                                                  |
-| --- | --------------------------- | ------------------------------------------------------------------------------------------- |
-| 14  | Learning state domain model | the eight states; the first engine is pure rules, never an LLM                              |
-| 15  | Learning event model        | the twelve event types; every state change is event driven                                  |
-| 16  | Learning checkpoint         | the documented shape, persisted                                                             |
-| 17  | Interruption detection      | `TAB_LEFT` and `IDLE_STARTED` beyond configurable thresholds → `INTERRUPTED`                |
-| 18  | Resume engine               | checkpoint + recent events + session → `ResumeCard`                                         |
-| 19  | Resume card UI              | Continue / Dismiss / Show context; records shownAt, acceptedAt, dismissedAt, resume latency |
+| #   | Issue                       | Acceptance                                                                                                                                                                  |
+| --- | --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 14  | Learning state domain model | the eight states; the first engine is pure rules, never an LLM                                                                                                              |
+| 15  | Learning event model        | the twelve event types; every state change is event driven                                                                                                                  |
+| 16  | Learning checkpoint         | the documented shape, persisted                                                                                                                                             |
+| 17  | Interruption detection      | `TAB_LEFT` and `IDLE_STARTED` beyond configurable thresholds → `INTERRUPTED`                                                                                                |
+| 18  | Resume engine               | checkpoint + recent events + session → `ResumeCard`                                                                                                                         |
+| 19  | Resume card UI              | Continue / Dismiss, the check-in (the step's question, or a box whose words are recorded), and the resume timings; records shownAt, acceptedAt, dismissedAt, resume latency |
 
 ### M4
 

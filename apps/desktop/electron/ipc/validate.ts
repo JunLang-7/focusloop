@@ -5,8 +5,10 @@ import {
   isStuckReason,
   isThemePreference,
   isTutorMode,
+  LEARNER_ANSWER_CHARACTERS,
   LEARNING_EVENT_TYPES,
   MODEL_API_KEY_MAX_LENGTH,
+  QUIZ_LIMITS,
   SESSION_END_REASONS,
   TUTOR_LIMITS,
   type ConfirmDeleteDataRequest,
@@ -18,6 +20,7 @@ import {
   type ImportMaterialRequest,
   type InsightsRequest,
   type LearningEvent,
+  type QuizAnswerRequest,
   type ResumeDecisionRequest,
   type ResolveInterventionRequest,
   type ResolveRescueRequest,
@@ -39,6 +42,7 @@ import {
   type TutorAskRequest,
   type AgentMemoryScope,
   type AgentMemoryWindow,
+  type AnswerSourceRequest,
   AGENT_MEMORY_SCOPES,
 } from '@focusloop/shared-types';
 
@@ -139,6 +143,46 @@ export function parseDispatchRequest(channel: string, value: unknown): DispatchE
     const reason = fields['reason'];
     if (reason !== undefined && !isStuckReason(reason)) {
       fail(channel, '"reason" must be a known stuck reason when present');
+    }
+  }
+
+  /*
+   * `TASK_COMPLETED` is the other one that is read rather than carried, because its `answer` is the
+   * learner's own prose: it is stored, it is shown back to them, and it is put in front of a model. The
+   * engine bounds it too — the bridge writes through the same door — but a value this size is refused
+   * here rather than silently cut there, so a caller that is not the screen is told rather than served.
+   */
+  if (type === 'TASK_COMPLETED') {
+    const answer = fields['answer'];
+    if (
+      answer !== undefined &&
+      (typeof answer !== 'string' || answer.length > LEARNER_ANSWER_CHARACTERS)
+    ) {
+      fail(
+        channel,
+        `"answer" must be a string of at most ${LEARNER_ANSWER_CHARACTERS} characters when present`,
+      );
+    }
+  }
+
+  /*
+   * `TASK_ANSWERED` is read for the same reason and one more: it has nothing but the learner's prose, so
+   * a payload missing it is not a thinner event but a broken one — it would be stored without its own
+   * subject and then dropped from every agent context, which is a silent loss where a refusal is the
+   * honest answer. Bounded here as well as in the engine because a value this size is refused at the
+   * door rather than quietly cut behind it.
+   */
+  if (type === 'TASK_ANSWERED') {
+    const taskId = fields['taskId'];
+    if (typeof taskId !== 'string' || taskId.length === 0) {
+      fail(channel, '"taskId" must be a non-empty string');
+    }
+    const text = fields['text'];
+    if (typeof text !== 'string' || text.trim().length === 0) {
+      fail(channel, '"text" must be a non-empty string');
+    }
+    if (text.length > LEARNER_ANSWER_CHARACTERS) {
+      fail(channel, `"text" must be at most ${LEARNER_ANSWER_CHARACTERS} characters`);
     }
   }
 
@@ -388,6 +432,48 @@ export function parseResolveRescue(channel: string, value: unknown): ResolveResc
     sessionId: asString(channel, record, 'sessionId'),
     interventionId: asString(channel, record, 'interventionId'),
     resolution,
+  };
+}
+
+/**
+ * Validates the payload of `focusloop:quiz:answer`.
+ *
+ * The index is checked against the range a quiz may have rather than against this course's options —
+ * the options live in the main process, and the engine is what refuses a choice that is not one of
+ * them. What is refused here is the shape: a negative index, a fraction, or a number larger than any
+ * quiz the product will render is not a choice that came from a screen.
+ */
+/**
+ * The path of a file to read an answer out of.
+ *
+ * A path and nothing else: no text comes in with it, because the reading happens on the other side of this
+ * boundary. The length bound is not a security measure — it is the same "a value this size means the
+ * caller is not our screens" rule the answer box uses, and a path is far shorter than any real file name.
+ */
+export function parseAnswerSourcePath(channel: string, value: unknown): AnswerSourceRequest {
+  const record = asRecord(channel, value);
+  const path = asString(channel, record, 'path');
+  if (path.length === 0 || path.length > 4096) {
+    fail(channel, '"path" must be a non-empty path of at most 4096 characters');
+  }
+  return { path };
+}
+
+export function parseAnswerQuiz(channel: string, value: unknown): QuizAnswerRequest {
+  const record = asRecord(channel, value);
+  const choiceIndex = record['choiceIndex'];
+  if (
+    typeof choiceIndex !== 'number' ||
+    !Number.isInteger(choiceIndex) ||
+    choiceIndex < 0 ||
+    choiceIndex >= QUIZ_LIMITS.options
+  ) {
+    fail(channel, `"choiceIndex" must be an integer from 0 to ${QUIZ_LIMITS.options - 1}`);
+  }
+  return {
+    sessionId: asString(channel, record, 'sessionId'),
+    taskId: asString(channel, record, 'taskId'),
+    choiceIndex,
   };
 }
 

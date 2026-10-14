@@ -13,7 +13,9 @@ import {
   type TutorRejection,
   type TutorReply,
   type TutorTurn,
+  type Locale,
 } from '@focusloop/shared-types';
+import { replyLanguageInstruction } from './model-language';
 
 /**
  * The contextual tutor's rules (AG3): what it sends, and what it will accept back.
@@ -367,6 +369,14 @@ export interface BuildTutorPromptInput {
   readonly context: AgentContext;
   readonly question: string;
   readonly turns: readonly TutorTurn[];
+  /**
+   * The language of the interface, which decides the language of the answer.
+   *
+   * Required rather than defaulted: the answer is shown beside the interface, and a caller that
+   * forgets the field would otherwise get English answers in a Chinese screen with nothing to say so.
+   * The instruction is part of `system`, so the ceiling this builder enforces charges for it.
+   */
+  readonly locale: Locale;
 }
 
 /**
@@ -506,7 +516,7 @@ export function buildTutorPrompt(input: BuildTutorPromptInput): TutorPromptResul
    * Unreachable from AG1, whose shape cannot produce that pair, and wrong as a property of this code.
    */
   const hasSection = excerpt.heading !== null && excerpt.text.length > 0;
-  let system = buildSystem(input.mode, hasSection);
+  let system = buildSystem(input.mode, hasSection, input.locale);
   const questionBlock = `${QUESTION_HEAD}${questionText}`;
   let block = questionBlock;
   /*
@@ -546,7 +556,7 @@ export function buildTutorPrompt(input: BuildTutorPromptInput): TutorPromptResul
   if (system.length + contextBlock.length + block.length > limit) {
     const removed = describeContext(input.context, reduced);
     contextBlock = removed.text;
-    system = buildSystem(input.mode, false);
+    system = buildSystem(input.mode, false, input.locale);
     omissions.push(...removed.omissions);
   } else {
     // Only on the path that keeps the full block: reporting a summary's clip alongside "the longer
@@ -573,9 +583,11 @@ export function buildTutorPrompt(input: BuildTutorPromptInput): TutorPromptResul
    * reachable region — the branch only skips the reduction when `system + contextBlock + 13 + question <=
    * 4000`, and `room === 0` needs `system + contextBlock >= 3987`, so a question of one or two characters
    * with the context sized to the character is all of it. With the concept summary grown one character at
-   * a time and everything else at its cap, the summary size of 676 builds (room of 1) and 677 refuses
-   * (room of 0, `system + contextBlock` of 3987); 678 fires the reduction instead, which rebuilds a
-   * 75-character block and leaves a room of thousands.
+   * a time and everything else at its cap, the summary size of 537 builds (room of 1) and 538 refuses
+   * (room of 0, `system + contextBlock` of 3987); 539 fires the reduction instead, which rebuilds a
+   * 75-character block and leaves a room of thousands. The size is a measurement of the current system
+   * prompt, not a constant of the design: it fell by 139 when the answer-language sentence was added,
+   * which is why `tutor.spec.ts` searches for the boundary rather than naming a size.
    *
    * Asserted rather than described: `tutor.spec.ts` runs that search, asserts the refusal at the boundary,
    * asserts that one character less builds, and names the constants in the failure message if no size ever
@@ -772,9 +784,10 @@ function formatSpec(mode: TutorMode): string {
   return lines.join('\n');
 }
 
-function buildSystem(mode: TutorMode, hasMaterial: boolean): string {
+function buildSystem(mode: TutorMode, hasMaterial: boolean, locale: Locale): string {
   return [
     'You are a tutor inside a focus tool. The learner is looking at one step of one task.',
+    replyLanguageInstruction(locale),
     MODE_INSTRUCTIONS[mode],
     formatSpec(mode),
     hasMaterial

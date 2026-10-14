@@ -5,6 +5,7 @@ import {
   TUTOR_MODES,
   TUTOR_MODE_PARTS,
   type AgentContext,
+  type Locale,
   type MaterialExcerpt,
   type TutorTurn,
 } from '@focusloop/shared-types';
@@ -58,8 +59,10 @@ function contextWith(patch: Partial<AgentContext> = {}): AgentContext {
  * in it. The tests here are about the built case, and one that silently got the refusal would be
  * testing nothing — so the helper throws rather than returning something falsy.
  */
-function built(input: Parameters<typeof buildTutorPrompt>[0]) {
-  const result = buildTutorPrompt(input);
+function built(
+  input: Omit<Parameters<typeof buildTutorPrompt>[0], 'locale'> & { locale?: Locale },
+) {
+  const result = buildTutorPrompt({ locale: 'en', ...input });
   if (result.status !== 'built') {
     throw new Error(`expected a built prompt, got ${result.status}`);
   }
@@ -215,6 +218,7 @@ describe('buildTutorPrompt', () => {
       context: hostile,
       question: 'q'.repeat(2000),
       turns: [],
+      locale: 'en',
     });
 
     if (result.status === 'built') {
@@ -273,6 +277,7 @@ describe('buildTutorPrompt', () => {
         }),
         question: 'q'.repeat(question),
         turns: [{ role: 'learner', text: 'earlier' }],
+        locale: 'en',
       });
 
       const label = `title ${title} / question ${question}`;
@@ -343,6 +348,7 @@ describe('buildTutorPrompt', () => {
         context,
         question: 'q'.repeat(length),
         turns: [],
+        locale: 'en',
       });
       /*
        * The skip is named rather than silent: past the reduction the excerpt is dropped and the ceiling
@@ -466,9 +472,11 @@ describe('buildTutorPrompt', () => {
      * Found rather than worked out, and asserted rather than described: growing the summary one character
      * at a time with everything else at its cap passes through every size the fixed part can take, and the
      * three assertions below are that the boundary exists, that it refuses for the spatial reason, and that
-     * one character less builds. Measured: 676 builds with a room of 1, 677 refuses at `system +
-     * contextBlock` of 3987, and 678 fires the reduction instead. The failure message names the constants,
-     * because a search that stops finding a boundary is how a constant change announces itself here.
+     * one character less builds. Measured: 537 builds with a room of 1, 538 refuses at `system +
+     * contextBlock` of 3987, and 539 fires the reduction instead. (The size moved down 139 when the
+     * answer-language sentence joined the system prompt, which is the point of finding it here rather
+     * than writing a summary size into the test.) The failure message names the constants, because a
+     * search that stops finding a boundary is how a constant change announces itself here.
      */
     const build = (summary: number) =>
       buildTutorPrompt({
@@ -496,6 +504,7 @@ describe('buildTutorPrompt', () => {
         }),
         question: 'qq',
         turns: [],
+        locale: 'en',
       });
 
     let boundary = -1;
@@ -534,6 +543,7 @@ describe('buildTutorPrompt', () => {
         context: contextWith(),
         question,
         turns: [],
+        locale: 'en',
       });
 
       expect(result.status, JSON.stringify(question)).toBe('refused');
@@ -609,6 +619,29 @@ describe('buildTutorPrompt', () => {
       for (const kind of required) expect(system).toContain(`[${kind}]`);
       expect(system).toContain('labelled blocks');
     }
+  });
+
+  it('asks for the answer in the interface language, not the material’s', () => {
+    const english = built({
+      mode: 'EXPLAIN',
+      context: contextWith(),
+      question: 'q',
+      turns: [],
+      locale: 'en',
+    });
+    const chinese = built({
+      mode: 'EXPLAIN',
+      context: contextWith(),
+      question: 'q',
+      turns: [],
+      locale: 'zh',
+    });
+    expect(english.system).toContain('English');
+    expect(chinese.system).toContain('Simplified Chinese');
+    // The locale changes the instruction and nothing else about what is sent.
+    expect(chinese.prompt).toBe(english.prompt);
+    // And it is inside `system`, so the builder’s own ceiling charged for it.
+    expect(chinese.system.length).toBeGreaterThan(english.system.length);
   });
 
   it('tells the model not to answer from general knowledge', () => {

@@ -289,6 +289,22 @@ export function reduceState(
       return apply(restored, 'resume dismissed', { awaitingResume: false });
     }
 
+    /*
+     * The learner wrote an answer for the step they are on.
+     *
+     * `stay`, and the reason is the one this whole reducer turns on: the state is *where the learner is*,
+     * and writing something down leaves them exactly where they were — on `currentTaskId`, mid-step,
+     * with the clock still running. The event is in the log because a decision the learner made belongs
+     * there (#23), and because an agent reading the session should know they answered, but filing it as
+     * a transition would count "they wrote a paragraph" as a change of learning state.
+     *
+     * `TASK_COMPLETED` is the event that moves them on, and it carries its own `answer`: a learner who
+     * writes and finishes in one go produces both, in that order, and the completion is the one that
+     * ends the step.
+     */
+    case 'TASK_ANSWERED':
+      return stay({ lastEventAt: event.at });
+
     case 'SESSION_ENDED':
       return apply('READY', 'session ended', {
         currentTaskId: null,

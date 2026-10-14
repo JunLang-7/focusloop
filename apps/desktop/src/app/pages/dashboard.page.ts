@@ -1,20 +1,16 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import {
   INSIGHT_RANGES,
-  type BridgeInfo,
   type DailyActivity,
   type InsightRange,
-  type InterventionOutcomeSummary,
   type LearningState,
-  type RescueOutcomeSummary,
 } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
 import { I18nService, type MessageKey } from '../core/i18n/i18n.service';
-import { ACTION_KEYS, EVENT_SOURCE_KEYS, EVENT_TYPE_KEYS, STATE_KEYS } from '../core/i18n/labels';
-import { groupEvents, type EventGroup } from '../core/events-view';
+import { STATE_KEYS } from '../core/i18n/labels';
 import {
   STATE_COLORS,
-  acceptedPercent,
   busiestDay,
   donutSegments,
   focusRatio,
@@ -26,9 +22,7 @@ import {
   sortedShares,
   weekdayIndex,
 } from '../core/insights-view';
-import { formatClock, formatDuration, formatLatency } from '../core/format';
-import { suggestionRowViews } from '../core/memory-view';
-import { reflectionView } from '../core/reflection-view';
+import { formatDuration, formatLatency } from '../core/format';
 
 const RANGE_KEYS: Record<InsightRange, MessageKey> = {
   session: 'dashboard.range.session',
@@ -50,16 +44,22 @@ const WEEKDAYS: readonly MessageKey[] = [
 const DONUT_RADIUS = 42;
 
 /**
- * Screen 5 of 5: does the intervention actually help?
+ * Screen 5 of 5: how is the learner doing - in the window they asked about, and in this session.
  *
  * Two scopes live on this page and they are deliberately kept apart. The window
  * section answers "how have I been doing lately" and is driven by the aggregated
  * insights; the session section answers "how is this session going" and is driven
  * by the live session summary. Mixing them would make every number ambiguous.
+ *
+ * What is deliberately *not* here: the week's evidence, the extension's pairing details and the event
+ * log. None of them is a number the learner acts on while studying, and a page that answers two
+ * questions is easier to read than one that answers five - they live on the screen this one links to
+ * (`pages/more.page.ts`).
  */
 @Component({
   selector: 'fl-dashboard',
   standalone: true,
+  imports: [RouterLink],
   template: `
     <header class="page-head">
       <div>
@@ -67,9 +67,13 @@ const DONUT_RADIUS = 42;
         <h1>{{ summary()?.courseTitle ?? t('dashboard.noSession') }}</h1>
         <p class="muted small">{{ t('dashboard.subtitle') }}</p>
       </div>
-      <button type="button" class="btn" data-testid="refresh" (click)="refresh()">
-        {{ t('dashboard.refresh') }}
-      </button>
+      <div class="row">
+        <!-- The week, the bridge and the log are one click away rather than on this page. -->
+        <a class="btn" routerLink="/more" data-testid="dashboard-more">{{ t('dashboard.more') }}</a>
+        <button type="button" class="btn" data-testid="refresh" (click)="refresh()">
+          {{ t('dashboard.refresh') }}
+        </button>
+      </div>
     </header>
 
     <!-- ------------------------------------------------------- the window -->
@@ -275,6 +279,17 @@ const DONUT_RADIUS = 42;
             <span class="stat__label">{{ t('dashboard.latency') }}</span>
             <strong data-testid="latency">{{ latency() }}</strong>
           </div>
+        </div>
+      </section>
+
+      <!--
+        Apart from the four above, because they answer a different question: not how this run is going,
+        but what happened after it was interrupted - and they are drawn from the session's resume
+        outcomes rather than from its own counts.
+      -->
+      <section>
+        <h2 class="section-title">{{ t('dashboard.resume.title') }}</h2>
+        <div class="grid grid--pair">
           <div class="card stat-card">
             <span class="stat__label">{{ t('dashboard.reengageRate') }}</span>
             <strong data-testid="reengage-rate">{{ reengageRate() }}</strong>
@@ -287,231 +302,7 @@ const DONUT_RADIUS = 42;
           </div>
         </div>
       </section>
-
-      <section>
-        <h2 class="section-title">{{ t('dashboard.outcomes') }}</h2>
-        <div class="card">
-          @if (outcomeRows().length === 0) {
-            <p class="muted small">{{ t('dashboard.outcomes.none') }}</p>
-          } @else {
-            <!--
-              #22: this was a five-column table for at most eight rows of small integers, which made the
-              reader do the comparison in their head. One row per action, as a bar: the question is "which
-              of these helped", and a bar answers it at a glance. The counts stay as text beside it, so
-              nothing the table carried is lost.
-            -->
-            <div class="bars" data-testid="outcome-rows">
-              @for (row of outcomeRows(); track row.action) {
-                <div class="bar" data-testid="outcome-row">
-                  <div class="bar__head">
-                    <span class="bar__name">{{ actionLabel(row.action) }}</span>
-                    <span class="muted small" data-testid="outcome-share">
-                      {{ outcomeShare(row) }}
-                    </span>
-                  </div>
-                  <div
-                    class="bar__track"
-                    role="progressbar"
-                    [attr.aria-label]="
-                      t('dashboard.outcomes.shareAria', { action: actionLabel(row.action) })
-                    "
-                    [attr.aria-valuenow]="acceptedPercent(row)"
-                    [attr.aria-valuetext]="outcomeValueText(row)"
-                    aria-valuemin="0"
-                    aria-valuemax="100"
-                  >
-                    <span class="bar__fill" [style.width.%]="acceptedPercent(row)"></span>
-                  </div>
-                  <!--
-                    The sample size is written out, not implied. A row with one card otherwise reads as a
-                    100% success rate, and the difference between "always" and "once" is the whole point of
-                    these numbers.
-                  -->
-                  <p class="muted small bar__counts" data-testid="outcome-counts">
-                    {{ outcomeCounts(row) }}
-                  </p>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      </section>
-
-      <section>
-        <h2 class="section-title">{{ t('dashboard.rescues') }}</h2>
-        <div class="card">
-          @if (rescueRows().length === 0) {
-            <p class="muted small">{{ t('dashboard.rescues.none') }}</p>
-          } @else {
-            <!--
-              Only rescues the learner took up: a dismissed card tried nothing, so it has no result. The
-              rate leaves out the ones still inside their window, and the sample is written out for the
-              same reason the intervention bars do it.
-            -->
-            <div class="bars" data-testid="rescue-rows">
-              @for (row of rescueRows(); track row.action) {
-                <div class="bar" data-testid="rescue-row" [attr.data-action]="row.action">
-                  <div class="bar__head">
-                    <span class="bar__name">{{ actionLabel(row.action) }}</span>
-                    <span class="muted small" data-testid="rescue-rate">{{ rescueRate(row) }}</span>
-                  </div>
-                  <p class="muted small bar__counts" data-testid="rescue-counts">
-                    {{ rescueCounts(row) }}
-                  </p>
-                </div>
-              }
-            </div>
-          }
-        </div>
-      </section>
     }
-
-    <section>
-      <h2 class="section-title">{{ t('dashboard.bridge') }}</h2>
-      <div class="card">
-        @if (bridge(); as info) {
-          @if (info.running) {
-            <!--
-              #135: the socket address, the protocol version, the connection count and the token are
-              behind a deliberate request. A learner opens this screen for their continuity numbers,
-              so nothing from the machinery is rendered until they ask for it - and asking has to be
-              possible, because connecting the extension needs both the address and the token.
-              The region sits *after* its trigger, with aria-controls pointing back at it: a screen
-              reader is told the content appeared and where, and the button does not move out from
-              under the pointer that just clicked it.
-            -->
-            <button
-              type="button"
-              class="btn btn--small"
-              data-testid="bridge-reveal"
-              aria-controls="bridge-details"
-              [attr.aria-expanded]="bridgeRevealed()"
-              (click)="toggleBridge()"
-            >
-              {{ t(bridgeRevealed() ? 'dashboard.bridge.hide' : 'dashboard.bridge.reveal') }}
-            </button>
-            @if (bridgeRevealed()) {
-              <div id="bridge-details">
-                <p class="muted small">{{ bridgeListening(info) }}</p>
-                <p class="muted small">{{ t('dashboard.bridge.hint') }}</p>
-                <pre class="token" data-testid="bridge-token">{{ info.token }}</pre>
-              </div>
-            }
-          } @else {
-            <p class="muted small" data-testid="bridge-stopped">
-              {{ t('dashboard.bridge.stopped') }}
-            </p>
-          }
-        } @else {
-          <p class="muted small" data-testid="bridge-unavailable">
-            {{ t('dashboard.bridge.unavailable') }}
-          </p>
-        }
-      </div>
-    </section>
-
-    <!--
-      The week, as counts with their evidence (AG6.5): every line names the rows behind it and the
-      window it counts; an empty week says so rather than printing seven honest zeros.
-    -->
-    <section data-testid="reflection-section">
-      <h2 class="section-title">{{ t('app.reflection.title') }}</h2>
-      @if (reflection(); as week) {
-        @if (week.isEmpty) {
-          <p class="muted small" data-testid="reflection-empty">{{ t('app.reflection.empty') }}</p>
-        } @else {
-          @if (week.stats.length > 0) {
-            <p class="eyebrow">{{ t('app.reflection.stats') }}</p>
-            <ul data-testid="reflection-stats">
-              @for (stat of week.stats; track stat.key) {
-                <li data-testid="reflection-stat-row">
-                  <strong>{{ t(stat.labelKey) }}</strong>
-                  <span>{{ stat.value }}</span>
-                  <span class="muted small">{{ t(stat.evidenceKey, stat.evidenceParams) }}</span>
-                </li>
-              }
-            </ul>
-          }
-          @if (week.claims.length > 0) {
-            <p class="eyebrow">{{ t('app.reflection.claims') }}</p>
-            <ul data-testid="reflection-claims">
-              @for (claim of week.claims; track claim.scope) {
-                <li data-testid="reflection-claim">
-                  <strong>{{ t(claim.scopeKey) }}</strong>
-                  <span class="muted small">{{ claim.valueText }}</span>
-                  <span class="muted small">{{ t(claim.evidenceKey, claim.evidenceParams) }}</span>
-                </li>
-              }
-            </ul>
-          }
-        }
-      }
-      <!--
-        The candidates, one row each (AG6.6): scope, the value as a line, and the evidence that
-        produced it — the same row function the stored preferences use, so a suggestion cannot
-        read lighter than what confirming it will store. No rows below the sample: the engine
-        never derives them, and nothing here invents one.
-      -->
-      @if (preferenceNotice(); as notice) {
-        <p class="muted small" role="status" data-testid="suggestion-notice">{{ t(notice) }}</p>
-      }
-      @if (suggestions().length > 0) {
-        <p class="eyebrow">{{ t('app.reflection.suggestions') }}</p>
-        <ul data-testid="suggestion-list">
-          @for (suggestion of suggestions(); track suggestion.id) {
-            <li data-testid="suggestion-row">
-              <strong>{{ t(suggestion.scopeKey) }}</strong>
-              <span class="muted small">{{ suggestion.valueText }}</span>
-              <span class="muted small">{{
-                t(suggestion.evidenceKey, suggestion.evidenceParams)
-              }}</span>
-              <button
-                type="button"
-                class="btn"
-                data-testid="suggestion-confirm"
-                [disabled]="stateBusy()"
-                (click)="proposePreference(suggestion.id)"
-              >
-                {{ t('app.reflection.confirm') }}
-              </button>
-            </li>
-          }
-        </ul>
-      }
-    </section>
-
-    <section>
-      <h2 class="section-title">{{ t('dashboard.events') }}</h2>
-      <ul class="timeline">
-        @for (group of eventGroups(); track group.id) {
-          <li data-testid="timeline-row">
-            <span class="muted small timeline__at">{{ timeLabel(group) }}</span>
-            <!--
-              #8: the row reads as history, not as the event log. EVENT_TYPE_KEYS and EVENT_SOURCE_KEYS
-              are exhaustive over the closed vocabularies, so the wording exists in both languages by
-              construction - and the exact name stays on the title attribute, because the audit detail is
-              the reason this list is worth keeping.
-            -->
-            <strong [attr.title]="group.type">{{ eventTypeLabel(group.type) }}</strong>
-            @if (group.count > 1) {
-              <!--
-                The multiplication sign is the shorthand; the accessible name is the
-                spoken form. The count is the reason this row exists, so it must not be
-                visual-only.
-              -->
-              <span class="timeline__count muted" [attr.aria-label]="timesLabel(group.count)">
-                ×{{ group.count }}
-              </span>
-            }
-            <span class="muted small timeline__source" [attr.title]="group.source">{{
-              eventSourceLabel(group.source)
-            }}</span>
-          </li>
-        } @empty {
-          <li class="muted">{{ t('dashboard.events.none') }}</li>
-        }
-      </ul>
-    </section>
   `,
 })
 export class DashboardPage {
@@ -528,61 +319,7 @@ export class DashboardPage {
   protected readonly summary = computed(() => this.state.dashboard());
   protected readonly insights = this.state.insights;
 
-  /** Rescues the learner never took up have no result to show. */
-  protected readonly rescueRows = computed(() =>
-    (this.summary()?.rescueOutcomes ?? []).filter((row) => row.accepted > 0),
-  );
-  /** Policies that were never shown are rows of zeros — noise, not information. */
-  protected readonly outcomeRows = computed(() =>
-    (this.summary()?.interventionOutcomes ?? []).filter((row) => row.total > 0),
-  );
   protected readonly range = this.state.insightRange;
-  protected readonly preferenceNotice = this.state.preferenceNotice;
-  protected readonly stateBusy = this.state.busy;
-
-  protected async proposePreference(candidateId: string): Promise<void> {
-    await this.state.proposePreference(candidateId);
-  }
-  /**
-   * Newest run first. Reversing first means the log reads top-down as most-recent-first,
-   * which is the only order an audit tail is useful in.
-   */
-  /**
-   * Suggestions (AG6.6), rendered through the shared preference row — display only, and only
-   * what reached its sample; the confirm flow (#236) is the one that will ever write.
-   */
-  protected readonly suggestions = computed(() => {
-    const result = this.state.preferenceCandidates();
-    return result === null || !result.ok
-      ? []
-      : suggestionRowViews(
-          result.candidates,
-          (iso) => (iso === null ? '—' : formatClock(iso)),
-          new Date().toISOString(),
-        );
-  });
-
-  /** The week as counts and claims — the pure view does the deciding, this only renders it (AG6.5). */
-  protected readonly reflection = computed(() => {
-    const week = this.state.weeklyReflection();
-    return week === null
-      ? null
-      : reflectionView(week, (iso) => (iso === null ? '—' : formatClock(iso)));
-  });
-
-  protected readonly eventGroups = computed(() =>
-    groupEvents([...this.state.recentEvents()].reverse()),
-  );
-  protected readonly bridge = signal<BridgeInfo | null>(null);
-  /**
-   * Whether the bridge's machinery is on screen. Off until asked for: the learner reads this page for
-   * their continuity numbers, and the address, protocol, connection count and token are for whoever
-   * is connecting the extension (#135). Asking is a choice, and it can be taken back.
-   */
-  protected readonly bridgeRevealed = signal(false);
-  protected toggleBridge(): void {
-    this.bridgeRevealed.update((shown) => !shown);
-  }
 
   protected readonly stateShares = computed(() => sortedShares(this.insights()?.stateShares ?? []));
   protected readonly segments = computed(() => donutSegments(this.stateShares(), DONUT_RADIUS));
@@ -605,12 +342,7 @@ export class DashboardPage {
   protected readonly busiest = computed(() => busiestDay(this.insights()?.daily ?? []));
 
   constructor() {
-    void this.loadBridge();
     void this.state.loadInsights(this.state.insightRange());
-  }
-
-  private async loadBridge(): Promise<void> {
-    this.bridge.set(await this.state.loadBridgeInfo());
   }
 
   protected selectRange(range: InsightRange): void {
@@ -644,77 +376,6 @@ export class DashboardPage {
     return percentLabel(share);
   }
 
-  /**
-   * How often this action was accepted, as a whole percent from the one function that rounds it.
-   *
-   * The row states this number three times - here, as the bar's width, and as `aria-valuenow` - which is
-   * why they all come from `acceptedPercent` rather than each formatting the share itself.
-   */
-  protected acceptedPercent(row: InterventionOutcomeSummary): number {
-    return acceptedPercent(row.accepted, row.total);
-  }
-
-  /**
-   * The share as the row states it: one number, the same one the bar draws.
-   *
-   * Built here rather than in the template because `t` takes strings and this component's markup is a
-   * template literal: a nested backtick would end it, and the compiler reports the failure on a line that
-   * has nothing to do with the cause.
-   */
-  protected outcomeShare(row: InterventionOutcomeSummary): string {
-    return this.t('dashboard.outcomes.share', { percent: `${this.acceptedPercent(row)}%` });
-  }
-
-  /**
-   * The counts the table used to carry, as one line.
-   *
-   * Built here rather than in the template because `t` takes strings and this component's markup is a
-   * template literal: a nested backtick would end it, and the compiler reports the failure on a line
-   * that has nothing to do with the cause.
-   */
-  protected outcomeCounts(row: InterventionOutcomeSummary): string {
-    return this.t('dashboard.outcomes.counts', {
-      accepted: String(row.accepted),
-      dismissed: String(row.dismissed),
-      completed: String(row.tasksCompleted),
-      total: String(row.total),
-    });
-  }
-
-  /**
-   * What the bar reads out as its value: the share, and the sample size it is a share *of*.
-   *
-   * `aria-valuetext` replaces `aria-valuenow` in the announcement, so stating only the counts there would
-   * drop the very number the bar is about; stating the whole counts line would repeat the paragraph below
-   * and still lose the share.
-   */
-  protected outcomeValueText(row: InterventionOutcomeSummary): string {
-    return this.t('dashboard.outcomes.valueText', {
-      percent: `${this.acceptedPercent(row)}%`,
-      total: String(row.total),
-    });
-  }
-
-  /** "Helped 2 of 3", or the plain statement that nothing has been judged yet. */
-  protected rescueRate(row: RescueOutcomeSummary): string {
-    const evaluated = row.accepted - row.pending;
-    return evaluated === 0
-      ? this.t('dashboard.rescues.rateNone')
-      : this.t('dashboard.rescues.rate', {
-          succeeded: String(row.succeeded),
-          evaluated: String(evaluated),
-        });
-  }
-
-  protected rescueCounts(row: RescueOutcomeSummary): string {
-    return this.t('dashboard.rescues.counts', {
-      accepted: String(row.accepted),
-      repeated: String(row.repeatedHelp),
-      expired: String(row.expired),
-      pending: String(row.pending),
-    });
-  }
-
   protected level(durationMs: number): number {
     return heatLevel(durationMs, this.insights()?.maxDailyMs ?? 0);
   }
@@ -729,37 +390,6 @@ export class DashboardPage {
 
   protected dayTitle(day: DailyActivity): string {
     return `${day.date} · ${this.span(day.durationMs)}`;
-  }
-
-  protected actionLabel(action: string): string {
-    const key = ACTION_KEYS[action as keyof typeof ACTION_KEYS];
-    return key === undefined ? action : this.t(key);
-  }
-
-  /**
-   * The history's wording for what happened.
-   *
-   * The fallback keeps the raw vocabulary visible rather than blanking the row: every type in
-   * `LEARNING_EVENT_TYPES` is in the map, so reaching it means a record naming something this build does
-   * not know, and an unfamiliar word is more useful in an audit tail than an empty one.
-   */
-  protected eventTypeLabel(type: string): string {
-    const key = EVENT_TYPE_KEYS[type as keyof typeof EVENT_TYPE_KEYS];
-    return key === undefined ? type : this.t(key);
-  }
-
-  /** Where it came from - the app was told, or the browser said so. */
-  protected eventSourceLabel(source: string): string {
-    const key = EVENT_SOURCE_KEYS[source as keyof typeof EVENT_SOURCE_KEYS];
-    return key === undefined ? source : this.t(key);
-  }
-
-  protected bridgeListening(info: BridgeInfo): string {
-    return this.t('dashboard.bridge.listening', {
-      url: info.url,
-      version: `${info.protocolVersion}`,
-      connections: `${info.connections}`,
-    });
   }
 
   protected duration(): string {
@@ -814,33 +444,8 @@ export class DashboardPage {
     });
   }
 
-  /**
-   * The row's time, and a span only when the run is wider than a single instant.
-   *
-   * `00:17:06` printed twice would be noise, and the demo's three-event run happens
-   * inside one second, so the span only earns its place on a genuinely spread-out run.
-   */
-  protected timeLabel(group: EventGroup): string {
-    const newest = this.at(group.newestAt);
-    if (group.count === 1) return newest;
-    const oldest = this.at(group.oldestAt);
-    return oldest === newest ? newest : `${oldest}–${newest}`;
-  }
-
-  protected timesLabel(count: number): string {
-    return this.t('dashboard.events.times', { count: `${count}` });
-  }
-
-  private at(iso: string): string {
-    const date = new Date(iso);
-    return Number.isNaN(date.getTime())
-      ? '—'
-      : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
   protected refresh(): void {
     void this.state.refresh();
     void this.state.loadInsights(this.state.insightRange());
-    void this.loadBridge();
   }
 }

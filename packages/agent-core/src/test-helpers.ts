@@ -37,6 +37,7 @@ export function createTestEngine(
     stateConfig?: FocusLoopEngineOptions['stateConfig'];
     policyConfig?: FocusLoopEngineOptions['policyConfig'];
     simulatorEnabled?: boolean;
+    courseCopy?: FocusLoopEngineOptions['courseCopy'];
   } = {},
 ): TestEngine {
   const db = openDatabase(':memory:');
@@ -55,10 +56,11 @@ export function createTestEngine(
     ...(options.simulatorEnabled === undefined
       ? {}
       : { simulatorEnabled: options.simulatorEnabled }),
+    ...(options.courseCopy === undefined ? {} : { courseCopy: options.courseCopy }),
   });
 
   engine.initialize();
-  engine.seedBuiltInCourses();
+  engine.refreshAuthoredCourses();
 
   return { engine, store, clock, providers, close: () => store.close() };
 }

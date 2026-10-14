@@ -1,5 +1,6 @@
 import {
   Component,
+  ElementRef,
   afterRenderEffect,
   computed,
   effect,
@@ -9,7 +10,7 @@ import {
   viewChild,
   viewChildren,
 } from '@angular/core';
-import type { ElementRef, OnDestroy, OnInit } from '@angular/core';
+import type { OnDestroy, OnInit, Signal } from '@angular/core';
 import { Router } from '@angular/router';
 import type { MicroTask, MicroTaskKind, StuckReason } from '@focusloop/shared-types';
 import { STUCK_REASONS, applyTaskOrder } from '@focusloop/shared-types';
@@ -33,19 +34,38 @@ import { KIND_GLYPHS, buildPlan } from '../core/session-plan';
 import { keepsRail, type FocusPhase } from '../core/focus-phase';
 import { FocusTimerService } from '../core/focus-timer.service';
 import { PLAN_INITIAL_OPEN, nextPlanOpen, type PlanEvent } from '../core/plan-visibility';
-import { dropIndexFor, reorder, sameOrder } from '../core/task-order';
+import { reorder, sameOrder } from '../core/task-order';
 import { helpRequestPayload } from '../core/stuck-picker';
+import {
+  answerTooLong,
+  canCheckAnswer,
+  canCheckQuiz,
+  quizOptionMark,
+  quizVerdictKey,
+  stepAnswerView,
+} from '../core/step-answer';
+import type { MessageKey } from '../core/i18n/messages.en';
 import { TutorPanelComponent } from '../components/tutor-panel.component';
 import { FocusNoticeComponent } from '../components/focus-notice.component';
+import { AgentPanelComponent } from '../components/agent-panel.component';
 
 const CLOCK_RADIUS = 86;
 const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
+
+/**
+ * The clearance the notice keeps from whatever sits at the bottom of the stage.
+ *
+ * The plan trigger and its open sheet are controls the learner pressed, so the notice's top edge
+ * cutting into a row of them reads as a broken control rather than as a cramped one. This is the
+ * distance between the two boxes once the stage has been scrolled to lift the lower one clear.
+ */
+const NOTICE_GAP = 16;
 
 /** Screen 3 of 5: a quiet, single-task focus workspace. */
 @Component({
   selector: 'fl-focus',
   standalone: true,
-  imports: [TutorPanelComponent, FocusNoticeComponent],
+  imports: [TutorPanelComponent, FocusNoticeComponent, AgentPanelComponent],
   /*
    * Both of these belong to the document rather than to this element. The plan panel is not a
    * modal, so by the time the learner changes their mind, focus may be anywhere on the page — and a
@@ -81,7 +101,7 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
             -->
             <button
               type="button"
-              class="btn btn--small btn--quiet ambient-toggle"
+              class="btn btn--quiet ambient-toggle"
               data-testid="ambient-toggle"
               [title]="t('focus.ambient.hint')"
               [class.is-active]="ambientSound()"
@@ -96,7 +116,12 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
           </div>
         </header>
 
-        <main class="focus-stage">
+        <!--
+          tabindex="-1": the stage is where the keyboard is handed back to when the notice's own decision
+          unmounts the slot, which is the one thing that can remove the element holding focus without
+          putting it anywhere else. Programmatically focusable, never in the tab order.
+        -->
+        <main class="focus-stage" #stage tabindex="-1">
           <div class="focus-progress-strip" aria-label="{{ t('focus.progress') }}">
             <span class="focus-progress-strip__item">
               <span class="focus-progress-strip__label">{{ t('focus.progress') }}</span>
@@ -128,11 +153,7 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
 
           @if (phase() === 'ready') {
             @if (nextTask(); as upcoming) {
-              <section
-                class="focus-task focus-task--ready"
-                #taskAnchor
-                aria-labelledby="focus-ready-title"
-              >
+              <section class="focus-task focus-task--ready" aria-labelledby="focus-ready-title">
                 <p class="eyebrow">{{ t('focus.nextTask') }}</p>
                 <h2 id="focus-ready-title" data-testid="task-title">{{ upcoming.title }}</h2>
                 <p class="focus-task__instructions">{{ upcoming.instructions }}</p>
@@ -151,18 +172,23 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                   </button>
                   <span class="focus-task__time-note">{{ t('focus.readyHint') }}</span>
                 </div>
+                <!--
+                  The agent has something to say in this phase too — an overloaded session is a fact about
+                  the session and not about the step — so every phase's box carries the card, and the empty
+                  case renders nothing at all. See the running step's copy for why it is here and not in the
+                  bottom slot.
+                -->
+                <fl-agent-panel />
               </section>
             } @else {
-              <section class="focus-task focus-task--empty" #taskAnchor>
+              <section class="focus-task focus-task--empty">
                 <p class="muted">{{ t('focus.allDone') }}</p>
+                <!-- Every phase's box carries the card, including the one with nothing left to start. -->
+                <fl-agent-panel />
               </section>
             }
           } @else if (phase() === 'complete') {
-            <section
-              class="focus-task focus-task--complete"
-              #taskAnchor
-              aria-labelledby="focus-complete-title"
-            >
+            <section class="focus-task focus-task--complete" aria-labelledby="focus-complete-title">
               <p class="eyebrow">{{ t('focus.completeEyebrow') }}</p>
               <h2 id="focus-complete-title">{{ t('focus.completedTitle') }}</h2>
               @if (nextTask(); as upcoming) {
@@ -181,13 +207,10 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
               } @else {
                 <p class="focus-task__instructions">{{ t('focus.allDone') }}</p>
               }
+              <fl-agent-panel />
             </section>
           } @else if (task(); as currentTask) {
-            <section
-              class="focus-task focus-task--active"
-              #taskAnchor
-              aria-labelledby="focus-task-title"
-            >
+            <section class="focus-task focus-task--active" aria-labelledby="focus-task-title">
               <div class="focus-task__copy">
                 <p class="eyebrow">{{ t('focus.currentTask') }}</p>
                 <h2 id="focus-task-title" data-testid="task-title">{{ currentTask.title }}</h2>
@@ -196,6 +219,136 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                   <span class="chip" data-testid="task-kind">{{ kind(currentTask.kind) }}</span>
                   <span class="muted small">{{ estimate(currentTask.estimatedMinutes) }}</span>
                 </div>
+
+                <!--
+                  What the step asks the learner to produce, and the one place they can say it.
+
+                  Without this the only thing a completion carried was the task id: the checkpoint's
+                  "mastered" list, the quiz events the state machine listens for and everything a model
+                  could be told about the session were all built on a button press. So a quiz step shows
+                  its question and its options and is graded in the main process, and every other step
+                  offers a box whose text travels with the completion and can be handed to the tutor.
+                -->
+                @if (answerView(); as step) {
+                  <div class="step-answer" data-testid="step-answer">
+                    @if (step.quiz; as quiz) {
+                      <p class="eyebrow">{{ t('focus.quiz.title') }}</p>
+                      <p class="step-answer__question" data-testid="quiz-question">
+                        {{ quiz.question }}
+                      </p>
+                      <div
+                        class="step-answer__options"
+                        role="group"
+                        [attr.aria-label]="t('focus.quiz.options')"
+                      >
+                        @for (option of quiz.options; track $index) {
+                          <button
+                            type="button"
+                            class="btn step-answer__option"
+                            [attr.data-testid]="'quiz-option-' + $index"
+                            [attr.data-mark]="optionMark($index)"
+                            [class.is-chosen]="choice() === $index"
+                            [attr.aria-pressed]="choice() === $index"
+                            (click)="chooseOption($index)"
+                          >
+                            {{ option }}
+                          </button>
+                        }
+                      </div>
+                      <div class="step-answer__actions">
+                        <button
+                          type="button"
+                          class="btn btn--small btn--primary"
+                          data-testid="quiz-check"
+                          [disabled]="!quizCheckable()"
+                          (click)="checkQuiz()"
+                        >
+                          {{ t('focus.quiz.check') }}
+                        </button>
+                      </div>
+                      @if (verdict(); as result) {
+                        <p
+                          class="step-answer__verdict"
+                          [attr.data-correct]="result.correct"
+                          role="status"
+                          data-testid="quiz-verdict"
+                        >
+                          {{ t(verdictKey(result.correct)) }}
+                        </p>
+                        <p class="muted small" data-testid="quiz-explanation">
+                          {{ t('focus.quiz.why') }}: {{ result.explanation }}
+                        </p>
+                      }
+                    } @else {
+                      <label class="eyebrow" for="step-answer">
+                        {{ t('focus.answer.title') }}
+                      </label>
+                      <!--
+                        The box and its two buttons on one line: the button that asks the tutor and the one
+                        that brings a file in both belong to the box, and a strip of its own under the box
+                        cost a row of the task card for two controls that fit beside it.
+                      -->
+                      <div class="step-answer__row">
+                        <textarea
+                          id="step-answer"
+                          class="step-answer__input"
+                          rows="3"
+                          [attr.maxlength]="step.maxCharacters"
+                          [placeholder]="t(step.placeholderKey)"
+                          data-testid="step-answer-input"
+                          [value]="answer()"
+                          (input)="onAnswerInput($event)"
+                        ></textarea>
+                        <div class="step-answer__actions">
+                          <button
+                            type="button"
+                            class="btn btn--small"
+                            data-testid="answer-check"
+                            [disabled]="!answerCheckable()"
+                            (click)="checkAnswer()"
+                          >
+                            {{ t('focus.answer.check') }}
+                          </button>
+                          <!--
+                            Bring your own words with you. A learner who wrote the answer in Word, has the
+                            PDF of their notes, or photographed a whiteboard should not retype any of it —
+                            and all four readers run on this machine, with no model and no network.
+                          -->
+                          <button
+                            type="button"
+                            class="btn btn--small btn--quiet"
+                            data-testid="answer-attach"
+                            (click)="attachAnswer()"
+                          >
+                            {{ t('focus.answer.attach') }}
+                          </button>
+                        </div>
+                      </div>
+                      <!--
+                        One line, always reserved: the explanation until a file has been read, then what was
+                        read. Reading a file cannot move the box or the buttons beside it.
+                      -->
+                      @if (sourceNote(); as note) {
+                        <p
+                          class="muted small step-answer__hint step-answer__source"
+                          role="status"
+                          data-testid="answer-source-note"
+                        >
+                          {{ t(note.key, note.params) }}
+                        </p>
+                      } @else {
+                        <p class="muted small step-answer__hint">
+                          {{ t('focus.answer.hint') }}
+                        </p>
+                      }
+                      @if (answerTooLong()) {
+                        <p class="step-answer__error" role="alert" data-testid="answer-too-long">
+                          {{ t('focus.answer.tooLong', { count: answerLimit() }) }}
+                        </p>
+                      }
+                    }
+                  </div>
+                }
               </div>
               <div class="focus-clock" role="timer" [attr.aria-label]="t('focus.timerAria')">
                 <svg class="focus-clock__svg" viewBox="0 0 200 200" aria-hidden="true">
@@ -300,6 +453,16 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                   at all, from the session and the current task.
                 -->
                 <fl-tutor-panel />
+                <!--
+                  What the agent decided, in the row that asked for it.
+
+                  It used to be a strip pinned over the bottom of the screen (the focus notice), with three
+                  quick choices that were the stuck reasons over again. A suggestion about *this step*
+                  belongs with the step: replied to where the question was asked, in the flow of the box
+                  rather than over it, and it cannot cover the controls because it is one of them. The
+                  nothing-to-say case renders nothing at all.
+                -->
+                <fl-agent-panel />
               </div>
             </section>
           }
@@ -333,6 +496,14 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
                 @if (plan().blocks.length === 0) {
                   <p class="muted">{{ t('focus.allDone') }}</p>
                 } @else {
+                  <!--
+                    What the column is, said in words: one block per task, the estimate written on the
+                    row. The number is read from the row rather than from the block's length, so the
+                    line only has to name the two things the learner is looking at.
+                  -->
+                  <p class="focus-plan__legend" data-testid="plan-legend">
+                    {{ t('focus.plan.legend') }}
+                  </p>
                   <ul
                     class="plan focus-plan__timeline"
                     #planTrack
@@ -399,7 +570,7 @@ const CLOCK_CIRCUMFERENCE = 2 * Math.PI * CLOCK_RADIUS;
             }
           </section>
         </main>
-        <fl-focus-notice [expired]="phase() === 'expired'" (continueTimer)="resume()" />
+        <fl-focus-notice #noticeRoot />
       </div>
     } @else {
       <div class="focus-workspace" data-phase="ready">
@@ -433,8 +604,22 @@ export class FocusPage implements OnDestroy, OnInit {
   private readonly gripRefs = viewChildren<ElementRef<HTMLButtonElement>>('planGrip');
   private readonly stuckTrigger = viewChild<ElementRef<HTMLButtonElement>>('stuckTrigger');
   private readonly stuckGroup = viewChild<ElementRef<HTMLElement>>('stuckGroup');
-  /** Whatever step is on screen, whichever phase it is in — the thing the plan sheet must not cover. */
-  private readonly taskAnchor = viewChild<ElementRef<HTMLElement>>('taskAnchor');
+  /**
+   * The bottom slot, which the stage has to stop short of.
+   *
+   * `read: ElementRef` rather than the plain template reference: on a component element the reference is
+   * the component instance, so `nativeElement` was undefined and every measurement below returned without
+   * doing anything — this slot is a component, where the plan's is a `<section>`. `read` is what decides
+   * the type Angular hands back, hence the annotation rather than a type argument.
+   */
+  private readonly noticeRoot: Signal<ElementRef<HTMLElement> | undefined> = viewChild(
+    'noticeRoot',
+    { read: ElementRef },
+  );
+  /** Where the keyboard lands when the notice's decision unmounts the slot: see `handBackAfterNotice`. */
+  private readonly stage = viewChild<ElementRef<HTMLElement>>('stage');
+  /** Watching the bottom row's box, not its state: see `watchNoticeSize`. */
+  private noticeObserver: ResizeObserver | null = null;
 
   protected readonly t = this.i18n.t;
   protected readonly snapshot = this.state.snapshot;
@@ -618,15 +803,32 @@ export class FocusPage implements OnDestroy, OnInit {
   /**
    * Where the row would land.
    *
-   * Measured against the track's own box rather than accumulated from deltas: the blocks tile it, so
-   * the row under the pointer is a lookup, and a lookup cannot drift the way a running total can.
+   * Measured against the rendered rows rather than accumulated from pointer deltas. That keeps the
+   * target correct when the timeline itself is scrolled or when narrow layouts let titles wrap.
    */
   protected gripMove(event: PointerEvent): void {
     if (this.dragFrom() === null) return;
     const track = this.planTrack()?.nativeElement;
     if (track === undefined) return;
-    const bounds = track.getBoundingClientRect();
-    this.dropIndex.set(dropIndexFor(this.plan().blocks, event.clientY - bounds.top));
+    const blocks = [...track.querySelectorAll<HTMLElement>('.focus-plan__block')];
+    if (blocks.length === 0) return;
+    const underPointer = blocks.findIndex((block) => {
+      const bounds = block.getBoundingClientRect();
+      return event.clientY >= bounds.top && event.clientY <= bounds.bottom;
+    });
+    if (underPointer >= 0) {
+      this.dropIndex.set(underPointer);
+      return;
+    }
+    const nearest = blocks.reduce(
+      (best, block, index) => {
+        const bounds = block.getBoundingClientRect();
+        const distance = Math.abs(event.clientY - (bounds.top + bounds.height / 2));
+        return distance < best.distance ? { index, distance } : best;
+      },
+      { index: 0, distance: Number.POSITIVE_INFINITY },
+    );
+    this.dropIndex.set(nearest.index);
   }
 
   /**
@@ -806,41 +1008,137 @@ export class FocusPage implements OnDestroy, OnInit {
     this.planOpenState.update((isOpen) => nextPlanOpen(isOpen, event));
   }
 
-  /**
-   * Raises the sheet without burying the step it belongs to.
-   *
-   * The sheet is anchored to the bottom edge (`bottom: 16px`), and the step sits in a column that is
-   * laid out from the top, so on a window of any ordinary height the sheet's top edge lands across the
-   * step's own controls. Measured on a 1157x732 window: "Start for 3 minutes" and the plan's summary
-   * were painted through each other over 148x32 px of the button, and pressing it hit the sheet.
-   *
-   * Neither obvious fix holds. Shrinking the sheet to the room left under the step leaves 133px of a
-   * five-block plan; reserving room in the column's *layout* changes nothing, because the step is
-   * packed from the top and padding below it moves nothing. So the window scrolls instead — the sheet
-   * is `position: fixed`, so lifting the step into the space above it leaves the sheet exactly where
-   * it was designed to be, and `styles.css` keeps scroll room free for that while the sheet is up.
-   * Scrolled by the measured intersection rather than by the sheet's height, so the step's title is not
-   * thrown off the screen on the way to clearing the sheet.
-   *
-   * `afterRenderEffect`, not `effect`: the sheet has to be in the DOM before it can be measured. A
-   * resize runs the same check, because the room under the anchor changes without the sheet moving.
-   */
-  private readonly uncoverTask = afterRenderEffect(() => {
-    if (!this.planOpen()) return;
-    untracked(() => this.uncoverTaskFromSheet());
-  });
-
   private readonly onWindowResize = (): void => {
-    if (this.planOpen()) this.uncoverTaskFromSheet();
+    // The notice's own height does not change with the window, but the room it takes from the stage
+    // does, so the same check runs again.
+    this.liftStepClearOfNotice();
   };
 
-  private uncoverTaskFromSheet(): void {
-    const sheet = this.planRoot()?.nativeElement;
-    const task = this.taskAnchor()?.nativeElement;
-    const scroller = task?.closest<HTMLElement>('.content') ?? null;
-    if (sheet === undefined || task === undefined || scroller === null) return;
-    const covered = task.getBoundingClientRect().bottom - (sheet.getBoundingClientRect().top - 8);
-    if (covered > 0) scroller.scrollTop += covered;
+  /**
+   * Keeps the step clear of the notice row, scrolling only the stage when that row is present.
+   *
+   * Observed rather than run on the slot's own changes, because what matters is the row's *height*, and
+   * the row is filled in passes: the decision, its sentence, its buttons and its fold each arrive on their
+   * own, so the first frame that has a notice in it is usually a notice that is still zero pixels tall.
+   * Measured then, the intersection is negative, nothing moves, and the height the learner actually ends
+   * up looking at is never measured at all. A resize observer is the version of this that cannot miss it.
+   */
+  private readonly watchNoticeSize = afterRenderEffect(() => {
+    const element = this.noticeRoot()?.nativeElement ?? null;
+    if (element === null) return;
+    untracked(() => {
+      if (this.noticeObserver === null) {
+        this.noticeObserver = new ResizeObserver(() => this.liftStepClearOfNotice());
+      }
+      this.noticeObserver.disconnect();
+      this.noticeObserver.observe(element);
+      this.liftStepClearOfNotice();
+    });
+  });
+
+  /**
+   * Where the keyboard goes when the notice's own decision empties the slot.
+   *
+   * The slot's decision is destroying its last control: the card's Continue button is what had focus, and
+   * the whole notice unmounts behind it — so the notice's own `reclaimKeyboard` has nothing left to put
+   * focus on, and without this the learner's keyboard is on `<body>` and the next Tab restarts at the top
+   * of the document. It used to be masked: answering the card fell through to the agent's offer, so the
+   * slot stayed mounted and kept the focus. The stage is the landmark that is always there, and it carries
+   * the running step's name.
+   *
+   * Only when the keyboard is actually orphaned, and only on the falling edge: a learner who moved focus
+   * into the step themselves keeps it, and arriving on the screen with no notice never moves anything.
+   */
+  private noticeWasUp = false;
+  private readonly handBackAfterNotice = effect(() => {
+    if (this.state.resumeCard() !== null) {
+      this.noticeWasUp = true;
+      return;
+    }
+    if (!this.noticeWasUp) return;
+    this.noticeWasUp = false;
+    queueMicrotask(() => {
+      const active = document.activeElement;
+      if (active !== null && active !== document.body) return;
+      this.stage()?.nativeElement.focus();
+    });
+  });
+
+  /**
+   * Lifts the stage's floor clear of the notice row, scrolling only the stage when that row is present.
+   *
+   * The floor is the plan — its open sheet when the learner has it open, its trigger otherwise — rather
+   * than the step. The step is above the plan, so clearing the plan clears the step too; measuring only the
+   * step was true while the plan never shared the screen with the notice, and opening the sheet under one
+   * put every row of it behind the notice, so the tap looked like it had done nothing.
+   *
+   * It stays put when the floor already clears with `NOTICE_GAP`: a tall window is not thrown up the screen
+   * for nothing, a run that finds nothing covered changes nothing, and once the floor is clear the
+   * intersection is negative, so the next frame's measurement moves nothing.
+   */
+  private liftStepClearOfNotice(): void {
+    const notice = this.noticeRoot()?.nativeElement;
+    const stage = this.stage()?.nativeElement ?? null;
+    const plan = this.planRoot()?.nativeElement;
+    if (notice === undefined || stage === null || plan === undefined) return;
+    const panel = plan.querySelector<HTMLElement>('.focus-plan__panel');
+    const floor = panel ?? plan;
+    const covered =
+      floor.getBoundingClientRect().bottom + NOTICE_GAP - notice.getBoundingClientRect().top;
+    if (covered <= 0) return;
+    /*
+     * With the sheet closed the plan trigger is the floor, and the step's title is what must not be spent
+     * to clear it: on a window shorter than the app's own minimum the two cannot both have the room, and a
+     * control the learner has not asked for yet can wait for a scroll while the title cannot. With the sheet
+     * open the learner *did* ask for the plan, so the cap comes off and the step is free to leave the screen.
+     */
+    const step = panel === null ? stage.querySelector<HTMLElement>('.focus-task') : null;
+    const title = step?.querySelector<HTMLElement>('[data-testid="task-title"]') ?? null;
+    const headroom =
+      title === null
+        ? covered
+        : title.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+    const lift = Math.min(covered, Math.max(0, headroom));
+    if (lift > 0) stage.scrollTop += lift;
+  }
+
+  /**
+   * Opening or closing the plan moves the stage's floor, and the notice's own height does not change.
+   *
+   * The resize observer above only watches the notice's box, so it cannot see the sheet arrive underneath
+   * it; without this the rows landed behind the notice and the learner had to scroll a scroller they did
+   * not know was there to read what they had just opened. Only while a notice is up: with the bottom row
+   * empty there is nothing to clear and the plan lays itself out as it always did.
+   */
+  private readonly watchPlanForNotice = afterRenderEffect(() => {
+    // Tracked: the open/closed state is the change this effect exists for.
+    const open = this.planOpen();
+    untracked(() => {
+      if (this.noticeRoot()?.nativeElement === undefined) return;
+      if (open) {
+        this.liftStepClearOfNotice();
+      } else {
+        this.revealStepAfterPlan();
+      }
+    });
+  });
+
+  /**
+   * Goes back to the step when the sheet closes over a notice.
+   *
+   * Opening the sheet scrolls the stage to bring its rows out from under the notice, which on a short
+   * window is a long way up; staying there would leave the learner looking at the bottom of a step whose
+   * title they cannot see. The step's top is where they were reading, so that is what the close puts back.
+   * The lift runs afterwards because a step taller than the stage is one the step itself still has to
+   * yield on, and the plan's own floor is what decides how far.
+   */
+  private revealStepAfterPlan(): void {
+    const stage = this.stage()?.nativeElement;
+    if (stage === undefined) return;
+    const step = stage.querySelector<HTMLElement>('.focus-task');
+    if (step === null) return;
+    stage.scrollTop += step.getBoundingClientRect().top - stage.getBoundingClientRect().top;
+    this.liftStepClearOfNotice();
   }
 
   protected async startQuick(taskId: string): Promise<void> {
@@ -871,6 +1169,8 @@ export class FocusPage implements OnDestroy, OnInit {
     this.focusTimer.sync(sessionId, taskId, now);
     const task = this.findTask(taskId);
     this.completedView.set(false);
+    // The box, the chosen option and the verdict belong to the step they were made on.
+    this.clearStepAnswer();
     this.focusTimer.set(
       startTimer(resetTimer(minutes ?? Math.max(1, task?.estimatedMinutes ?? 1)), now),
     );
@@ -895,10 +1195,137 @@ export class FocusPage implements OnDestroy, OnInit {
   protected async complete(taskId: string): Promise<void> {
     // The next step is previewed without the plan laid back over it.
     this.applyPlanEvent('finish');
-    await this.state.dispatch('TASK_COMPLETED', { taskId });
+    /*
+     * The learner's own words go with the completion when there are any, and the field is left out
+     * entirely when there are not: "they finished it and said nothing" and "they wrote nothing" are the
+     * same fact, and the engine keeps them as one by dropping a blank answer rather than storing it.
+     *
+     * The box is cleared with the step. A conversation left in the field would be carried onto the next
+     * step by whoever forgets to clear it — and the answer belongs to the step it was written for.
+     */
+    const answer = this.answer().trim();
+    await this.state.dispatch('TASK_COMPLETED', {
+      taskId,
+      ...(answer === '' ? {} : { answer }),
+    });
+    this.clearStepAnswer();
     this.clearTimer();
     this.focusTimer.set(createFocusTimer());
     this.completedView.set(true);
+  }
+
+  /**
+   * The step's answer box and quiz, read from the course the step came out of.
+   *
+   * `null` while nothing is running, and the quiz half is null for every step that does not ask a
+   * question — `stepAnswerView` is what decides that, and what keeps the key to the answer out of the
+   * renderer's hands.
+   */
+  protected readonly answerView = computed(() =>
+    stepAnswerView(this.state.currentCourse(), this.task()),
+  );
+
+  protected readonly answer = this.state.stepAnswer;
+  protected readonly choice = this.state.stepChoice;
+  protected readonly verdict = this.state.stepVerdict;
+  /** Where the last attached file's text came from, or why nothing came. */
+  protected readonly sourceNote = this.state.answerSourceNote;
+
+  protected readonly answerTooLong = computed(() => {
+    const view = this.answerView();
+    return view !== null && answerTooLong(this.answer(), view.maxCharacters);
+  });
+
+  /** The bound as text, for the one line that names it — the template cannot interpolate one itself. */
+  protected readonly answerLimit = computed(() => {
+    const view = this.answerView();
+    return view === null ? '' : `${view.maxCharacters}`;
+  });
+
+  /**
+   * What the tutor is asked about, which is the text in the box and nothing else.
+   *
+   * `CHECK_MY_ANSWER` is the mode that quotes the learner's own words back at them, so the box and the
+   * mode belong together: the step's button asks the tutor to check *this*, rather than asking a
+   * question about the step in general.
+   */
+  protected readonly answerCheckable = computed(
+    () =>
+      this.answerView()?.quiz === null && canCheckAnswer(this.answer()) && !this.answerTooLong(),
+  );
+
+  protected readonly quizCheckable = computed(
+    () => this.verdict() === null && canCheckQuiz(this.choice()),
+  );
+
+  protected onAnswerInput(event: Event): void {
+    this.answer.set((event.target as HTMLTextAreaElement).value);
+  }
+
+  protected chooseOption(index: number): void {
+    this.choice.set(index);
+    // A new choice invalidates the verdict it replaces: the marks belong to the answer on screen.
+    this.verdict.set(null);
+  }
+
+  /** Which mark an option carries once there is a verdict: the one that was right, or the one chosen. */
+  protected optionMark(index: number): 'right' | 'wrong' | 'none' {
+    return quizOptionMark(this.verdict(), this.choice(), index);
+  }
+
+  protected verdictKey(correct: boolean): MessageKey {
+    return quizVerdictKey(correct);
+  }
+
+  /**
+   * Sends the chosen option to the main process, which is the only thing that knows the answer.
+   *
+   * A refusal (the engine's `quiz-not-answerable`, or a bridge failure) leaves the step exactly as it
+   * was: no verdict is set, so the button stays pressable and the learner can try again. The error
+   * itself is the service's business — it is already in the banner.
+   */
+  protected async checkQuiz(): Promise<void> {
+    const task = this.task();
+    const index = this.choice();
+    if (task === null || index === null || !this.quizCheckable()) return;
+    const response = await this.state.answerQuiz(task.id, index);
+    if (response !== null) this.verdict.set(response.quiz);
+  }
+
+  /**
+   * Hands the answer to the tutor, and records it first.
+   *
+   * The write comes first because the tutor's transcript is in memory in the main process and nothing
+   * recovers value from it after the session ends: a learner who wrote a paragraph, asked for it to be
+   * checked and then pressed Continue left the app knowing only that it had been asked. Recording
+   * `TASK_ANSWERED` before the ask means the words are in the log — and in everything the agent is
+   * shown — whether or not the exchange is ever finished or the step is ever marked done.
+   *
+   * Not awaited by the panel: the tutor call is the learner's own action and it should not wait on a
+   * bookkeeping write. `requestTutorCheck` is what opens the box, and it does so in the same frame.
+   */
+  protected checkAnswer(): void {
+    if (!this.answerCheckable()) return;
+    const task = this.task();
+    const text = this.answer().trim();
+    if (task !== null) void this.state.dispatch('TASK_ANSWERED', { taskId: task.id, text });
+    this.state.requestTutorCheck('CHECK_MY_ANSWER', text);
+  }
+
+  /**
+   * Asks for a file and puts its text in the box, for the learner to edit and then send.
+   *
+   * The words land in the same box the keyboard writes into, rather than being sent anywhere directly: a
+   * photograph is recognised by an engine that can be wrong, and the only way for the learner to notice
+   * is to see the text before it is used.
+   */
+  protected attachAnswer(): void {
+    void this.state.attachAnswerSource();
+  }
+
+  /** The box and its verdict belong to one step: nothing of them survives starting another. */
+  private clearStepAnswer(): void {
+    this.state.clearStepAnswer();
   }
   /**
    * The learner's own call, like the material text: the layer is offered rather than assumed, and
@@ -947,8 +1374,7 @@ export class FocusPage implements OnDestroy, OnInit {
   }
 
   ngOnInit(): void {
-    // The sheet's check has to run on a resize too: the room under the step changes without the sheet
-    // moving, and the tutor panel already listens for the same reason.
+    // Recheck the notice overlap after a resize; its measured height stays the same, but the stage room changes.
     window.addEventListener('resize', this.onWindowResize);
   }
 
@@ -958,7 +1384,9 @@ export class FocusPage implements OnDestroy, OnInit {
     this.syncTimer.destroy();
     this.manageStuckFocus.destroy();
     this.restoreGripFocus.destroy();
-    this.uncoverTask.destroy();
+    this.watchNoticeSize.destroy();
+    this.handBackAfterNotice.destroy();
+    this.noticeObserver?.disconnect();
     window.removeEventListener('resize', this.onWindowResize);
   }
 

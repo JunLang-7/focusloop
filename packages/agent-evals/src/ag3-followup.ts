@@ -50,6 +50,11 @@ export function runAg3FollowupAdapter(input: JsonValue): JsonValue {
     context,
     question,
     turns: turns(input['turns']),
+    /*
+     * The eval's fixtures are English, and the language instruction is part of the system prompt but
+     * not of `promptCharacters`, so this names the default rather than adding a dimension here.
+     */
+    locale: 'en',
   });
 
   /*

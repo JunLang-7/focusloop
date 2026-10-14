@@ -2,6 +2,7 @@ import { orderedTasks } from '@focusloop/continuity';
 import {
   AGENT_CONTEXT_LIMITS,
   DOMAIN_MESSAGE_KEYS,
+  LEARNER_ANSWER_CHARACTERS,
   findSectionForConcept,
   isLearningState,
   type AgentContext,
@@ -358,10 +359,44 @@ function projectEvent(event: unknown): AgentContextEvent | null {
       return { ...common, type, payload: {} };
     case 'TAB_LEFT':
       return { ...common, type, payload: {} };
-    case 'TASK_STARTED':
-    case 'TASK_COMPLETED': {
+    case 'TASK_STARTED': {
       const taskId = stringField(payload, 'taskId');
       return taskId === null ? null : { ...common, type, payload: { taskId } };
+    }
+    case 'TASK_COMPLETED': {
+      const taskId = stringField(payload, 'taskId');
+      if (taskId === null) return null;
+      /*
+       * The learner's own account of the step, read against its own bound.
+       *
+       * Deliberately not `optionalStringField`: that one is bounded by `eventStringCharacters`, which
+       * is the budget for an identifier copied out of a payload, and an answer is not an identifier.
+       * The record may hold `LEARNER_ANSWER_CHARACTERS`; what a model is shown is the beginning of
+       * that, cut here, because this is one line among twelve events and the material excerpt is what
+       * the answer has to be judged against.
+       *
+       * Absent rather than empty when there is nothing to send: an empty string would read as "they
+       * answered, and the answer was nothing", which is a different fact from having written nothing.
+       */
+      const answer = learnerAnswerField(payload, 'answer');
+      if (answer === invalidOptional) return null;
+      return {
+        ...common,
+        type,
+        payload: answer === undefined ? { taskId } : { taskId, answer },
+      } as AgentContextEvent;
+    }
+    case 'TASK_ANSWERED': {
+      const taskId = stringField(payload, 'taskId');
+      /*
+       * Required here, unlike the completion's optional answer: an event that exists to carry the
+       * learner's words has nothing else in it, so one without them is a malformed row rather than a
+       * quieter fact. `learnerAnswerField` returns `undefined` only for an absent field, which this
+       * rejects too — the two are one case as far as this projection is concerned.
+       */
+      const text = learnerAnswerField(payload, 'text');
+      if (taskId === null || text === undefined || text === invalidOptional) return null;
+      return { ...common, type, payload: { taskId, text } } as AgentContextEvent;
     }
     case 'HELP_REQUESTED': {
       const taskId = optionalStringField(payload, 'taskId');
@@ -447,7 +482,8 @@ function isLearningEventType(value: unknown): value is LearningEvent['type'] {
     value === 'SESSION_ENDED' ||
     value === 'AGENT_PROPOSAL_EXECUTED' ||
     value === 'AGENT_PROPOSAL_PROPOSED' ||
-    value === 'TASKS_REORDERED'
+    value === 'TASKS_REORDERED' ||
+    value === 'TASK_ANSWERED'
   );
 }
 
@@ -481,6 +517,25 @@ function isBoundedEventString(value: unknown): value is string {
     value.length > 0 &&
     value.length <= AGENT_CONTEXT_LIMITS.eventStringCharacters
   );
+}
+
+/**
+ * The learner's own words, cut to the context's budget.
+ *
+ * Accepts up to `LEARNER_ANSWER_CHARACTERS` — the bound on the record — and returns the beginning of it
+ * bounded by `answerCharacters`. Anything longer than the record's own bound is not an answer this
+ * product wrote, so it is invalid rather than trimmed: a payload that big means the caller is not the
+ * screen.
+ */
+function learnerAnswerField(
+  payload: Record<string, unknown>,
+  field: string,
+): string | undefined | typeof invalidOptional {
+  const value = payload[field];
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.length === 0) return invalidOptional;
+  if (value.length > LEARNER_ANSWER_CHARACTERS) return invalidOptional;
+  return value.slice(0, AGENT_CONTEXT_LIMITS.answerCharacters);
 }
 
 function isIsoTimestamp(value: unknown): value is string {

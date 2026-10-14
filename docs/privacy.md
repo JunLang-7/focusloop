@@ -31,14 +31,16 @@ removed, not footnoted.
 
 ## What FocusLoop stores
 
-| Data                                    | Where        | Why                                  |
-| --------------------------------------- | ------------ | ------------------------------------ |
-| Courses, concepts, micro tasks, quizzes | local SQLite | to run a session                     |
-| Imported material                       | local SQLite | to generate micro tasks              |
-| Sessions, learning events               | local SQLite | to compute the learning state        |
-| Checkpoints                             | local SQLite | to resume your cognitive position    |
-| Interventions and outcomes              | local SQLite | to show whether help actually helped |
-| Resume-card timings                     | local SQLite | to measure resume latency            |
+| Data                                       | Where                                    | Why                                                                      |
+| ------------------------------------------ | ---------------------------------------- | ------------------------------------------------------------------------ |
+| Courses, concepts, micro tasks, quizzes    | local SQLite                             | to run a session                                                         |
+| Imported material                          | local SQLite                             | to generate micro tasks                                                  |
+| Sessions, learning events                  | local SQLite                             | to compute the learning state                                            |
+| Checkpoints                                | local SQLite                             | to resume your cognitive position                                        |
+| Interventions and outcomes                 | local SQLite                             | to show whether help actually helped                                     |
+| Resume-card timings                        | local SQLite                             | to measure resume latency                                                |
+| The words you write in a step's answer box | local SQLite, with the completion event  | so the agent knows what you produced, not just that you pressed a button |
+| The words you write when you come back     | local SQLite, as a `TASK_ANSWERED` event | so what you remembered on the way back in is part of the record          |
 
 The database lives at:
 
@@ -138,6 +140,11 @@ never falls back to a mock success. Neither action enables a model. When a model
   and the same passage the card would quote offline (your concept summary, or a sentence of your
   imported material). This is what the import screen's hint means by "unless you configure a model
   key"; without a key no such request is made at all;
+- the contextual tutor's request is the step, the passage of your material it sits on, and **the text
+  you typed in its box** — the question you asked, or your own answer when you press _Check my
+  answer_ from a step. The same goes for a rescue card's generated line. The conversation is kept in
+  memory for the session and is never written to the database, so ending the session or deleting your
+  data ends it — while the answer itself is written to the event log, as what you produced for that step;
 - your learning events, checkpoints, session history and database are **never** sent;
 - the key is never written to the repository and never persisted to the database. An environment
   variable is read and never stored; a key saved in the app is stored **encrypted by the operating
@@ -159,11 +166,41 @@ configuration, reporting any files left behind, and resets selection to local-on
 file by hand does not remove separate encrypted Key files; use the application controls to remove them.
 Environment variables are never modified by FocusLoop.
 
+## A file you attach to an answer
+
+Answering a step does not have to mean typing. The step's answer box — and the same box on a resume
+card — can take a file instead: plain text, Markdown, PDF, Word (`.docx`) or a photograph of your
+notes. All four readers run **inside the app, on this machine**, with no network request:
+
+- PDF text is read with `pdf-parse`; Word documents with `mammoth`; text and Markdown are read as
+  they are; pictures are read with `tesseract.js`, whose English and Simplified-Chinese language data
+  ships in the app's own dependency tree (it is copied into a scratch folder beside the app's other
+  temporary files on first use, and the recogniser itself needs no connection).
+- **Only the file you pick is read.** Nothing walks your folders, nothing watches a directory, and no
+  file is read that you did not choose in the operating system's own file dialog. The path never
+  leaves your machine: it is passed from the window to the app's own main process, which is the same
+  process that owns your database.
+- What is read becomes **text in the answer box**, where you can see it and edit it. The file itself
+  is not stored, not copied into the database, and not remembered by name afterwards — the line under
+  the box names it until you answer and no longer.
+- That text is then treated exactly like text you typed. It is sent to a model provider only if you
+  configured one _and_ you press _Check my answer_, _Ask my tutor_ or complete the step — never when
+  the file is read. Without a key nothing is sent at all, which is the same rule as the rest of the
+  app (see _When a model provider is used_ above).
+- Text from a picture is a **guess by a recogniser** and is labelled as one in the interface, because
+  a mis-read word in a photograph of your handwriting is the difference between an answer that is
+  judged on what you meant and one that is judged on what a machine thought it saw.
+
+There is no automatic speech-to-text. Reading speech offline needs either a speech model downloaded
+onto your machine or a native build of a recogniser, and the app ships neither; rather than show a
+microphone button that does nothing, the app leaves voice input out and says so here.
+
 ## What the app can see, and what it does about it
 
 The renderer is sandboxed with `contextIsolation: true`, `nodeIntegration: false` and
-`sandbox: true`. Its only capability is a fixed list of methods on `window.focusloop`. It cannot
-read files, open sockets, or spawn processes.
+`sandbox: true`. Its only capability is a fixed list of methods on `window.focusloop`. It cannot read
+files, open sockets, or spawn processes — when it needs a file read it can only ask the main process
+to read the one file you picked, and it gets back text or a refusal.
 
 The Content-Security-Policy is:
 

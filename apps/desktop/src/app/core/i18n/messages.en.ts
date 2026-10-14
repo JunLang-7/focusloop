@@ -131,17 +131,21 @@ const en = {
     'Plain text and Markdown only. Imported material stays on this machine unless you configure a model key.',
   'home.import.fileName': 'File name',
   'home.import.content': 'Content',
+  'home.import.contentPlaceholder': 'Paste or type the notes you want to keep here.',
   'home.import.action': 'Import',
   'home.import.placeholder': 'notes.md',
   'home.import.result': '{title}: {concepts} concepts, {tasks} micro tasks',
   'home.import.needFileName': 'Give the file a name first.',
+  'home.import.needFormat': 'Use a .txt or .md name.',
+  'home.import.needText': 'Drop a file, or paste the text first.',
   'home.import.drop': 'Drop a file here, or choose one',
   'home.import.dropNow': 'Let go to import it',
   'home.import.accepts': 'Text or Markdown · up to {limit}',
-  'home.import.nameHint': 'The course takes this name.',
+  'home.import.nameHint': 'The course takes this name, unless the text opens with a heading.',
   'home.import.remove': 'Remove file',
-  'home.import.pasteSummary': 'Or paste the text instead',
+  'home.import.pasteSummary': 'Or paste text instead of a file',
   'home.import.reject.tooLarge': 'That file is over {limit}.',
+  'home.import.reject.unsupportedFormat': 'That file is not a .txt or .md file.',
   'home.import.reject.empty': 'That file has nothing in it.',
   'home.import.reject.notText': 'That file is not plain text.',
   'home.import.reject.unreadable': 'That file could not be read.',
@@ -281,7 +285,7 @@ const en = {
   'map.hint': 'What this course is made of, in the order you will meet it.',
   'map.recall.title': 'Draw it again from memory',
   'map.recall.hint':
-    'Write the concepts you remember, in your own words. The order does not matter, and you can dictate instead of typing.',
+    'Write the concepts you remember, in your own words. The order does not matter.',
   'map.recall.label': 'Your map',
   'map.recall.score': 'You recalled {recalled} of {total}.',
   'map.recall.done': 'That is the whole map. It stuck.',
@@ -329,22 +333,56 @@ const en = {
   'focus.stuck.tired': "I haven't got the energy for it",
   'focus.stuck.unsaid': "I'd rather not say",
   'focus.paused': 'paused',
-  'focus.timeUp': 'time is up',
   'focus.notice.aria': 'Focus notice',
-  'focus.notice.help': 'Choose your next step',
-  'focus.notice.choices': 'Continue, make this smaller, or take a break',
   'focus.notice.show': 'Show notice',
   'focus.notice.fold': 'Fold away',
-  'focus.notice.simplify': 'Make this step smaller',
-  'focus.notice.break': 'Rest for 3 minutes',
-  'focus.notice.timeUpBody': 'Your position is kept. Take another minute if you need it.',
   'focus.complete': 'Complete task',
+  /*
+   * The step's answer, and the quiz it may ask instead (#…).
+   *
+   * The two halves of the interaction the app was missing: a place to say what you came up with, and a
+   * question that tells you whether you got it right. The wording says what the box is *for* — an agent
+   * reads it later — rather than asking for homework, because that is the reason it is worth typing.
+   */
+  'focus.answer.title': 'What you came up with',
+  'focus.answer.hint': 'It stays with this step, so the agent knows what you learned.',
+  'focus.answer.placeholder.read': 'Say it in your own words…',
+  'focus.answer.placeholder.practice': 'Write what you did, or what you got…',
+  'focus.answer.placeholder.quiz': 'Write your answer…',
+  'focus.answer.placeholder.recall': 'Say what you still remember…',
+  'focus.answer.tooLong': 'Keep it under {count} characters.',
+  'focus.answer.check': 'Have the tutor check it',
+  /*
+   * Bringing the words with you.
+   *
+   * One button rather than two: the picker offers documents and images side by side, and the learner
+   * knows what is in the file they are about to choose. The lines after it name the file and say which
+   * reader produced the text — the OCR one also says to check it, because a recognised character can be
+   * wrong and only the learner can tell.
+   */
+  'focus.answer.attach': 'Attach a file',
+  'focus.answer.source.read': 'Read from {name}. Edit it as you like.',
+  'focus.answer.source.ocr': 'Recognised from {name} — check the words before you use them.',
+  'focus.answer.source.cut': 'The box holds the beginning of {name} only.',
+  'focus.answer.source.unsupported': '{name} is not a file this can read.',
+  'focus.answer.source.tooBig': '{name} is too large to read.',
+  'focus.answer.source.unreadable': '{name} could not be read.',
+  'focus.answer.source.empty': 'There was no text in {name}.',
+  'focus.quiz.title': 'This step asks a question',
+  'focus.quiz.options': 'Answers to choose from',
+  'focus.quiz.check': 'Check my answer',
+  'focus.quiz.correct': 'Right — that is the answer.',
+  'focus.quiz.incorrect': 'Not this one. The right answer is marked.',
+  'focus.quiz.why': 'Why',
+  'focus.quiz.answered': 'Answered',
   'focus.noTask': 'No task in progress.',
   'focus.upNext': 'Up next',
   'focus.startTask': 'Start',
   'focus.allDone': 'Everything in this course is complete.',
   // The plan states the total so the learner does not have to add up the blocks.
   'focus.plan.remaining': 'about {time} left',
+  // The estimate sits on every row, so the legend only has to say what the block and the number are.
+  'focus.plan.legend': 'Each block is one task, and the minutes on its right are the estimate.',
   /*
    * Reordering the plan (#23). The name is the action, because a screen reader announces it out of
    * context in a list: "Reorder Binary search trees" is what the row is for.
@@ -386,7 +424,6 @@ const en = {
   'dashboard.window.tasks': 'Tasks done',
   'dashboard.window.interruptions': 'Interruptions',
   'dashboard.window.sessions': 'Sessions',
-  'dashboard.outcomes.none': 'No intervention has been shown yet.',
   'dashboard.courses.title': 'Recorded time by course',
 
   // Short unit labels for the chart legends.
@@ -407,42 +444,59 @@ const en = {
   'dashboard.tasks': 'Micro tasks',
   'dashboard.interruptions': 'Interruptions',
   'dashboard.latency': 'Avg resume latency',
+  /*
+   * The two resume numbers have their own section: they answer what happened *after* an interruption,
+   * which is a different question from how the session is going, and they are drawn from a different
+   * set of events than the four beside them.
+   */
+  'dashboard.resume.title': 'Resume outcomes',
   'dashboard.reengageRate': 'Re-engagement after resume',
   'dashboard.reengageRate.sample':
     '{reengaged} of {evaluated} re-engaged · {stalled} stalled again · {pending} pending',
   'dashboard.progressRate': 'Progress after resume',
   'dashboard.progressRate.sample': '{progressed} of {evaluated} progressed · {pending} pending',
-  'dashboard.outcomes': 'Intervention outcomes',
-  'dashboard.rescues': 'How rescues went',
-  'dashboard.rescues.none': 'No rescue has been tried yet.',
-  'dashboard.rescues.rate': 'Helped {succeeded} of {evaluated}',
-  'dashboard.rescues.rateNone': 'Not judged yet',
-  'dashboard.rescues.counts':
-    'Tried {accepted} · asked again {repeated} · no sign of progress {expired} · still open {pending}',
+
+  /*
+   * The record that is not a learning surface: the app's log and its connection to the browser
+   * extension. Both live on the screen the dashboard links to rather than on the dashboard itself.
+   */
+  'dashboard.more': 'More data',
+  'more.eyebrow': 'More data',
+  'more.title': 'More data',
+  'more.subtitle':
+    'The week, the interventions, the browser bridge and the event log — what the dashboard leaves off.',
+  'more.back': 'Back to the dashboard',
+  'more.outcomes': 'Intervention outcomes',
+  'more.outcomes.none': 'No intervention has been shown yet.',
   // The bar's own label, and the two things beside it: how often it was accepted, and the counts the
   // table used to carry. `N =` is written out because a row with one sample otherwise reads as a
   // 100% success rate.
-  'dashboard.outcomes.share': '{percent} accepted',
-  'dashboard.outcomes.shareAria': 'Accepted share for {action}',
+  'more.outcomes.share': '{percent} accepted',
+  'more.outcomes.shareAria': 'Accepted share for {action}',
   // What the bar reads out. `aria-valuetext` replaces `aria-valuenow` in the announcement, so it carries
   // the share and the sample size rather than the counts line, which is the paragraph below it.
-  'dashboard.outcomes.valueText': '{percent} accepted · N = {total}',
-  'dashboard.outcomes.counts':
+  'more.outcomes.valueText': '{percent} accepted · N = {total}',
+  'more.outcomes.counts':
     '{accepted} accepted · {dismissed} dismissed · {completed} completed the task afterwards · N = {total}',
-  'dashboard.bridge': 'Browser bridge',
-  'dashboard.bridge.listening':
-    'Listening on {url} · protocol v{version} · {connections} connected',
-  'dashboard.bridge.hint':
+  'more.rescues': 'How rescues went',
+  'more.rescues.none': 'No rescue has been tried yet.',
+  'more.rescues.rate': 'Helped {succeeded} of {evaluated}',
+  'more.rescues.rateNone': 'Not judged yet',
+  'more.rescues.counts':
+    'Tried {accepted} · asked again {repeated} · no sign of progress {expired} · still open {pending}',
+  'more.bridge': 'Browser bridge',
+  'more.bridge.listening': 'Listening on {url} · protocol v{version} · {connections} connected',
+  'more.bridge.hint':
     'Paste this token into the FocusLoop Bridge extension. It changes every launch and is only valid on this machine.',
-  'dashboard.bridge.reveal': 'Show connection details',
-  'dashboard.bridge.hide': 'Hide connection details',
-  'dashboard.bridge.stopped':
+  'more.bridge.reveal': 'Show connection details',
+  'more.bridge.hide': 'Hide connection details',
+  'more.bridge.stopped':
     'The bridge is not running. The Demo Event Simulator covers the same path.',
-  'dashboard.bridge.unavailable': 'Bridge status unavailable.',
-  'dashboard.events': 'Recent events',
-  'dashboard.events.none': 'No events recorded yet.',
+  'more.bridge.unavailable': 'Bridge status unavailable.',
+  'more.events': 'Recent events',
+  'more.events.none': 'No events recorded yet.',
   // No singular form: the badge only renders for a run of two or more.
-  'dashboard.events.times': '{count} times',
+  'more.events.times': '{count} times',
 
   /*
    * The history, in the learner's words rather than the log's. `EVENT_TYPE_KEYS` and
@@ -465,6 +519,7 @@ const en = {
   'event.type.AGENT_PROPOSAL_EXECUTED': 'A suggested change was applied',
   'event.type.AGENT_PROPOSAL_PROPOSED': 'Change proposed',
   'event.type.TASKS_REORDERED': 'You changed the order',
+  'event.type.TASK_ANSWERED': 'You wrote an answer',
 
   'event.source.user': 'you',
   'event.source.extension': 'browser extension',
@@ -483,14 +538,18 @@ const en = {
   'resume.nextStep': 'Next step:',
   'resume.minutes': '{minutes} min',
   'resume.continue': 'Continue',
-  'resume.showContext': 'Show context',
   'resume.dismiss': 'Dismiss',
-  'resume.context.checkpoint': 'checkpoint: {id}',
-  'resume.context.shownAt': 'shown at: {at}',
-  'resume.context.completed': 'completed: {items}',
-  'resume.context.unresolved': 'unresolved: {items}',
-  'resume.context.next': 'next: {action}',
-  'resume.context.empty': '—',
+  /*
+   * The check-in on the card.
+   *
+   * "Before you go on" is deliberately not "test": the learner has just come back from being away, and
+   * this asks them to put their own words down — which is what an agent reads later — rather than to
+   * pass anything. The recorded line promises exactly what happened and nothing more.
+   */
+  'resume.recall.title': 'Before you go on',
+  'resume.recall.hint': 'Say what you remember about this step. It is kept with it.',
+  'resume.recall.save': 'Record it',
+  'resume.recall.recorded': 'Recorded. It stays with this step.',
 
   // -------------------------------------------------------- agent panel
   'agent.suggesting': 'Suggestion',
@@ -572,6 +631,8 @@ const en = {
   'tutor.placeholder.answer': 'Write or paste your answer, and the tutor will check it.',
   'tutor.ask': 'Ask',
   'tutor.asking': 'Asking…',
+  'tutor.hint.mode': 'Pick one of the three above first, then press Ask.',
+  'tutor.hint.question': 'Write your question in the box above, then press Ask.',
   'tutor.mode.EXPLAIN': 'Explain it',
   'tutor.mode.HINT': 'A hint',
   'tutor.mode.EXAMPLE': 'An example',

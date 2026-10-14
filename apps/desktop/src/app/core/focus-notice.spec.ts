@@ -1,36 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { isFocusRoute, noticeIsFolded, selectFocusNotice } from './focus-notice';
 
-const quiet = { resume: false, rescue: false, action: null, expired: false } as const;
+const quiet = { resume: false } as const;
 
 describe('the single focus notice slot', () => {
-  it('is empty when nothing is due', () => {
+  /*
+   * It used to answer a three-way question (a resume card, the agent's proposal, an expired timer) and the
+   * tests here pinned that precedence. The slot is now one thing, and the pin is what the *screen* may put
+   * over a learner who is working: the return card, and nothing else. The agent's suggestion is drawn in
+   * the step it is about and the expired timer is answered by the control that turns into "+1 minute", so
+   * neither can arrive here even though both are still reachable.
+   */
+  it('is the return card, or nothing', () => {
     expect(selectFocusNotice(quiet)).toBeNull();
-    expect(selectFocusNotice({ ...quiet, action: 'NO_ACTION' })).toBeNull();
-    expect(selectFocusNotice({ ...quiet, action: 'RESUME' })).toBeNull();
-  });
-
-  it('carries each moment', () => {
-    expect(selectFocusNotice({ ...quiet, expired: true })).toBe('time-up');
-    expect(selectFocusNotice({ ...quiet, rescue: true })).toBe('help');
-    expect(selectFocusNotice({ ...quiet, action: 'BREAK' })).toBe('help');
-    expect(selectFocusNotice({ ...quiet, resume: true })).toBe('resume');
-  });
-
-  it('recovers position before help, and puts help before time up', () => {
-    const due = { resume: true, rescue: true, action: 'SIMPLIFY', expired: true } as const;
-    expect(selectFocusNotice(due)).toBe('resume');
-    expect(selectFocusNotice({ ...due, resume: false })).toBe('help');
-    expect(selectFocusNotice({ ...due, resume: false, rescue: false, action: null })).toBe(
-      'time-up',
-    );
-    // RESUME and NO_ACTION are the policy's "say nothing" actions: the clock still owns the slot.
-    expect(
-      selectFocusNotice({ resume: false, rescue: false, action: 'RESUME', expired: true }),
-    ).toBe('time-up');
-    expect(
-      selectFocusNotice({ resume: false, rescue: true, action: 'NO_ACTION', expired: false }),
-    ).toBe('help');
+    expect(selectFocusNotice({ resume: true })).toBe('resume');
   });
 });
 

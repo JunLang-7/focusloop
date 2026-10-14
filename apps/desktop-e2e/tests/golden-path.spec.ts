@@ -12,6 +12,7 @@ import {
 } from '@playwright/test';
 import { hermeticEnv } from '../hermetic-env.mjs';
 import { fireDemoEvent } from '../demo-events.mjs';
+import { openMoreData } from '../support/record-screen';
 import { openSidebar } from '../support/sidebar';
 
 const DESKTOP_MAIN = resolve(__dirname, '..', '..', 'desktop', 'dist', 'main', 'main.cjs');
@@ -294,6 +295,48 @@ async function contentBox(): Promise<{ left: number; width: number }> {
   });
 }
 
+/**
+ * The focus screen's columns, measured from the page: where the workspace starts and how wide it is,
+ * the content's own padding, the width left for it to centre in, and the two boxes that decide whether
+ * it has room — the floating recall button and the sidebar panel itself.
+ *
+ * `clientWidth` rather than the bounding box for the content: a bounding box includes the scrollbar,
+ * which lives inside the padding box, and half of that 15px would land in the centring term the
+ * assertions below compute.
+ */
+async function focusColumns(): Promise<{
+  readonly workspaceLeft: number | null;
+  readonly workspaceWidth: number | null;
+  readonly clockLeft: number | null;
+  readonly paddingLeft: number;
+  readonly inner: number;
+  readonly fabRight: number;
+  readonly panelRight: number;
+  readonly windowWidth: number;
+}> {
+  return window.locator('.content').evaluate((el) => {
+    const style = getComputedStyle(el);
+    const paddingLeft = Number.parseFloat(style.paddingLeft);
+    const paddingRight = Number.parseFloat(style.paddingRight);
+    const box = (selector: string): DOMRect | null =>
+      document.querySelector(selector)?.getBoundingClientRect() ?? null;
+    const workspace = box('.focus-workspace');
+    const fab = box('.sidebar-fab');
+    return {
+      workspaceLeft: workspace ? workspace.left : null,
+      workspaceWidth: workspace ? workspace.width : null,
+      clockLeft: box('.focus-clock')?.left ?? null,
+      paddingLeft,
+      inner: el.clientWidth - paddingLeft - paddingRight,
+      // A `display: none` button measures as a zero box at the origin, which is not "clear of it".
+      fabRight: fab && fab.width > 0 ? fab.right : 0,
+      panelRight: box('.sidebar')?.right ?? 0,
+      // `globalThis`, not `window`: inside this callback `window` is the Playwright page object.
+      windowWidth: globalThis.innerWidth,
+    };
+  });
+}
+
 /*
  * The plan is closed until a press opens it, and the toggle is a toggle: pressing it while the
  * panel is open closes the very thing the caller is about to look at. Every entry point that needs
@@ -322,12 +365,18 @@ async function planTitles(): Promise<string[]> {
 async function dragPlanRow(fromRow: number, toRow: number): Promise<void> {
   const grip = window.getByTestId('plan-grip').nth(fromRow);
   const target = window.locator('[data-testid=plan-block]').nth(toRow);
-  const gripBox = await grip.boundingBox();
-  const targetBox = await target.boundingBox();
-  if (gripBox === null || targetBox === null) throw new Error('the plan has no rows to drag');
 
-  await window.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2);
+  /*
+   * `hover` rather than a box measured up front. It waits for the row to hold still and brings it into
+   * view, and pressing the grip focuses it - which can scroll the sheet a moment after the press. A box
+   * read before that aims the pointer at where the row used to be, which lands the drag on a neighbour.
+   */
+  await grip.hover();
   await window.mouse.down();
+
+  const targetBox = await target.boundingBox();
+  if (targetBox === null) throw new Error('the plan has no rows to drag');
+
   // Four pixels into the target row: inside it, and clear of the seam with the row above.
   await window.mouse.move(targetBox.x + targetBox.width / 2, targetBox.y + 4, { steps: 4 });
   await expect(target).toHaveAttribute('data-drop', '');
@@ -465,7 +514,7 @@ test('golden path: learn, get interrupted, resume, see the outcome', async () =>
   await expect(window.locator('.banner--error')).toHaveCount(0);
 });
 
-test('the remaining work is shown as a proportional plan', async () => {
+test('the remaining work is shown as a plan of equal rows', async () => {
   await clickSidebarLink('Focus Session');
   await window.getByTestId('focus-plan-toggle').click();
   await expect(window.locator('.plan')).toBeVisible();
@@ -481,17 +530,24 @@ test('the remaining work is shown as a proportional plan', async () => {
     }),
   );
 
-  // The geometry is the information: the longest task must occupy more of the column than the
-  // shortest one, or the plan is just a list with extra spacing.
+  /*
+   * No row is taller than another, however differently the tasks are estimated: a length is a poor place
+   * to read a number from, so the estimate is written on the row instead - asserted below, because the
+   * even column only makes sense while the number is still there.
+   */
   const heights = boxes.map((box) => box.height);
-  expect(Math.max(...heights)).toBeGreaterThan(Math.min(...heights));
+  expect(Math.max(...heights)).toBe(Math.min(...heights));
 
-  // And the blocks tile the column, so the plan reads as one continuous stretch of time.
+  // And the rows tile the column, so the plan reads as one continuous list.
   for (let index = 1; index < boxes.length; index += 1) {
     const previous = boxes[index - 1]!;
     const current = boxes[index]!;
     expect(Math.abs(previous.top + previous.height - current.top)).toBeLessThan(1);
   }
+
+  // Every row carries its estimate, and the legend says that is what the number is.
+  await expect(blocks.locator('.plan__estimate')).toHaveCount(4);
+  await expect(window.getByTestId('plan-legend')).toContainText('estimate');
 
   // The total is stated, so it does not have to be added up from the blocks.
   await expect(window.getByTestId('plan-remaining')).toContainText('left');
@@ -753,7 +809,8 @@ test('the interface can be switched to Chinese, and the choice survives a restar
  * here, so this test runs once nothing else still needs the budget.
  */
 test('a run of identical events is folded into one row', async () => {
-  await clickSidebarLink('Dashboard');
+  // The record screen, which is where the log lives: the dashboard keeps to the numbers.
+  await openMoreData(window);
 
   /*
    * The previous test restarted the app, so this also pins that the log is restored from
@@ -810,7 +867,7 @@ test('a run of identical events is folded into one row', async () => {
  * resolved. The assertions are the properties the markup promises.
  */
 test('the intervention outcomes read as rows with a share and a sample size', async () => {
-  await clickSidebarLink('Dashboard');
+  await openMoreData(window);
 
   const outcomes = window.locator('[data-testid="outcome-row"]');
   /*
@@ -872,7 +929,11 @@ test('the non-modal resume notice is keyboard reachable and folds without dismis
   const toggle = window.getByTestId('focus-notice-toggle');
   await toggle.focus();
   await window.keyboard.press('Tab');
-  await expect(window.getByTestId('resume-continue')).toBeFocused();
+  /*
+   * The card's first control, which is the check-in's box now that the notice has one. What this pins is
+   * unchanged: Tab from the notice's own toggle reaches the card rather than the page behind it.
+   */
+  await expect(window.getByTestId('recall-input')).toBeFocused();
   await window.keyboard.press('Escape');
   await expect(resume).toBeHidden();
   await expect(toggle).toBeFocused();
@@ -1016,13 +1077,27 @@ test('the sidebar folds on click, and focus folds it fully, with a floating reca
     .evaluate((el) => el.getBoundingClientRect().left);
   expect(contentLeft).toBeLessThan(2);
 
-  // But on focus the fold hides the chrome, not the layout: the workspace keeps the
-  // column the open sidebar occupied, so the countdown never reflows to where the
-  // peeked panel will appear.
-  const workspaceLeft = await window
-    .locator('.focus-workspace')
-    .evaluate((el) => el.getBoundingClientRect().left);
-  expect(workspaceLeft).toBeGreaterThanOrEqual(232);
+  /*
+   * And the focus screen is the place the fold has to pay off, not the one place it does not: the
+   * workspace takes the window. It used to keep the open sidebar's whole column — 232px plus the base
+   * padding — so the peeked panel below could only ever slide over an empty gutter, at the price of a
+   * 256px band of nothing down the left of the one screen the learner is meant to be looking at.
+   *
+   * What is left is the floating recall button's own column plus the centring the content measure adds,
+   * and nothing else — asserted as an equality rather than a maximum, because "there is no reservation
+   * left" is the claim and any reserved column is exactly the failure. The button's clearance is checked
+   * separately: a stage shoved back under it is a different regression with the same cause.
+   */
+  const fold = await focusColumns();
+  expect(fold.workspaceLeft).not.toBeNull();
+  const workspaceLeft = fold.workspaceLeft ?? 0;
+  const workspaceWidth = fold.workspaceWidth ?? 0;
+  const centred = (fold.inner - workspaceWidth) / 2;
+  expect(Math.abs(workspaceLeft - fold.paddingLeft - centred)).toBeLessThan(1);
+  expect(fold.fabRight).toBeGreaterThan(0);
+  expect(workspaceLeft).toBeGreaterThan(fold.fabRight);
+  // The space it took back is the sidebar's, so the width has to be the window's, less two paddings.
+  expect(workspaceWidth).toBeGreaterThan(fold.windowWidth - 260);
 
   // 1b. Finishing the step is a shell-narrowing phase too — `keepsRail` in
   //     `core/focus-phase.ts`, which the canvas publishes as `data-rail` — so the fold must
@@ -1073,12 +1148,18 @@ test('the sidebar folds on click, and focus folds it fully, with a floating reca
   expect(panel.backdropFilter).toBe('none');
   expect(panel.boxShadow).not.toBe('none');
 
-  //    And the workspace itself stays where the fold left it: the panel slides over
-  //    the gutter it vacated, never over the countdown.
-  const workspaceLeftDuringPeek = await window
-    .locator('.focus-workspace')
-    .evaluate((el) => el.getBoundingClientRect().left);
-  expect(workspaceLeftDuringPeek).toBeGreaterThanOrEqual(232);
+  /*
+   *    And the workspace itself stays where the fold left it. That is the half of "a peek is a look,
+   *    not a reflow" that can still break now: the reservation the panel used to be handed is gone, so a
+   *    peek that changed the content's padding — or a grid that handed the content the folded track —
+   *    would move the stage out from under the pointer that opened the panel. The panel covers the
+   *    stage's left edge on a window this narrow, which is what a drawer over a page does; the countdown
+   *    is in the stage's right-hand column and must never be under it.
+   */
+  const duringPeek = await focusColumns();
+  expect(duringPeek.workspaceLeft).toBe(workspaceLeft);
+  expect(duringPeek.clockLeft).not.toBeNull();
+  expect(duringPeek.clockLeft ?? 0).toBeGreaterThanOrEqual(duringPeek.panelRight);
 
   // 3. Moving the pointer away folds it straight back.
   await window.mouse.move(640, 400);
@@ -1089,9 +1170,16 @@ test('the sidebar folds on click, and focus folds it fully, with a floating reca
   await pinThroughPeek();
   await expect(window.locator('.sidebar')).toBeVisible();
 
-  // 5. ...and its own toggle folds it away again for the rest of the commitment.
+  // 5. ...and its own toggle folds it away again for the rest of the commitment. This is where the
+  //    fold's promise is measurable: pinned open, the sidebar's column is a column and the workspace
+  //    is narrower for it; folded, that width is the workspace's, not a band of empty page.
+  const pinned = await focusColumns();
   await window.getByTestId('sidebar-toggle').click();
   await expect(window.locator('.sidebar')).toBeHidden();
+  const reFolded = await focusColumns();
+  expect(pinned.workspaceWidth).not.toBeNull();
+  expect(reFolded.workspaceWidth ?? 0).toBeGreaterThan((pinned.workspaceWidth ?? 0) + 190);
+  expect(reFolded.workspaceLeft ?? 0).toBeLessThan(pinned.workspaceLeft ?? 0);
 
   // 6. Focus over. The fold was deliberate, so it survives the session ending.
   await window.getByTestId('end-session').click();
@@ -1138,8 +1226,8 @@ test('the plan closes the way a panel closes, and never covers the step it start
 
   /*
    * It arrives as a sheet anchored to the bottom edge rather than to a corner, and it is centred.
-   * "Closer to the bottom than to the top" is the property, not "entirely below the middle": a
-   * sheet with four blocks and a timeline is tall enough to cross the middle on purpose. The exact
+   * "Closer to the bottom than to the top" is the property, not "entirely below the middle": a sheet
+   * with four rows, the legend and a timeline is tall enough to cross the middle on purpose. The exact
    * offset is not asserted, because the sheet's own inset from the edge is a style choice; what is
    * asserted is that it is near the bottom and centred.
    */
@@ -1309,21 +1397,34 @@ test('the import form asks for a file name instead of failing on the channel', a
    */
   await expect(name).toHaveValue('notes.md');
   await expect(submit).toHaveText('Import');
-  await expect(submit).toBeEnabled();
 
-  // Clearing it disables the button and states why, rather than letting an empty name travel to
-  // the main process and come back as a validation error naming the IPC channel.
+  /*
+   * The form arrives with a name and nothing else, so the press is off until there is material: the
+   * text box no longer ships a paragraph of the demo course, whose import made a second course
+   * called "Rotations" and taught nobody anything.
+   */
+  await expect(submit).toBeDisabled();
+
+  // Clearing the name is refused here, in words, rather than travelling to the main process and
+  // coming back as a validation error naming the IPC channel.
   await name.fill('');
   await expect(submit).toBeDisabled();
-  await expect(reason).toBeVisible();
+  await expect(reason).toHaveText('Give the file a name first.');
 
   // Whitespace is not a name either.
   await name.fill('   ');
   await expect(submit).toBeDisabled();
 
+  // A name the parser cannot place has the same answer in the same place: `typed.rst` used to be
+  // sent and answered with `Error invoking remote method 'focusloop:material:import': …`.
+  await name.fill('typed.rst');
+  await expect(submit).toBeDisabled();
+  await expect(reason).toHaveText('Use a .txt or .md name.');
+
+  // And with the name answered, what is missing is the text.
   await name.fill('notes.md');
-  await expect(submit).toBeEnabled();
-  await expect(reason).toBeHidden();
+  await expect(submit).toBeDisabled();
+  await expect(reason).toHaveText('Drop a file, or paste the text first.');
 
   /*
    * Nothing may be laid over this button once a running session has pushed the form down. A press
@@ -1341,7 +1442,19 @@ test('the import form asks for a file name instead of failing on the channel', a
     )
     .toBe(true);
 
-  // And the import it guards actually goes through: no channel error, and a result to show.
+  /*
+   * And the import it guards actually goes through: no channel error, and a result to show.
+   *
+   * The text comes from the paste box, which is where material comes from when it is not a file —
+   * the form no longer arrives holding a paragraph of the demo course, because importing that
+   * paragraph made a second course called "Rotations" and taught nobody anything.
+   */
+  await window.locator('.paste-fallback summary').click();
+  await window
+    .locator('.paste-fallback textarea')
+    .fill('# Rotations\n\nA rotation restructures three nodes while preserving the order.\n');
+  await expect(submit).toBeEnabled();
+  await expect(reason).toBeHidden();
   await submit.click();
   await expect(window.locator('.banner--error')).toHaveCount(0);
   await expect(window.getByTestId('import-summary')).toBeVisible();
@@ -1487,7 +1600,7 @@ test('the reason the learner gives is answered according to which kind of stuck 
    */
   await expect(window.getByTestId('focus-stuck')).toBeFocused();
 
-  const agent = window.locator('.agent');
+  const agent = window.getByTestId('agent-offered');
   await expect(agent).toBeVisible();
   await expect(agent).toHaveAttribute('data-action', 'BREAK');
   await expect(agent).toContainText('You said you had not got the energy for it.');
@@ -1497,7 +1610,7 @@ test('the reason the learner gives is answered according to which kind of stuck 
   const timer = window.locator('.focus-clock__value');
   const beforeBreak = await timer.innerText();
   await expect(timer).not.toHaveText(beforeBreak, { timeout: 2_000 });
-  await window.getByTestId('notice-break').click();
+  await agent.getByRole('button', { name: 'Try this', exact: true }).click();
   const activeRescue = window.getByTestId('agent-accepted');
   await expect(activeRescue).toBeVisible();
   await expect(activeRescue.locator('.agent__plan li')).toHaveCount(2);
@@ -1641,8 +1754,11 @@ test('accepting MICRO_START narrows the task to its first step, for two minutes'
 
   await window.getByTestId('focus-stuck').click();
   await window.getByTestId('stuck-cannot-start').click();
-  await expect(window.locator('.agent')).toHaveAttribute('data-action', 'MICRO_START');
-  await window.getByTestId('notice-continue').click();
+  // The suggestion is answered where it appears — in the step it is about, since the focus screen's bottom
+  // slot carries the return card and nothing else.
+  const offered = window.getByTestId('agent-offered');
+  await expect(offered).toHaveAttribute('data-action', 'MICRO_START');
+  await offered.getByRole('button', { name: 'Try this', exact: true }).click();
   await expect(window.getByTestId('agent-accepted')).toBeVisible();
 
   // The same task, presented as the one step its own concept starts with — and its own two minutes.
@@ -1713,8 +1829,9 @@ test('accepting SIMPLIFY splits the task into the steps it is made of', async ()
 
   await window.getByTestId('focus-stuck').click();
   await window.getByTestId('stuck-too-big').click();
-  await expect(window.locator('.agent')).toHaveAttribute('data-action', 'SIMPLIFY');
-  await window.getByTestId('notice-simplify').click();
+  const offered = window.getByTestId('agent-offered');
+  await expect(offered).toHaveAttribute('data-action', 'SIMPLIFY');
+  await offered.getByRole('button', { name: 'Try this', exact: true }).click();
   await expect(window.getByTestId('agent-accepted')).toBeVisible();
 
   // The same task, presented as its concept's own key points — and at the steps' total, not the
@@ -1762,7 +1879,7 @@ test('both remaining reasons are answered with a hint, and the dashboard reports
     await expect(accepted).toBeHidden();
   }
 
-  await clickSidebarLink('Dashboard');
+  await openMoreData(window);
   const row = window.locator('[data-testid="rescue-row"][data-action="HINT"]');
   await expect(row).toBeVisible();
   // Asking again on the same step inside the window is what the evaluator calls repeated help, so the
@@ -2008,7 +2125,7 @@ test('a suggestion is stored only after the on-screen confirmation; a stale conf
       });
     }, sessionId);
     await clickSidebarLink('Home');
-    await clickSidebarLink('Dashboard');
+    await openMoreData(window);
   };
   seed(2, 3);
   await refresh();
@@ -2326,8 +2443,12 @@ test('the ambient layer is off until the learner asks for it, and the store answ
 test('a proposed change is confirmed on screen and lands in the log', async () => {
   await clickSidebarLink('Home');
   await window.getByTestId('course-card').first().getByTestId('start-session').click();
-  // The log the learner reads lives on the Dashboard route, so that is where the ask must appear.
-  await clickSidebarLink('Dashboard');
+  /*
+   * The log the learner reads lives on the record screen, and it stays readable while the offer is on
+   * screen - which is the reason it is a route rather than a dialog. So that is where the ask must
+   * appear, and where the two rows below are asserted.
+   */
+  await openMoreData(window);
 
   const proposed = await window.evaluate(async () => {
     const snapshot = await globalThis.focusloop.getCurrentSession();
@@ -2377,8 +2498,8 @@ test('a proposed change is confirmed on screen and lands in the log', async () =
 test('a proposal that expires while it is on screen says so, with the reason', async () => {
   await clickSidebarLink('Home');
   await window.getByTestId('course-card').first().getByTestId('start-session').click();
-  // On the Dashboard route, so "no applied row exists" is a claim about the visible log.
-  await clickSidebarLink('Dashboard');
+  // On the record screen, so "no applied row exists" is a claim about the visible log.
+  await openMoreData(window);
 
   await window.evaluate(async () => {
     const snapshot = await globalThis.focusloop.getCurrentSession();
@@ -2476,10 +2597,10 @@ test('a lifecycle tool waits for confirmation, refuses when the state moves, the
   await window.getByTestId('proposal-confirm').click();
   await expect(dialog).toBeHidden();
 
-  // The log lives on the Dashboard route — the same lesson the memory test learned. The zero above
+  // The log lives on the record screen — the same lesson the memory test learned. The zero above
   // was never asserted against a log (dismiss happens before any navigation), so it is the counts
   // below, on the page that has the timeline, that carry the claim.
-  await clickSidebarLink('Dashboard');
+  await openMoreData(window);
 
   // Two TASK_STARTED rows — the user's mutation and the tool's effect, different sources, so the
   // timeline keeps them apart — and exactly one applied-change row for the executed proposal.
@@ -2554,7 +2675,7 @@ test('a structural tool confirms through the full screen and refuses when the st
   await window.getByTestId('proposal-confirm').click();
   await expect(dialog).toBeHidden();
 
-  await clickSidebarLink('Dashboard');
+  await openMoreData(window);
   await expect(
     window.locator('[data-testid="timeline-row"] strong[title="TASKS_REORDERED"]'),
   ).toHaveCount(1);
