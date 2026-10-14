@@ -115,6 +115,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   as `fatal: could not read Username for 'https://github.com': No such device or address` — true, red,
   and pointing at the network rather than at the secret.
 
+- **A secret that never received its token now says so, instead of blaming permissions.** Two faults
+  wore one message: a credential that was _rejected_ — expired, revoked, unable to write — and a secret
+  whose value was never a credential at all. The second turned up in the wild: a `WIKI_SYNC_TOKEN`
+  holding a single non-alphanumeric character reported "The credential was rejected by the wiki
+  repository", which is true, and which sends the reader off to check scopes when the paste is what
+  failed. That branch now reports the stored value's length and the absence of a `ghp_` /
+  `github_pat_` / `gho_` / `ghs_` prefix instead, and the snippet in `docs/publishing.md` that sets the
+  secret refuses to store anything shorter than 20 characters — so the mistake cannot reach the
+  workflow in the first place.
+
 ## [0.1.0-demo] — 2026-09-17
 
 The first demonstrable end-to-end slice. FocusLoop does not diagnose ADHD; it tracks the learning

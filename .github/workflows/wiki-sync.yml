@@ -93,13 +93,47 @@ jobs:
 
           # The override is set and GitHub did not accept it. That is a reason to say so, not a reason to
           # leave the wiki unpublished.
+          #
+          # Two different faults, and they need different words. A credential can be *rejected* — expired,
+          # revoked, or not allowed to write — or it can be *not a credential at all*, which is what a
+          # secret that never received the token looks like. The second was found in the wild: a
+          # `WIKI_SYNC_TOKEN` holding a single non-alphanumeric character produced "the credential was
+          # rejected by the wiki repository", which is true and sends the reader off to check scopes when
+          # the actual problem is that the paste did not take. The length is printed in that branch only:
+          # it is the identifying fact, and a value that short is not protecting anything.
           rm -rf "$RUNNER_TEMP/wiki"
-          echo "::warning::WIKI_SYNC_TOKEN was rejected by the wiki repository, so the built-in token published instead. Check that it has not expired or been revoked and that it may push to this repository's wiki; deleting the secret removes this warning."
+          case "$OVERRIDE" in
+            ghp_*|github_pat_*|gho_*|ghs_*)
+              looks_like_credential=yes
+              ;;
+            *)
+              # GitHub stopped issuing unprefixed classic tokens in 2021, but one may still be in use: 40
+              # hex characters.
+              if [ ${#OVERRIDE} -eq 40 ] && printf '%s' "$OVERRIDE" | grep -qE '^[0-9a-f]{40}$'; then
+                looks_like_credential=yes
+              else
+                looks_like_credential=no
+              fi
+              ;;
+          esac
+
+          if [ "$looks_like_credential" = 'yes' ]; then
+            echo "::warning::WIKI_SYNC_TOKEN was rejected by the wiki repository, so the built-in token published instead. Check that it has not expired or been revoked and that it may push to this repository's wiki; deleting the secret removes this warning."
+          else
+            echo "::warning::WIKI_SYNC_TOKEN does not look like a GitHub credential — the stored value is ${#OVERRIDE} character(s) with no ghp_/github_pat_/gho_/ghs_ prefix — so the built-in token published instead. The secret most likely never received the token. Set it again and check the value before storing it; docs/publishing.md has a snippet that refuses to store a value that short."
+          fi
           {
             echo "### The wiki published with the built-in token"
             echo
-            echo '`WIKI_SYNC_TOKEN` is set, but the wiki repository **rejected** it, so this run used the'
-            echo 'built-in token instead. Fix or delete the secret; `docs/publishing.md` has the commands.'
+            if [ "$looks_like_credential" = 'yes' ]; then
+              echo '`WIKI_SYNC_TOKEN` is set, but the wiki repository **rejected** it, so this run used the'
+              echo 'built-in token instead. Fix or delete the secret; `docs/publishing.md` has the commands.'
+            else
+              echo '`WIKI_SYNC_TOKEN` is set but does not look like a GitHub credential '
+              echo "(${#OVERRIDE} character(s), no token prefix), so this run used the built-in token"
+              echo 'instead — the secret most likely never received the token. `docs/publishing.md` has a'
+              echo 'snippet that checks the value before storing it.'
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
           builtin
 

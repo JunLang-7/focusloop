@@ -190,15 +190,19 @@ gh secret set WIKI_SYNC_TOKEN --repo nianpingy-cpu/focusloop     # optional; pas
 gh secret delete WIKI_SYNC_TOKEN --repo nianpingy-cpu/focusloop  # remove it again
 ```
 
-Before pasting one, check what you have — a rejected token is the failure this workflow now tolerates,
-but it is still a token that does not work:
+Before pasting one, check what you have. A rejected token is the failure this workflow tolerates, but it
+is still a token that does not work — and the way this went wrong once is worth avoiding: a secret was
+stored holding a **single character**, because the value was never checked between the paste and the
+`gh secret set`. This snippet refuses to store anything that is not plausibly a token, so the mistake
+cannot reach the workflow:
 
 ```powershell
-$t = [System.Net.NetworkCredential]::new('', (Read-Host "PAT" -AsSecureString)).Password.Trim()
+$t = [System.Net.NetworkCredential]::new('', (Read-Host 'Paste the PAT' -AsSecureString)).Password.Trim()
+if ($t.Length -lt 20) { throw "That is $($t.Length) character(s) — the paste did not take. Nothing was stored." }
+"type: $(if ($t.StartsWith('github_pat_')) { 'fine-grained' } else { 'classic' }), $($t.Length) characters"
 $h = @{ Authorization = "Bearer $t"; Accept = 'application/vnd.github+json' }
 $repo = Invoke-RestMethod https://api.github.com/repos/nianpingy-cpu/focusloop -Headers $h
-"type      : $(if ($t.StartsWith('github_pat_')) { 'fine-grained' } else { 'classic' })"
-"can push  : $($repo.permissions.push)"   # must be True, and the token needs Contents: read *and write*
+if (-not $repo.permissions.push) { throw 'This token cannot push to this repository, so it cannot publish the wiki.' }
 gh secret set WIKI_SYNC_TOKEN --repo nianpingy-cpu/focusloop --body $t   # --body, so nothing else is in the value
 ```
 
