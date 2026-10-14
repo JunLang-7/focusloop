@@ -121,6 +121,15 @@ const api: FocusLoopApi = {
     ),
   setAmbientSound: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.setAmbientSound, payload.setAmbientSound(request.ambientSound)),
+  setReminderEnabled: (request) =>
+    ipcRenderer.invoke(
+      IPC_CHANNELS.setReminderEnabled,
+      payload.setReminderEnabled(request.reminderEnabled),
+    ),
+  setReminderTime: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setReminderTime, payload.setReminderTime(request.reminderTime)),
+  setOnboarded: (request) =>
+    ipcRenderer.invoke(IPC_CHANNELS.setOnboarded, payload.setOnboarded(request.onboarded)),
   setClockFormat: (request) =>
     ipcRenderer.invoke(IPC_CHANNELS.setClockFormat, payload.setClockFormat(request.clockFormat)),
 

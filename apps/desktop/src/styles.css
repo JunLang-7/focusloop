@@ -1502,6 +1502,40 @@ textarea:focus {
   font-size: 12px;
 }
 
+/*
+ * The on/off switch, global because two surfaces use it: the settings row and the first-run
+ * questionnaire. It was component-scoped, which meant the second caller would have had to copy it —
+ * a control that is copied is a control that drifts.
+ */
+.settings-switch {
+  flex: none;
+  width: 38px;
+  height: 22px;
+  padding: 3px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--border);
+  cursor: pointer;
+}
+
+.settings-switch span {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 120ms ease;
+}
+
+.settings-switch[aria-checked='true'] {
+  background: var(--accent-strong);
+}
+
+.settings-switch[aria-checked='true'] span {
+  transform: translateX(16px);
+  background: var(--on-accent);
+}
+
 .pill {
   display: inline-block;
   margin-left: 8px;

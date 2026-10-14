@@ -204,8 +204,10 @@ test('wheel scrolling runs at half speed across the page and settings, leaving p
     ).toBe(false);
     await expect.poll(() => target.evaluate((element) => element.scrollTop)).toBe(25);
 
-    // With no overflow left, the event is handed back untouched.
-    await page.setViewportSize({ width: 1280, height: 950 });
+    // With no overflow left, the event is handed back untouched. The height is chosen so the panel
+    // (which gained the reminder row) is taller than its content; the boundary itself is what this
+    // test is about, not the number of rows the General tab happens to have.
+    await page.setViewportSize({ width: 1280, height: 1400 });
     await expect
       .poll(() => target.evaluate((element) => element.scrollHeight <= element.clientHeight + 1))
       .toBe(true);

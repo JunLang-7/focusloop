@@ -100,6 +100,9 @@ import {
   coerceLocale,
   coerceAmbientSound,
   coerceClockFormat,
+  coerceOnboarded,
+  coerceReminderEnabled,
+  coerceReminderTime,
   coerceShowMaterialText,
   coerceTheme,
   isMoodValue,
@@ -186,6 +189,12 @@ export const AMBIENT_SOUND_KEY = 'ambient-sound';
 
 /** The `app_meta` key the 12h/24h clock preference is stored under. */
 export const CLOCK_FORMAT_KEY = 'clock-format';
+
+/** The `app_meta` keys the daily reminder is stored under. */
+export const REMINDER_ENABLED_KEY = 'reminder-enabled';
+export const REMINDER_TIME_KEY = 'reminder-time';
+/** Whether the first-run questionnaire has been answered. */
+export const ONBOARDED_KEY = 'onboarded';
 
 /**
  * A request the engine refuses, carrying the code the caller branches on — so a rejection is a value
@@ -2283,6 +2292,9 @@ export class FocusLoopEngine {
       showMaterialText: coerceShowMaterialText(this.store.getMeta(SHOW_MATERIAL_TEXT_KEY)),
       ambientSound: coerceAmbientSound(this.store.getMeta(AMBIENT_SOUND_KEY)),
       clockFormat: coerceClockFormat(this.store.getMeta(CLOCK_FORMAT_KEY)),
+      reminderEnabled: coerceReminderEnabled(this.store.getMeta(REMINDER_ENABLED_KEY)),
+      reminderTime: coerceReminderTime(this.store.getMeta(REMINDER_TIME_KEY)),
+      onboarded: coerceOnboarded(this.store.getMeta(ONBOARDED_KEY)),
     };
   }
 
@@ -2303,6 +2315,21 @@ export class FocusLoopEngine {
 
   setAmbientSound(ambientSound: boolean): AppSettings {
     this.store.setMeta(AMBIENT_SOUND_KEY, ambientSound ? 'true' : 'false');
+    return this.getSettings();
+  }
+
+  setReminderEnabled(reminderEnabled: boolean): AppSettings {
+    this.store.setMeta(REMINDER_ENABLED_KEY, reminderEnabled ? 'true' : 'false');
+    return this.getSettings();
+  }
+
+  setReminderTime(reminderTime: string): AppSettings {
+    this.store.setMeta(REMINDER_TIME_KEY, coerceReminderTime(reminderTime));
+    return this.getSettings();
+  }
+
+  setOnboarded(onboarded: boolean): AppSettings {
+    this.store.setMeta(ONBOARDED_KEY, onboarded ? 'true' : 'false');
     return this.getSettings();
   }
 

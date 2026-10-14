@@ -120,6 +120,34 @@ import { I18nService, LOCALE_LABELS } from '../core/i18n/i18n.service';
           <span></span>
         </button>
       </section>
+      <section class="general__row">
+        <div>
+          <h2 id="reminder-title">{{ t('settings.reminder') }}</h2>
+          <p>{{ t('settings.reminderHint') }}</p>
+        </div>
+        <div class="reminder">
+          <input
+            type="time"
+            class="reminder__time"
+            data-testid="reminder-time"
+            aria-label="{{ t('settings.reminder') }}"
+            [value]="state.reminderTime()"
+            [disabled]="!state.reminderEnabled()"
+            (change)="chooseReminderTime($event)"
+          />
+          <button
+            type="button"
+            class="settings-switch"
+            role="switch"
+            data-testid="reminder-toggle"
+            [attr.aria-labelledby]="'reminder-title'"
+            [attr.aria-checked]="state.reminderEnabled()"
+            (click)="toggleReminder()"
+          >
+            <span></span>
+          </button>
+        </div>
+      </section>
       <section class="general__data" aria-labelledby="data-title">
         <h2 id="data-title">{{ t('settings.data') }}</h2>
         <p>{{ t('settings.dataHint') }}</p>
@@ -145,5 +173,11 @@ export class GeneralSettingsComponent {
   }
   protected toggleMaterial(): void {
     void this.state.setShowMaterialText(!this.state.showMaterialText());
+  }
+  protected toggleReminder(): void {
+    void this.state.setReminderEnabled(!this.state.reminderEnabled());
+  }
+  protected chooseReminderTime(event: Event): void {
+    void this.state.setReminderTime((event.target as HTMLInputElement).value);
   }
 }

@@ -4,6 +4,9 @@ import {
   DEFAULT_CLOCK_FORMAT,
   DEFAULT_INSIGHT_RANGE,
   DEFAULT_LOCALE,
+  DEFAULT_ONBOARDED,
+  DEFAULT_REMINDER_ENABLED,
+  DEFAULT_REMINDER_TIME,
   DEFAULT_SHOW_MATERIAL_TEXT,
   DEFAULT_THEME,
 } from '@focusloop/shared-types';
@@ -241,6 +244,18 @@ export class AppStateService {
    * on its own.
    */
   readonly ambientSound = signal<boolean>(DEFAULT_AMBIENT_SOUND);
+  /** The daily study reminder, and the local time it fires. `HH:MM`, 24-hour. */
+  readonly reminderEnabled = signal<boolean>(DEFAULT_REMINDER_ENABLED);
+  readonly reminderTime = signal<string>(DEFAULT_REMINDER_TIME);
+  /** Whether the first-run questionnaire has been answered, so it is offered once. */
+  readonly onboarded = signal<boolean>(DEFAULT_ONBOARDED);
+  /**
+   * Whether the stored settings have been read yet.
+   *
+   * The questionnaire must not flash on every launch before the answer arrives, so it is gated on this
+   * rather than on the settings' defaults — which look exactly like a first run until they load.
+   */
+  readonly settingsReady = signal(false);
   /** `24h` writes `13:05`, `12h` writes `1:05 PM`. A display preference, stored by the store. */
   readonly clockFormat = signal<ClockFormat>(DEFAULT_CLOCK_FORMAT);
   /**
@@ -350,6 +365,9 @@ export class AppStateService {
         theme: DEFAULT_THEME,
         showMaterialText: DEFAULT_SHOW_MATERIAL_TEXT,
         ambientSound: DEFAULT_AMBIENT_SOUND,
+        reminderEnabled: DEFAULT_REMINDER_ENABLED,
+        reminderTime: DEFAULT_REMINDER_TIME,
+        onboarded: DEFAULT_ONBOARDED,
         clockFormat: DEFAULT_CLOCK_FORMAT,
       };
     }
@@ -388,6 +406,27 @@ export class AppStateService {
     await this.run(async () => {
       const settings = await this.api.setAmbientSound({ ambientSound });
       this.ambientSound.set(settings.ambientSound);
+    });
+  }
+
+  async setReminderEnabled(reminderEnabled: boolean): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setReminderEnabled({ reminderEnabled });
+      this.reminderEnabled.set(settings.reminderEnabled);
+    });
+  }
+
+  async setReminderTime(reminderTime: string): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setReminderTime({ reminderTime });
+      this.reminderTime.set(settings.reminderTime);
+    });
+  }
+
+  async setOnboarded(onboarded: boolean): Promise<void> {
+    await this.run(async () => {
+      const settings = await this.api.setOnboarded({ onboarded });
+      this.onboarded.set(settings.onboarded);
     });
   }
 
@@ -501,6 +540,9 @@ export class AppStateService {
       this.locale.set(settings.locale);
       this.theme.set(settings.theme);
       this.showMaterialText.set(settings.showMaterialText);
+      this.reminderEnabled.set(settings.reminderEnabled);
+      this.reminderTime.set(settings.reminderTime);
+      this.onboarded.set(settings.onboarded);
       this.clockFormat.set(settings.clockFormat);
 
       await this.refresh();

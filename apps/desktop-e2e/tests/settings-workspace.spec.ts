@@ -38,6 +38,9 @@ test('sidebar keeps learning navigation; modal General and Models tabs persist p
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
     await page.getByTestId('material-text-toggle').click();
     await expect(page.getByTestId('material-text-toggle')).toHaveAttribute('aria-checked', 'false');
+    await page.getByTestId('reminder-toggle').click();
+    await page.getByTestId('reminder-time').fill('07:45');
+    await expect(page.getByTestId('reminder-toggle')).toHaveAttribute('aria-checked', 'true');
     await page.getByTestId('clock-12h').click();
     await expect(page.getByTestId('clock-12h')).toHaveAttribute('aria-pressed', 'true');
     await page.screenshot({ path: testInfo.outputPath('general-light-zh.png') });
@@ -68,6 +71,8 @@ test('sidebar keeps learning navigation; modal General and Models tabs persist p
       'aria-checked',
       'false',
     );
+    await expect(second.getByTestId('reminder-toggle')).toHaveAttribute('aria-checked', 'true');
+    await expect(second.getByTestId('reminder-time')).toHaveValue('07:45');
     await expect(second.getByTestId('clock-12h')).toHaveAttribute('aria-pressed', 'true');
     await second.getByTestId('theme-system').click();
     await expect(second.getByTestId('theme-system')).toHaveAttribute('aria-pressed', 'true');

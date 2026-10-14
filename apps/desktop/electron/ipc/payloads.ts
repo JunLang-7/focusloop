@@ -16,6 +16,9 @@ import type {
   ResumeDecisionRequest,
   ResolveInterventionRequest,
   SetAmbientSoundRequest,
+  SetOnboardedRequest,
+  SetReminderEnabledRequest,
+  SetReminderTimeRequest,
   SetClockFormatRequest,
   ClockFormat,
   SetLocaleRequest,
@@ -91,6 +94,11 @@ export const payload = {
     showMaterialText,
   }),
   setAmbientSound: (ambientSound: boolean): SetAmbientSoundRequest => ({ ambientSound }),
+  setReminderEnabled: (reminderEnabled: boolean): SetReminderEnabledRequest => ({
+    reminderEnabled,
+  }),
+  setReminderTime: (reminderTime: string): SetReminderTimeRequest => ({ reminderTime }),
+  setOnboarded: (onboarded: boolean): SetOnboardedRequest => ({ onboarded }),
   setClockFormat: (clockFormat: ClockFormat): SetClockFormatRequest => ({ clockFormat }),
   saveLlmProvider: (request: SaveProviderRequest): SaveProviderRequest => ({
     provider: request.provider,

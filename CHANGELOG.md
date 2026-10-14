@@ -19,6 +19,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **The clock can be 24-hour or 12-hour.** A display preference in Settings, beside the theme, stored by
   the store like the language. It changes how a time of day is written and nothing else — a duration
   still reads `3:09` in both, because that is minutes and seconds, not a time of day.
+- **A daily reminder to start, and a first-run questionnaire that asks for it.** The app can now nudge
+  the learner once a day, at a time they choose, when no session is running — a reminder to _start_,
+  never to keep going, because the inside of a session already has the clock and the resume card and a
+  notification there is the interruption this product removes. It is owned by the renderer rather than
+  the main process, so the wording stays with the rest of the interface language. On a first run the app
+  asks two questions whose answers are real settings — whether and when to be nudged, and how it should
+  look — and writes them only if the learner accepts; "Later" changes nothing and still stops it asking
+  again. The e2e harness answers the questionnaire for every launch, as it does the distraction sensor,
+  because every spec is a fresh profile; one spec keeps it to exercise the flow.
 - **An answer can be a file, and the app reads it here.** A step's answer box, and the same box on a
   resume card, now carry an attach button beside the one that asks the tutor. Plain text, Markdown,
   PDF, Word (`.docx`) and photographs of notes are all accepted, and all four readers run inside the

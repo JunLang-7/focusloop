@@ -24,7 +24,19 @@ export function hermeticEnv(sourceEnv = process.env) {
    * background observation deciding otherwise, so the sensor is opt-in here and the one spec that
    * exercises it turns it back on. The same shape as FOCUSLOOP_TICK_INTERVAL_MS.
    */
-  const env = { ...sourceEnv, FOCUSLOOP_DEV: '1', FOCUSLOOP_DISTRACTION_SENSOR: '0' };
+  /*
+   * The first-run questionnaire is answered for every launch by default.
+   *
+   * Every spec uses a fresh profile, so every spec is a first run; a modal that is right for a learner
+   * would sit over the whole suite. It is opt-out here and the one spec that exercises the questionnaire
+   * turns it back on, the same shape as the sensor below.
+   */
+  const env = {
+    ...sourceEnv,
+    FOCUSLOOP_DEV: '1',
+    FOCUSLOOP_DISTRACTION_SENSOR: '0',
+    FOCUSLOOP_ONBOARDING: '0',
+  };
   // Electron's launch env is Record<string, string>; drop any undefined leftovers from process.env.
   return Object.fromEntries(
     Object.entries(env).filter(

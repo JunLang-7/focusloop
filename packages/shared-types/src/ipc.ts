@@ -104,6 +104,9 @@ export const IPC_CHANNELS = {
   setTheme: 'focusloop:settings:set-theme',
   setShowMaterialText: 'focusloop:settings:set-material-text',
   setAmbientSound: 'focusloop:settings:set-ambient-sound',
+  setReminderEnabled: 'focusloop:settings:set-reminder-enabled',
+  setReminderTime: 'focusloop:settings:set-reminder-time',
+  setOnboarded: 'focusloop:settings:set-onboarded',
   setClockFormat: 'focusloop:settings:set-clock-format',
   getModelSettings: 'focusloop:model:settings',
   getLlmSettings: 'focusloop:llm:settings',
@@ -343,6 +346,19 @@ export interface SetAmbientSoundRequest {
   readonly ambientSound: boolean;
 }
 
+export interface SetReminderEnabledRequest {
+  readonly reminderEnabled: boolean;
+}
+
+export interface SetReminderTimeRequest {
+  /** `HH:MM`, 24-hour. */
+  readonly reminderTime: string;
+}
+
+export interface SetOnboardedRequest {
+  readonly onboarded: boolean;
+}
+
 export interface SetClockFormatRequest {
   readonly clockFormat: ClockFormat;
 }
@@ -481,6 +497,9 @@ export interface FocusLoopApi {
   setTheme(request: SetThemeRequest): Promise<AppSettings>;
   setShowMaterialText(request: SetShowMaterialTextRequest): Promise<AppSettings>;
   setAmbientSound(request: SetAmbientSoundRequest): Promise<AppSettings>;
+  setReminderEnabled(request: SetReminderEnabledRequest): Promise<AppSettings>;
+  setReminderTime(request: SetReminderTimeRequest): Promise<AppSettings>;
+  setOnboarded(request: SetOnboardedRequest): Promise<AppSettings>;
   setClockFormat(request: SetClockFormatRequest): Promise<AppSettings>;
 
   /** Runtime identity and non-secret provider configuration. */

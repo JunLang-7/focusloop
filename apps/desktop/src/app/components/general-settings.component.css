@@ -131,30 +131,29 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.settings-switch {
-  flex: none;
-  width: 38px;
-  height: 22px;
-  padding: 3px;
+/* The time input and the on/off switch, one control: the time is only live while the switch is on. */
+.reminder {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.reminder__time {
+  height: 36px;
+  padding: 0 10px;
   border: 0;
-  border-radius: 11px;
-  background: var(--border);
-  cursor: pointer;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  color-scheme: dark;
 }
-.settings-switch span {
-  display: block;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--text-muted);
-  transition: transform 120ms ease;
+.reminder__time:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
-.settings-switch[aria-checked='true'] {
-  background: var(--accent-strong);
-}
-.settings-switch[aria-checked='true'] span {
-  transform: translateX(16px);
-  background: var(--on-accent);
+:host-context([data-theme='light']) .reminder__time {
+  color-scheme: light;
 }
 .general__data {
   padding: 22px 0;

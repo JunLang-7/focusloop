@@ -4,9 +4,14 @@
 :host {
   display: contents;
 }
+/*
+ * The height is a share of the window up to a ceiling, so a tall window shows the whole General tab.
+ * It was capped at 740px, which was the height the tab needed before the reminder row; past that the
+ * panel simply scrolls, and there is no window tall enough to show every setting at once.
+ */
 .settings {
   width: min(900px, calc(100vw - 48px));
-  height: min(740px, calc(100dvh - 48px));
+  height: min(860px, calc(100dvh - 48px));
   max-height: calc(100dvh - 48px);
   padding: 0;
   background: var(--bg-elevated);

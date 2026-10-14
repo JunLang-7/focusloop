@@ -56,6 +56,15 @@ async function bootstrap(): Promise<void> {
   service.store.setMeta('last_boot_at', new Date().toISOString());
 
   /*
+   * The first-run questionnaire is answered for a launch that asks to skip it. Every e2e spec uses a
+   * fresh profile, so *every* spec is a first run; the harness sets this and the one spec that exercises
+   * the questionnaire clears it. A real launch has no such variable and sees it once, as intended.
+   */
+  if (process.env['FOCUSLOOP_ONBOARDING'] === '0') {
+    service.engine.setOnboarded(true);
+  }
+
+  /*
    * Every window, looked up when an event is delivered rather than captured here: the bridge starts
    * before any window exists, and the tick outlives every window the learner closes.
    */

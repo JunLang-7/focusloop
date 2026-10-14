@@ -14,6 +14,7 @@ import type { LearningState, StateShare } from '@focusloop/shared-types';
 import { AppStateService } from './core/app-state.service';
 import { AmbientSoundService } from './core/ambient-sound.service';
 import { I18nService, type MessageKey } from './core/i18n/i18n.service';
+import { ReminderService } from './core/reminder.service';
 import { STATE_KEYS } from './core/i18n/labels';
 import { applyLanguage } from './core/language';
 import { STATE_COLORS, percentLabel, formatSpan, visibleShares } from './core/insights-view';
@@ -28,6 +29,7 @@ import {
   SettingsDialogComponent,
   type SettingsSection,
 } from './components/settings-dialog.component';
+import { OnboardingDialogComponent } from './components/onboarding-dialog.component';
 
 const PEEK_CLOSE_DELAY_MS = 150;
 
@@ -43,6 +45,7 @@ const PEEK_CLOSE_DELAY_MS = 150;
     AgentPanelComponent,
     ProposalConfirmComponent,
     SettingsDialogComponent,
+    OnboardingDialogComponent,
   ],
   template: `
     <div
@@ -213,6 +216,14 @@ const PEEK_CLOSE_DELAY_MS = 150;
     @if (settingsOpen()) {
       <fl-settings-dialog [initialSection]="settingsInitialSection()" (closed)="closeSettings()" />
     }
+    <!--
+      The first-run questionnaire, once the stored settings have actually been read. Gating on
+      settingsReady is what keeps it from flashing on every launch: the defaults look exactly like a
+      first run until the answer arrives.
+    -->
+    @if (settingsReady() && !onboarded()) {
+      <fl-onboarding />
+    }
   `,
 })
 export class AppComponent implements OnInit, OnDestroy {
@@ -220,6 +231,7 @@ export class AppComponent implements OnInit, OnDestroy {
   private readonly i18n = inject(I18nService);
   private readonly router = inject(Router);
   private readonly zone = inject(NgZone);
+  private readonly reminder = inject(ReminderService);
   private uninstallScrollSpeed: (() => void) | null = null;
   protected readonly currentUrl = signal(this.router.url);
   protected readonly onFocusRoute = computed(() => isFocusRoute(this.currentUrl()));
@@ -230,6 +242,9 @@ export class AppComponent implements OnInit, OnDestroy {
   private routerSubscription: Subscription | null = null;
   private peekTimer: ReturnType<typeof setTimeout> | null = null;
   protected readonly state = this.stateService.state;
+  /** Read by the template to gate the first-run questionnaire; the service itself stays private. */
+  protected readonly settingsReady = this.stateService.settingsReady;
+  protected readonly onboarded = this.stateService.onboarded;
   protected readonly runtime = this.stateService.runtime;
   protected readonly settingsPlatform = computed(() => {
     const platform = this.runtime()?.platform;
@@ -297,9 +312,16 @@ export class AppComponent implements OnInit, OnDestroy {
       this.stateService.theme.set(settings.theme);
       this.stateService.showMaterialText.set(settings.showMaterialText);
       this.stateService.ambientSound.set(settings.ambientSound);
+      this.stateService.reminderEnabled.set(settings.reminderEnabled);
+      this.stateService.reminderTime.set(settings.reminderTime);
+      this.stateService.onboarded.set(settings.onboarded);
+      this.stateService.settingsReady.set(true);
       this.stateService.clockFormat.set(settings.clockFormat);
     });
     void this.stateService.refresh();
+    // Starts the daily reminder's timer. Its first check runs before settings have loaded, which is
+    // harmless — the default is off — and the interval reads the enabled state on every check.
+    this.reminder.start();
     this.unsubscribe = this.stateService.subscribeToEvents();
     this.routerSubscription = this.router.events
       .pipe(filter((event): event is NavigationEnd => event instanceof NavigationEnd))
@@ -311,6 +333,7 @@ export class AppComponent implements OnInit, OnDestroy {
       });
   }
   ngOnDestroy(): void {
+    this.reminder.stop();
     this.uninstallScrollSpeed?.();
     this.unsubscribe?.();
     this.routerSubscription?.unsubscribe();
