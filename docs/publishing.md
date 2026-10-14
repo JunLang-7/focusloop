@@ -191,20 +191,33 @@ gh secret delete WIKI_SYNC_TOKEN --repo nianpingy-cpu/focusloop  # remove it aga
 ```
 
 Before pasting one, check what you have. A rejected token is the failure this workflow tolerates, but it
-is still a token that does not work — and the way this went wrong once is worth avoiding: a secret was
-stored holding a **single character**, because the value was never checked between the paste and the
-`gh secret set`. This snippet refuses to store anything that is not plausibly a token, so the mistake
-cannot reach the workflow:
+is still a token that does not work — and two ways of getting this wrong are worth avoiding, because
+both have happened. Once, a secret was stored holding a **single character**, because nothing checked
+the value between the paste and the `gh secret set`. And once, a multi-character paste into
+`Read-Host -AsSecureString` delivered **one character** to the prompt and spilled the rest of the token
+onto the screen afterwards — the guard below caught it (`Nothing was stored`), but the token was now
+echoed into a terminal's scrollback, which is a leak, not an inconvenience.
+
+So the snippet reads the **clipboard** rather than asking you to paste into a prompt: no terminal is
+involved in the transfer, so there is nothing to truncate and nothing to echo.
 
 ```powershell
-$t = [System.Net.NetworkCredential]::new('', (Read-Host 'Paste the PAT' -AsSecureString)).Password.Trim()
-if ($t.Length -lt 20) { throw "That is $($t.Length) character(s) — the paste did not take. Nothing was stored." }
-"type: $(if ($t.StartsWith('github_pat_')) { 'fine-grained' } else { 'classic' }), $($t.Length) characters"
+# Copy the PAT first. Then, with nothing else on the clipboard:
+$t = (Get-Clipboard -Raw).Trim() -replace '\s', ''
+if ($t.Length -lt 20 -or $t -notmatch '^(ghp_|github_pat_|gho_|ghs_)') {
+  throw "The clipboard does not hold a token ($($t.Length) characters). Copy the PAT again and re-run."
+}
 $h = @{ Authorization = "Bearer $t"; Accept = 'application/vnd.github+json' }
 $repo = Invoke-RestMethod https://api.github.com/repos/nianpingy-cpu/focusloop -Headers $h
 if (-not $repo.permissions.push) { throw 'This token cannot push to this repository, so it cannot publish the wiki.' }
 gh secret set WIKI_SYNC_TOKEN --repo nianpingy-cpu/focusloop --body $t   # --body, so nothing else is in the value
+Set-Clipboard ''                                                        # and do not leave it lying around
 ```
+
+A token that has ever been echoed to a screen — a terminal's output, a transcript, a log, a screenshot —
+is a token to **revoke**, not one to store. Deleting it at
+[github.com/settings/tokens](https://github.com/settings/tokens) and minting a fresh one costs less than
+the alternative.
 
 Use a **dedicated** personal access token. A classic PAT with `repo` is what the wiki-publishing
 ecosystem documents; a fine-grained token is undocumented for wiki Git access, so treat it as
