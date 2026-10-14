@@ -6,8 +6,33 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+## [0.2.0-alpha.1] — 2026-10-14
+
+An alpha preview for trying the learning loop with your own material. Since `0.1.0-demo`,
+FocusLoop adds configurable models, answers and quizzes, file attachments, daily reminders,
+and a revised focus workspace. Local-only use remains available without an API key.
+
+### Highlights
+
+- Configure DeepSeek, OpenAI or a custom OpenAI-compatible provider in Settings, with model
+  discovery, connection testing and an explicit choice of the active model.
+- Write answers, check quizzes and ask the tutor for explanations, hints or feedback; resume
+  an interrupted session with your current step and answer preserved.
+- Attach text, Markdown, PDF, Word documents or pictures of notes to an answer, with local
+  text extraction and English/Chinese OCR.
+- Set a daily reminder that can arrive with the app closed, choose language and appearance
+  during first run, and track wellbeing check-ins and study streaks.
+- Use a consistent blue-and-white interface, a compact Settings dialog and a focus workspace
+  with clearer task controls, plan rows and return cards.
+
 ### Added
 
+- **Configurable LLM providers and models.** Settings supports DeepSeek and OpenAI presets as well
+  as custom OpenAI-compatible endpoints. Fetch models or enter an ID manually, save configuration,
+  test a connection and explicitly enable a model. Each provider has independent credentials,
+  encrypted using the operating system's secure storage and scoped to its endpoint. **Use local
+  only** disables remote model calls while retaining saved configuration. See
+  [LLM Providers](docs/llm-providers.md) for configuration and compatibility details.
 - **A daily wellbeing check-in, and a streak beside the heatmap.** The home page now asks how the day
   feels — five faces and an optional sentence, one answer per local day, stored on this machine and
   editable later. It is a different question from the learning state: the engine can see what the learner
@@ -22,12 +47,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 - **A daily reminder to start, and a first-run questionnaire that asks for it.** The app can now nudge
   the learner once a day, at a time they choose, when no session is running — a reminder to _start_,
   never to keep going, because the inside of a session already has the clock and the resume card and a
-  notification there is the interruption this product removes. It is owned by the renderer rather than
-  the main process, so the wording stays with the rest of the interface language. On a first run the app
-  asks two questions whose answers are real settings — whether and when to be nudged, and how it should
-  look — and writes them only if the learner accepts; "Later" changes nothing and still stops it asking
-  again. The e2e harness answers the questionnaire for every launch, as it does the distraction sensor,
-  because every spec is a fresh profile; one spec keeps it to exercise the flow.
+  notification there is the interruption this product removes. On a first run the app asks for the
+  interface language, whether and when to be nudged, and appearance, with a live language preview.
+  Preferences are saved only if the learner accepts; "Later" leaves them unchanged and stops the
+  questionnaire asking again. The reminder also works with the app closed, as described below.
 - **An answer can be a file, and the app reads it here.** A step's answer box, and the same box on a
   resume card, now carry an attach button beside the one that asks the tutor. Plain text, Markdown,
   PDF, Word (`.docx`) and photographs of notes are all accepted, and all four readers run inside the
@@ -439,6 +462,20 @@ supported format for outline.rst.`: a channel name, an error class, and nothing 
   did nothing. Disabled controls are dimmed, take a `not-allowed` cursor and no longer light up on
   hover, and the tutor panel names the half of the request that is still missing rather than leaving
   the learner to guess which one it is.
+
+### Known limitations
+
+- This is an alpha preview; workflows and interface details may change before a stable release.
+- Course material import accepts text and Markdown. PDF, Word and image extraction is available
+  for **answer attachments**, not course import.
+- Remote tutor and rescue responses require your own API key and provider credit. Compatibility
+  covers Chat Completions and SSE; native Anthropic/Gemini protocols, the Responses API and
+  subscription login are not supported.
+- Windows installers are unsigned. macOS bundles use ad-hoc signing and are not notarized, so
+  downloaded applications may require approval in the operating system's security settings.
+- The release workflow targets Windows and macOS, each in x64 and arm64, plus the browser
+  extension ZIP and checksums. It does not produce a Linux installer.
+- Daily reminder delivery depends on the operating system's scheduler and notification permissions.
 
 ## [0.1.0-demo] — 2026-09-17
 

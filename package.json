@@ -1,6 +1,6 @@
 {
   "name": "focusloop",
-  "version": "0.1.0-demo",
+  "version": "0.2.0-alpha.1",
   "private": true,
   "description": "Local-first cross-platform desktop learning-continuity agent.",
   "license": "MIT",
