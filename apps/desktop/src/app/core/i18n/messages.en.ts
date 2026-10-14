@@ -414,7 +414,7 @@ const en = {
   'dashboard.hero.over.other': 'across {days} active days',
   'dashboard.focusRatio': 'Focused',
   'dashboard.focusRatio.hint':
-    'Shares are of recorded time: silence is counted neither as time nor as being away.',
+    'Shares are of recorded time. A study stretch between two events counts in full; an unwitnessed tail and time away are capped.',
   'dashboard.session.title': 'This session',
   'dashboard.states.title': 'Recorded time by state',
   'dashboard.activity.title': 'Daily activity',

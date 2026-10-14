@@ -6,18 +6,19 @@
  * 1. **Nothing is stored twice.** The summary is rebuilt from the event log by
  *    replaying it through the real state machine, so the dashboard cannot
  *    disagree with the engine about what happened.
- * 2. **Recorded time stops at the idle threshold, witnessed or not.** Nothing the
- *    app can observe says whether a long gap was studying, so a naive reconstruction
- *    would fill it with whatever state happened to be running; the opposite guess is
- *    worse, because charging it as `DISTRACTED` invents an absence nobody observed,
- *    which is how a quiet hour of reading came out as "99.6% 离开中". A witnessed
- *    absence is not the answer either: `TAB_LEFT` then `TAB_RETURNED` the next morning
- *    is a real absence, but it is still not study time, and crediting its whole span
- *    put twenty-two hours of 离开中 into the recorded total. So every stretch is
- *    credited to its state for at most `idleThresholdMs` and nothing is counted past
- *    that. `totalMs` is therefore the time the app can stand behind as study time, not
- *    the session's wall-clock; the labels that read it, the wiki page for this feature,
- *    and `docs/architecture.md` say so.
+ * 2. **Study time is a measure, not a sum of event gaps.** The timeline is the single
+ *    source of truth: replaying the reducer gives the state at every instant, and the
+ *    time credited is the measure of the intervals in which the learner was studying.
+ *    A stretch bounded by two events is credited whole, so splitting it with another
+ *    event cannot change the total — the property the old rule broke, where the same
+ *    ten minutes of reading counted as ten with an event every two minutes and as two
+ *    with only a start and an end. Only two bounds remain, and neither is the old
+ *    per-segment cap: the *unobserved* tail after the last event of an open session is
+ *    bounded at `presenceTimeoutMs` for a study state and at `idleThresholdMs`
+ *    otherwise, and a *non-study* state (away, interrupted, ready) is bounded
+ *    everywhere, so a night away cannot inflate the recorded total. `totalMs` is the
+ *    time the app can stand behind; the labels that read it, the wiki page for this
+ *    feature, and `docs/architecture.md` say so.
  */
 import {
   createInitialState,
@@ -39,6 +40,22 @@ import type {
 import { averageResumeLatencyMs } from '@focusloop/intervention-policy';
 
 const MS_PER_DAY = 86_400_000;
+
+/**
+ * The states a learner can be *studying* in.
+ *
+ * Being on task is not the same as being `FOCUSED`: a learner who is confused or overloaded is still
+ * working on the step, and a rule that only counted `FOCUSED` would read "I was stuck on this for ten
+ * minutes" as "I did not study". `READY` is a session with no task running, `INITIATION_FRICTION` is time
+ * not yet spent on one, and `DISTRACTED` and `INTERRUPTED` are the states this product exists to shorten —
+ * none of them is study time, however long it lasted.
+ */
+const STUDY_STATES: ReadonlySet<LearningState> = new Set<LearningState>([
+  'FOCUSED',
+  'RESUMING',
+  'CONFUSED',
+  'OVERLOADED',
+]);
 
 /** One session, with everything the summary needs about it. */
 export interface InsightsSessionSource {
@@ -80,10 +97,10 @@ export function localDateKey(date: Date): string {
  * Rebuilds the learning-state timeline of one session by replaying its events
  * through the same reducer the live engine uses.
  *
- * `untilIso` bounds an open session; a closed one is bounded by its own `endedAt`. The segments account
- * for the time the events witness — the idle threshold after each one, and for an open session no more
- * than that after its last — and leave the rest out rather than filling it with a state nobody measured.
- * See `credit` below for why that matters to a learner reading their own dashboard.
+ * `untilIso` bounds an open session; a closed one is bounded by its own `endedAt`. The returned segments
+ * are already *credited*, not raw: an interval observed between two events keeps its whole span in a study
+ * state, the unobserved tail is bounded by the presence timeout, and a state that is not study time is
+ * bounded everywhere. See `credit` below for why each bound is where it is.
  */
 export function buildStateTimeline(
   session: LearningSession,
@@ -99,35 +116,38 @@ export function buildStateTimeline(
   const limitMs = Math.min(Number.isFinite(endedMs) ? endedMs : untilMs, untilMs);
   if (!Number.isFinite(limitMs) || limitMs <= startedMs) return [];
 
-  const { idleThresholdMs } = resolveStateEngineConfig(config);
+  const { idleThresholdMs, presenceTimeoutMs } = resolveStateEngineConfig(config);
   const segments: StateSegment[] = [];
 
   /**
-   * Charges a stretch of time to the state the engine was in, up to the idle threshold.
+   * Charges a stretch of time to the state the engine was in.
    *
-   * Every span is capped, and that is the change worth naming. The cap began as a rule about *silence*: a
-   * gap between two events is not evidence of anything, and the uncapped version charged quiet stretches as
-   * `DISTRACTED`, which is where the dashboard's "99.6% 离开中" came from. A witnessed absence then kept its
-   * whole stretch, because `TAB_LEFT` really did observe the learner leaving.
+   * Three rules, and the difference between them is the whole point.
    *
-   * But observing the absence does not make it study time. `TAB_LEFT` at night and `TAB_RETURNED` the next
-   * morning is a real absence, and crediting its whole span put twenty-two hours of 离开中 into the
-   * recorded total, so the page read as a day of study rather than a night away. The threshold is what the
-   * app is willing to stand behind as *recorded* time, not as *observed* time: past it, the timeline stops
-   * rather than guessing whether the learner stayed at the desk.
+   * **A study state between two events keeps its whole span.** That is what makes the total independent of
+   * how often the app happened to write an event: the measure of an interval does not change when the
+   * interval is split. The old rule capped every piece at the idle threshold, so ten minutes of reading
+   * counted as ten with an event every two minutes and as two with a single start and end — the same
+   * behaviour, two different answers.
    *
-   * The threshold is the engine's constant rather than the engine's own rule: `evaluateTimeBasedState`
-   * measures away and idle from an *explicit* report (`awaySince`, `idleSince`), and without one it leaves a
-   * silent learner `FOCUSED` indefinitely. This replay has no such report between two events, so it takes
-   * the threshold as "how long a stretch may be credited" and stops past it.
+   * **The unobserved tail is bounded.** After the last event of a still-open session there is nothing to
+   * say the learner is still there, so a study state is credited at most `presenceTimeoutMs`. A closed
+   * session's end event bounds the interval before it, so it never reaches this branch.
+   *
+   * **A state that is not study time is bounded everywhere.** An absence, an interruption, a session with
+   * no task running: none is study, and an hour away — or twenty-two hours of it — must not read as an hour
+   * of study time on the dashboard. The bound is the idle threshold, which is why the donut still shows a
+   * small 离开中 slice rather than the shape of the night.
    *
    * What is neither credited nor charged is not counted at all, so `totalMs` is the time the app can stand
    * behind rather than the wall-clock a session window happened to span.
    */
-  const credit = (state: LearningState, fromMs: number, toMs: number): void => {
+  const credit = (state: LearningState, fromMs: number, toMs: number, observed: boolean): void => {
     const span = toMs - fromMs;
     if (span <= 0) return;
-    const credited = Math.min(span, idleThresholdMs);
+    const studying = STUDY_STATES.has(state);
+    const credited =
+      studying && observed ? span : Math.min(span, studying ? presenceTimeoutMs : idleThresholdMs);
     if (credited > 0) segments.push({ state, fromMs, toMs: fromMs + credited });
   };
 
@@ -137,21 +157,18 @@ export function buildStateTimeline(
   for (const event of events) {
     const atMs = Date.parse(event.at);
     if (!Number.isFinite(atMs) || atMs < cursor || atMs > limitMs) continue;
-    credit(engineState.state, cursor, atMs);
+    // Bounded on the right by this event, so the stretch is observed; see `credit`.
+    credit(engineState.state, cursor, atMs, true);
     engineState = reduceState(engineState, event, config).state;
     cursor = atMs;
   }
 
   /*
-   * The tail. `credit` bounds this to one idle threshold like every other stretch, whether the session
-   * was closed by an action or left open.
-   *
-   * An open session has no end action, so running its tail to `now` is how a single `TAB_LEFT` filed
-   * sixteen hours of 离开中 against a day and four days against the all-time window. A closed session
-   * has an end action, but that witness only says the learner was there at the end; it does not say the
-   * last three hours were studying, so the same threshold bounds it.
+   * The tail, which is the one stretch with nothing after it to witness it. Whether the session was
+   * closed by an action or left open, `credit` bounds it — at `presenceTimeoutMs` for a study state,
+   * because that is how long the replay will guess an unobserved stretch was still study time.
    */
-  credit(engineState.state, cursor, limitMs);
+  credit(engineState.state, cursor, limitMs, false);
   return segments;
 }
 

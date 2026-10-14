@@ -7,6 +7,16 @@ export interface StateEngineConfig {
   readonly tabLeftThresholdMs: number;
   /** Idle duration that turns DISTRACTED into INTERRUPTED. */
   readonly idleThresholdMs: number;
+  /**
+   * How long an unobserved stretch — after the last event of a still-open session — may be credited to
+   * a study state when the event log is replayed.
+   *
+   * A knob of the *replay*, not of the state machine: no transition reads it. It is here because the
+   * replay was borrowing `idleThresholdMs` for this, which coupled "how long before we call a silent
+   * learner idle" (a state decision) to "how much of an unwitnessed tail we will count as study time"
+   * (a measurement decision). The two are allowed to differ now, which is the point.
+   */
+  readonly presenceTimeoutMs: number;
   /** Time in READY with no task started before INITIATION_FRICTION. */
   readonly initiationFrictionThresholdMs: number;
   /** Consecutive incorrect quizzes before CONFUSED. */
@@ -21,6 +31,7 @@ export interface StateEngineConfig {
 export const DEFAULT_STATE_ENGINE_CONFIG: StateEngineConfig = {
   tabLeftThresholdMs: 20_000,
   idleThresholdMs: 120_000,
+  presenceTimeoutMs: 120_000,
   initiationFrictionThresholdMs: 45_000,
   consecutiveIncorrectThreshold: 2,
   helpRequestOverloadThreshold: 3,

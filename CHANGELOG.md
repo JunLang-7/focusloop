@@ -259,14 +259,18 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
-- **An overnight absence is no longer a day of study.** A witnessed departure kept its whole span because
-  the bridge had observed it, which is right as a report and wrong as recorded time: a session left at
-  night and resumed the next afternoon put twenty-two hours of 离开中 into the dashboard's total, where it
-  read as a day spent studying. Every stretch is now credited to its state for at most `idleThresholdMs`
-  (two minutes) and nothing past that, witnessed or not — the app stops rather than guessing whether the
-  learner stayed at the desk. The hero's recorded time, this session's duration and the state donut all
-  read the same rebuilt timeline, so they move together, and the "silence is neither time nor away" rule
-  the label states is now the rule for every gap.
+- **Study time no longer depends on how often the app wrote an event.** The insights timeline capped
+  every stretch at the idle threshold, so the same ten minutes of reading counted as ten with an event
+  every two minutes and as two with only a start and an end, and a witnessed absence was credited in full
+  — which put twenty-two hours of 离开中 into a session left overnight. The timeline is the single source of
+  truth now: replaying the reducer gives the state at every instant, a stretch bounded by two events is
+  credited **whole** while it is study time (`FOCUSED`, `RESUMING`, `CONFUSED`, `OVERLOADED`), so splitting
+  it with another event cannot change the total, and a state that is not study time is bounded everywhere,
+  so a night away cannot read as a day of study. Only the unobserved tail after the last event of an open
+  session is capped, at a new `presenceTimeoutMs` that is deliberately separate from the state machine's
+  `idleThresholdMs` — changing what the engine calls idle no longer changes how much study time is
+  recorded. Additivity is pinned by tests: ten minutes with two events and with twenty must agree, and a
+  session split at local midnight must sum to the whole.
 - **The return card no longer lands on the plan.** The notice's row and the plan share the bottom of the
   focus screen, and the lift that keeps the step clear of the card measured only the step. At 1280x800
   with the card up the plan's trigger sat 26px behind the notice's top edge, and opening the sheet put

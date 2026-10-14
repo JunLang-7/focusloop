@@ -150,16 +150,36 @@ describe('buildStateTimeline', () => {
     expect(studied).toBeLessThanOrEqual(10 * 60_000);
   });
 
-  it('honours a custom idle threshold', () => {
+  it('honours a custom presence timeout for the unobserved study tail', () => {
     const events = [event('e1', 'TASK_STARTED', at(15, 10), { taskId: 't1' })];
     const segments = buildStateTimeline(
       session(at(15, 10), at(15, 10, 10)),
       events,
       at(15, 10, 10),
-      { idleThresholdMs: 60_000 },
+      { presenceTimeoutMs: 60_000 },
     );
     const focused = segments.find((s) => s.state === 'FOCUSED');
     expect(focused?.toMs).toBe(Date.parse(at(15, 10, 1)));
+  });
+
+  it('keeps the idle threshold and the presence timeout independent', () => {
+    /*
+     * The two knobs answer different questions and must not move together. A learner who reads with no
+     * input for ten minutes is not `DISTRACTED` by this replay — the tail is a study state bounded by the
+     * presence timeout — while `idleThresholdMs` is free to change what the state machine calls idle
+     * without silently changing how much study time is recorded.
+     */
+    const events = [event('e1', 'TASK_STARTED', at(15, 10), { taskId: 't1' })];
+    const withShortIdle = buildStateTimeline(
+      session(at(15, 10), at(15, 10, 10)),
+      events,
+      at(15, 10, 10),
+      {
+        idleThresholdMs: 10_000,
+      },
+    );
+    const focused = withShortIdle.find((s) => s.state === 'FOCUSED');
+    expect(focused?.toMs).toBe(Date.parse(at(15, 10, 2)));
   });
 
   it('bounds the tail of an open session at its last event plus the idle threshold', () => {
@@ -193,6 +213,86 @@ describe('buildStateTimeline', () => {
 
   it('returns nothing for a session that has not started yet', () => {
     expect(buildStateTimeline(session(at(15, 11)), [], at(15, 10))).toEqual([]);
+  });
+
+  it('credits the same study time however often the log records during it', () => {
+    /*
+     * The property the redesign exists for: the measure of an interval does not depend on how many
+     * events fell inside it. Ten minutes on the same task, written down twice or twenty times, must
+     * total the same — the old per-segment cap made the answer depend on event frequency.
+     */
+    const base = Date.parse(at(15, 10));
+    const at1 = (offsetMs: number): string => new Date(base + offsetMs).toISOString();
+    const few = [
+      event('e1', 'TASK_STARTED', at1(0), { taskId: 't1' }),
+      event('e2', 'TASK_ANSWERED', at1(10 * 60_000), { taskId: 't1' }),
+    ];
+    const many = [
+      event('e1', 'TASK_STARTED', at1(0), { taskId: 't1' }),
+      ...Array.from({ length: 19 }, (_, index) =>
+        event(`e${index + 2}`, 'TASK_ANSWERED', at1((index + 1) * 30_000), { taskId: 't1' }),
+      ),
+      event('e21', 'TASK_ANSWERED', at1(10 * 60_000), { taskId: 't1' }),
+    ];
+    const sourceWith = (events: readonly LearningEvent[]): InsightsSessionSource => ({
+      session: session(at(15, 10), at(15, 10, 10)),
+      events,
+      interruptionAt: [],
+      outcomes: [],
+    });
+
+    const fewMs = recordedSessionMs(sourceWith(few), at(15, 10, 10));
+    const manyMs = recordedSessionMs(sourceWith(many), at(15, 10, 10));
+    expect(fewMs).toBe(10 * 60_000);
+    expect(manyMs).toBe(fewMs);
+  });
+
+  it('splits at local midnight without changing the total', () => {
+    // Additivity across the boundary the summary clips to: two half-windows must sum to the whole.
+    const base = new Date(2026, 5, 15, 23, 50, 0, 0);
+    const later = new Date(2026, 5, 16, 0, 10, 0, 0);
+    const events = [
+      event('e1', 'TASK_STARTED', base.toISOString(), { taskId: 't1' }),
+      event('e2', 'TASK_ANSWERED', later.toISOString(), { taskId: 't1' }),
+    ];
+    const overnight: InsightsSessionSource = {
+      session: session(base.toISOString(), later.toISOString()),
+      events,
+      interruptionAt: [],
+      outcomes: [],
+    };
+
+    const whole = buildInsightsSummary({
+      range: 'all',
+      now: later.toISOString(),
+      sources: [overnight],
+      courses: COURSES,
+      currentSessionId: SESSION_ID,
+    });
+    const total = whole.daily.reduce((sum, day) => sum + day.durationMs, 0);
+    expect(whole.totalMs).toBe(20 * 60_000);
+    expect(total).toBe(whole.totalMs);
+    const eachDay = whole.daily.filter((day) => day.durationMs > 0);
+    expect(eachDay.map((day) => day.durationMs)).toEqual([10 * 60_000, 10 * 60_000]);
+  });
+
+  it('treats future, out-of-order, duplicate and non-timestamped events as no-ops', () => {
+    const base = Date.parse(at(15, 10));
+    const events = [
+      event('e1', 'TASK_STARTED', new Date(base).toISOString(), { taskId: 't1' }),
+      // After the window being replayed.
+      event('future', 'TASK_ANSWERED', new Date(base + 60 * 60_000).toISOString(), {}),
+      // Before the cursor.
+      event('early', 'TASK_ANSWERED', new Date(base - 60_000).toISOString(), {}),
+      // Not a timestamp at all.
+      event('garbage', 'TASK_ANSWERED', 'not-a-date', {}),
+      // The same id twice, the second a duplicate the reducer ignores.
+      event('e1', 'TASK_STARTED', new Date(base).toISOString(), { taskId: 't1' }),
+      event('last', 'TASK_ANSWERED', new Date(base + 5 * 60_000).toISOString(), {}),
+    ];
+    const timeline = buildStateTimeline(session(at(15, 10), at(15, 10, 5)), events, at(15, 10, 5));
+    // One FOCUSED stretch, from the start to the last accepted event; the noise changed nothing.
+    expect(timeline).toEqual([{ state: 'FOCUSED', fromMs: base, toMs: base + 5 * 60_000 }]);
   });
 });
 
@@ -243,9 +343,13 @@ describe('buildInsightsSummary', () => {
       courses: COURSES,
       currentSessionId: SESSION_ID,
     });
-    // 10:00 → 11:00 with events at 10:00 and 10:30: two stretches of the idle threshold, 4 minutes, not the
-    // hour the window happened to span.
-    expect(summary.totalMs).toBe(4 * 60_000);
+    /*
+     * 10:00 → 11:00 with events at 10:00 and 10:30. The half hour between them is study time and is
+     * credited whole now — the old rule charged each stretch the idle threshold and returned 4 minutes
+     * for a session in which the learner had worked for half an hour. The half hour after the completion
+     * is `READY` (no task running), which is not study time and is bounded.
+     */
+    expect(summary.totalMs).toBe(32 * 60_000);
     const shares = summary.stateShares.reduce((sum, s) => sum + s.share, 0);
     expect(shares).toBeCloseTo(1, 10);
     const durations = summary.stateShares.reduce((sum, s) => sum + s.durationMs, 0);

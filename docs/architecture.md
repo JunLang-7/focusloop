@@ -320,16 +320,20 @@ events through `reduceState` — the same function the live engine uses — and 
 was entered and left. The dashboard therefore cannot drift away from the state machine, and adding a
 state or a transition needs no dashboard change at all.
 
-**2. Silence is not focus, and it is not away either.** A learner who walks away emits no events, so a
-naive reconstruction counts the whole gap as `FOCUSED`. The engine would not have: its idle threshold
-would have moved them to `DISTRACTED`. But the opposite guess — charging the gap as `DISTRACTED` — is
-worse than the first, because it invents an absence nobody observed. So every stretch is credited to the
-state it was in for at most `idleThresholdMs` and **not counted past that**, witnessed or not. A witnessed
-absence (`TAB_LEFT`, an idle report) used to keep its whole stretch, because the bridge had observed it;
-that is right as a report of an absence and wrong as recorded time, and it read a night away as a day of
-study. The consequence is that a window's `totalMs` is the time the app can stand behind as **study
-time**, not the wall-clock its sessions were open and not the full length of an observed absence; the
-labels that read it say so, as does `docs/wiki/project-features.md` §D2.
+**2. Study time is a measure over the timeline, not a sum of event gaps.** A learner who walks away emits
+no events, so a naive reconstruction counts the whole gap as `FOCUSED`; the opposite guess — charging the
+gap as `DISTRACTED` — invents an absence nobody observed, which is how a quiet hour of reading came out as
+"99.6% 离开中". The rule that replaced both is the one that makes the number stable: replaying the reducer
+gives the state at every instant, and the time credited is the measure of the intervals in which the learner
+was studying (`FOCUSED`, `RESUMING`, `CONFUSED`, `OVERLOADED`). A stretch bounded by two events is credited
+**whole**, so an event written in the middle of it cannot change the total — the old per-segment cap made ten
+minutes of reading count as ten with an event every two minutes and as two with only a start and an end.
+Two bounds remain. The **unobserved tail** after the last event of an open session is credited at most
+`presenceTimeoutMs` (a measurement knob, deliberately separate from the state machine's `idleThresholdMs`),
+and a state that is not study time — away, interrupted, ready — is bounded everywhere, so a night away
+cannot read as a day of study. The consequence is that a window's `totalMs` is the time the app can stand
+behind as study time, not the wall-clock its sessions were open; the labels that read it say so, as does
+`docs/wiki/project-features.md` §D2.
 
 **3. One session is measured by the same rule as a window.** That rule was once only the dashboard's:
 the focus screen's `elapsed` and the dashboard's `session duration` were `startedAt` → `now`, and a

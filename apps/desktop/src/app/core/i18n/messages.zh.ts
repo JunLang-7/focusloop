@@ -357,7 +357,8 @@ export const zh: Record<MessageKey, string> = {
   'dashboard.hero.over.one': '1 天有记录',
   'dashboard.hero.over.other': '共 {days} 天有记录',
   'dashboard.focusRatio': '专注占比',
-  'dashboard.focusRatio.hint': '占比按「有记录时长」计算：静默不计入时长，也不计入离开。',
+  'dashboard.focusRatio.hint':
+    '占比按「有记录时长」计算。两次事件之间处于学习状态的时间完整计入；无人见证的尾部与离开时间封顶。',
   'dashboard.session.title': '本次会话',
   'dashboard.states.title': '学习状态占比',
   'dashboard.activity.title': '每日活动',
