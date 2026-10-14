@@ -42,18 +42,16 @@
   --scrollbar-bg-l2: rgb(84 85 87);
   --scrollbar-hover-l2: rgb(101 103 107);
   /*
-   * Task kinds. A kind is a label, not a verdict, so these are deliberately not the semantic
-   * ok/warn/danger trio: a quiz is not "bad" and reading is not "good". Hues are kept apart
-   * from each other and from the semantic three, and the glyph carries the meaning for anyone
-   * who cannot separate the hues.
+   * Task kinds have no colour of their own. The kind is carried by the row's glyph and by the label, and
+   * the plan's 4px edge is the accent blue; three hues for three kinds put two extra colours back into a
+   * column that is otherwise blue and white.
    */
-  --kind-read: #38bdf8;
-  --kind-practice: #a78bfa;
-  --kind-quiz: #fb923c;
   /* Heatmap: an ink triplet plus four alphas, so the ramp and its floor are both
      themeable. `--heat-floor` must stay quieter than the panel behind it. */
   --heat-floor: rgb(255 255 255 / 4%);
-  --heat-ink: 74 222 128;
+  /* The heatmap's ink is the accent blue, not green: it is the same "time recorded" the rest of the app
+     draws in blue, and a green calendar beside a blue donut was the last rainbow on the page. */
+  --heat-ink: 110 168 254;
   --heat-1: 25%;
   --heat-2: 45%;
   --heat-3: 68%;
@@ -103,11 +101,8 @@
   --scrollbar-hover-l1: rgb(212 212 212);
   --scrollbar-bg-l2: rgb(229 229 229);
   --scrollbar-hover-l2: rgb(212 212 212);
-  --kind-read: #0284c7;
-  --kind-practice: #7c3aed;
-  --kind-quiz: #c2410c;
   --heat-floor: rgb(15 23 42 / 7%);
-  --heat-ink: 22 163 74;
+  --heat-ink: 61 125 250;
   --heat-1: 28%;
   --heat-2: 48%;
   --heat-3: 70%;
@@ -482,20 +477,25 @@ html[data-theme='dark'] .brand__wordmark--dark {
   background: var(--text-muted);
 }
 
+/*
+ * The chip's dot follows the same blue-to-slate ramp as the donut: on task is the accent, friction is a
+ * lighter accent, and away is the neutral the app draws everything that is not the learner's work in.
+ * The chip's own word is beside it, so the dot never has to carry the meaning alone.
+ */
 .state-chip[data-state='FOCUSED'] .state-chip__dot,
 .state-chip[data-state='RESUMING'] .state-chip__dot {
-  background: var(--ok);
+  background: var(--accent-strong);
 }
 
 .state-chip[data-state='CONFUSED'] .state-chip__dot,
 .state-chip[data-state='OVERLOADED'] .state-chip__dot,
 .state-chip[data-state='INITIATION_FRICTION'] .state-chip__dot {
-  background: var(--warn);
+  background: var(--accent);
 }
 
 .state-chip[data-state='INTERRUPTED'] .state-chip__dot,
 .state-chip[data-state='DISTRACTED'] .state-chip__dot {
-  background: var(--danger);
+  background: var(--text-muted);
 }
 
 /* Language switcher. Sits in the sidebar footer with the rest of the chrome. */
@@ -1131,18 +1131,11 @@ fl-course {
   overflow: hidden;
   padding: 9px 12px 0;
   border: 1px solid var(--border);
-  border-left: 4px solid var(--kind-read);
+  /* The kind's colour is the accent blue; the glyph carries which kind it is. */
+  border-left: 4px solid var(--accent);
   border-radius: var(--radius-sm);
   background: var(--bg-elevated);
   font-size: 13px;
-}
-
-.plan__block[data-kind='practice'] {
-  border-left-color: var(--kind-practice);
-}
-
-.plan__block[data-kind='quiz'] {
-  border-left-color: var(--kind-quiz);
 }
 
 .plan__glyph {

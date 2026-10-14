@@ -11,23 +11,28 @@ import type { MessageKey } from './i18n/i18n.service';
 export type Translate = (key: MessageKey, params?: Record<string, string>) => string;
 
 /**
- * One colour per learning state, shared by the donut and its legend so the two
- * can never disagree.
+ * One colour per learning state, shared by the donut and its legend so the two can never disagree.
  *
- * Deliberately a single mid-tone palette rather than one per theme: every colour
- * has to hold up as a ring segment on both a near-black and a white panel, and two
- * palettes would drift. Deliberately not the semantic `--ok` / `--warn` /
- * `--danger` tokens either — state is descriptive here, not a verdict.
+ * A single **blue-to-slate ramp**, because that is the app's palette: the ring used to be a rainbow of
+ * green / amber / orange / red that read as eight unrelated verdicts rather than as one day's time. The
+ * two ends carry the meaning the words already carry — the study states are the blue the rest of the
+ * app is drawn in, strongest for `FOCUSED`, and the away states are the neutral slate the app uses for
+ * everything that is not the learner's work. Lightness, not hue, is what separates neighbours, and the
+ * legend's label is what names each one; the ring never has to be read on colour alone.
+ *
+ * Deliberately a single mid-tone palette rather than one per theme: every colour has to hold up as a
+ * ring segment on both a near-black and a white panel, and two palettes would drift. Deliberately not
+ * the semantic `--danger` either — state is descriptive here, not a verdict.
  */
 export const STATE_COLORS: Record<LearningState, string> = {
-  READY: '#6b7280',
-  INITIATION_FRICTION: '#d97706',
-  FOCUSED: '#16a34a',
-  CONFUSED: '#ca8a04',
-  OVERLOADED: '#ea580c',
-  DISTRACTED: '#64748b',
-  INTERRUPTED: '#dc2626',
-  RESUMING: '#0284c7',
+  FOCUSED: '#2563eb',
+  RESUMING: '#3b82f6',
+  CONFUSED: '#60a5fa',
+  OVERLOADED: '#93c5fd',
+  INITIATION_FRICTION: '#bfdbfe',
+  READY: '#cbd5e1',
+  DISTRACTED: '#94a3b8',
+  INTERRUPTED: '#64748b',
 };
 
 /** One arc of the donut, ready to drop into an SVG `<circle>`. */

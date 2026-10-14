@@ -93,6 +93,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Changed
 
+- **The whole app is one blue-and-white palette.** The dashboard's ring, its legend and the daily heatmap
+  were a rainbow — green for focused, amber for confused, orange for overloaded, red for interrupted, and
+  a green calendar — so one day's time read as eight unrelated verdicts instead of as one column of the
+  app's own colour. The ring is a blue-to-slate ramp now: the study states are the accent, strongest for
+  `FOCUSED`, and the away states are the neutral slate the app draws everything that is not the learner's
+  work in. The heatmap's ink is the accent, the state chip's dot follows the same ramp, and the task kinds
+  lost the last two hues — the row's glyph already says which kind it is. Red is kept for errors and
+  refusals and amber for the two warnings, because those are verdicts rather than decoration.
 - **The focus screen's accent is the app's blue, not a warm orange.** The running clock, the progress
   bar, the "current micro task" eyebrow, the kind chip, the answer label and the Complete task button all
   took `--warn`, which made the one screen the learner spends the most time on the only surface that was
