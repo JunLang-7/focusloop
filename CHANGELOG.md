@@ -101,18 +101,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   step is 0); an empty credential produces exactly the rejection that was read as "no permission".
   `secrets.GITHUB_TOKEN` is populated, and with `permissions: contents: write` it pushes to
   `<repo>.wiki.git` — measured by pushing a scratch branch of this wiki with that token (exit 0) and
-  deleting it in the same run. So the requirement, the guard and the notice are gone, the job asks for
-  `contents: write` (no wiki-only permission exists to ask for), and the pages publish on every change.
-  `WIKI_SYNC_TOKEN` is still **honoured** if it is set — it takes precedence over the job token — so a
-  change to what GitHub lets the built-in token do is answered by pasting a credential rather than by a
-  code change, and a repository with no secret still needs nothing. Precedence and the failure path were
-  both measured with a deliberately wrong secret: the log names the override as the credential in use,
-  and a rejected one is now reported as `::error::The credential was rejected by the wiki repository.`
-  naming the secret to check. It used to surface as `fatal: could not read Username for
-'https://github.com': No such device or address` — true, red, and pointing at the wrong thing, which
-  is what `GIT_TERMINAL_PROMPT=0` and the explicit message are for. Also in this release: the sync
-  script itself was broken (`#271`) and the three ADRs already linked from the sidebar were never
-  published; both are fixed and the wiki now carries all ten pages.
+  deleting it in the same run. So the requirement, the guard and the notice are gone and the pages
+  publish on every change.
+- **`WIKI_SYNC_TOKEN` is an override, never a requirement — learned from breaking the wiki with it.**
+  It is honoured when it is set, and preferred when it works; the built-in token publishes when it does
+  not. That ordering is not a nicety. Preferred _unconditionally_, an override turned a working wiki
+  into a failing workflow the day a token GitHub did not accept was pasted in: three red runs and no
+  pages published, which is the opposite of what insurance is for. A rejected override now costs a
+  warning and nothing else — the run stays green, the wiki publishes with the built-in token, and the
+  run summary names the credential that was used, so a wrong secret is visible without being fatal.
+  Two related facts are measured rather than reasoned: precedence itself (the log names the override
+  when the secret works), and `GIT_TERMINAL_PROMPT=0`, without which a rejected credential is reported
+  as `fatal: could not read Username for 'https://github.com': No such device or address` — true, red,
+  and pointing at the network rather than at the secret.
 
 ## [0.1.0-demo] — 2026-09-17
 
