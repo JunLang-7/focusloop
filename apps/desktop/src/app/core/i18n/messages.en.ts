@@ -8,6 +8,7 @@
  *
  * Placeholders are written `{name}` and interpolated by `I18nService.t`.
  */
+import { REMINDER_COPY } from '@focusloop/shared-types';
 
 const en = {
   // ------------------------------------------------------------ application
@@ -32,11 +33,14 @@ const en = {
   'settings.materialHint': 'Show the original material alongside your learning steps.',
   'settings.reminder': 'Daily reminder',
   'settings.reminderHint': 'A nudge to start, at a time you choose. Never inside a session.',
-  'reminder.title': 'Time to study',
-  'reminder.body': 'A few focused minutes is enough. FocusLoop is ready when you are.',
+  'settings.reminderBlocked':
+    'Notifications are turned off for FocusLoop, so the reminder cannot appear.',
+  'settings.reminderAllow': 'Allow notifications',
+  'reminder.title': REMINDER_COPY.en.title,
+  'reminder.body': REMINDER_COPY.en.body,
   'onboarding.eyebrow': 'Welcome',
-  'onboarding.title': 'Two quick choices',
-  'onboarding.body': 'You can change both at any time in Settings.',
+  'onboarding.title': 'Three quick choices',
+  'onboarding.body': 'You can change any of them at any time in Settings.',
   'onboarding.reminder': 'A daily nudge to start',
   'onboarding.theme': 'How should it look?',
   'onboarding.start': 'Start',

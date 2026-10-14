@@ -148,6 +148,13 @@
   font-size: 14px;
   color-scheme: dark;
 }
+/* A reminder that is on but cannot be shown: says so, and offers the one gesture that can fix it. */
+.reminder__blocked {
+  color: var(--warn);
+}
+.reminder__blocked .btn {
+  margin-left: 6px;
+}
 .reminder__time:disabled {
   opacity: 0.5;
   cursor: not-allowed;

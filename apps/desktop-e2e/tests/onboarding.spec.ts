@@ -30,6 +30,12 @@ test('the first-run questionnaire asks once and writes real settings', async () 
     await page.setViewportSize({ width: 1280, height: 900 });
 
     await expect(page.getByTestId('onboarding')).toBeVisible();
+
+    // Language is asked first and switches the questionnaire itself, so the other two questions are not
+    // read in a language the learner just said they do not want.
+    await page.getByTestId('onboarding-language').selectOption('zh');
+    await expect(page.locator('#onboarding-title')).toHaveText('三个小选择');
+
     await page.getByTestId('onboarding-reminder-toggle').click();
     await page.getByTestId('onboarding-reminder-time').fill('08:15');
     await page.getByTestId('onboarding-theme-light').click();
@@ -39,6 +45,7 @@ test('the first-run questionnaire asks once and writes real settings', async () 
     // The answers are real settings, not a thing the questionnaire keeps to itself.
     await openSidebar(page);
     await page.getByTestId('nav-settings').click();
+    await expect(page.getByTestId('general-language')).toHaveValue('zh');
     await expect(page.getByTestId('theme-light')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.getByTestId('reminder-toggle')).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByTestId('reminder-time')).toHaveValue('08:15');
@@ -53,6 +60,7 @@ test('the first-run questionnaire asks once and writes real settings', async () 
     await expect(second.getByTestId('onboarding')).toHaveCount(0);
     await openSidebar(second);
     await second.getByTestId('nav-settings').click();
+    await expect(second.getByTestId('general-language')).toHaveValue('zh');
     await expect(second.getByTestId('reminder-time')).toHaveValue('08:15');
     await expect(second.getByTestId('theme-light')).toHaveAttribute('aria-pressed', 'true');
   } finally {

@@ -8,6 +8,7 @@ import {
 } from '@focusloop/shared-types';
 import { DataControlsComponent } from './data-controls.component';
 import { AppStateService } from '../core/app-state.service';
+import { ReminderService } from '../core/reminder.service';
 import { I18nService, LOCALE_LABELS } from '../core/i18n/i18n.service';
 
 /** General preferences and local data controls inside the settings window. */
@@ -124,6 +125,24 @@ import { I18nService, LOCALE_LABELS } from '../core/i18n/i18n.service';
         <div>
           <h2 id="reminder-title">{{ t('settings.reminder') }}</h2>
           <p>{{ t('settings.reminderHint') }}</p>
+          @if (state.reminderEnabled() && reminder.permission() !== 'granted') {
+            <!--
+              The reminder is set but the platform will not show it, which is exactly the state a
+              learner cannot see: without this, "on" looks like it worked. The button is the gesture a
+              permission request needs, so it cannot be asked for from the reminder's own timer.
+            -->
+            <p class="reminder__blocked" role="status" data-testid="reminder-blocked">
+              {{ t('settings.reminderBlocked') }}
+              <button
+                type="button"
+                class="btn btn--small btn--quiet"
+                data-testid="reminder-allow"
+                (click)="allowNotifications()"
+              >
+                {{ t('settings.reminderAllow') }}
+              </button>
+            </p>
+          }
         </div>
         <div class="reminder">
           <input
@@ -158,6 +177,7 @@ import { I18nService, LOCALE_LABELS } from '../core/i18n/i18n.service';
 })
 export class GeneralSettingsComponent {
   protected readonly state = inject(AppStateService);
+  protected readonly reminder = inject(ReminderService);
   protected readonly t = inject(I18nService).t;
   protected readonly locales = SUPPORTED_LOCALES;
   protected readonly labels = LOCALE_LABELS;
@@ -176,6 +196,9 @@ export class GeneralSettingsComponent {
   }
   protected toggleReminder(): void {
     void this.state.setReminderEnabled(!this.state.reminderEnabled());
+  }
+  protected allowNotifications(): void {
+    void this.reminder.requestPermission();
   }
   protected chooseReminderTime(event: Event): void {
     void this.state.setReminderTime((event.target as HTMLInputElement).value);

@@ -5,6 +5,7 @@
  * error — the CI typecheck is what keeps the two languages in step. The
  * placeholders must match the English ones exactly.
  */
+import { REMINDER_COPY } from '@focusloop/shared-types';
 import type { MessageKey } from './messages.en';
 
 export const zh: Record<MessageKey, string> = {
@@ -30,10 +31,12 @@ export const zh: Record<MessageKey, string> = {
   'settings.materialHint': '在学习步骤旁显示原始材料。',
   'settings.reminder': '每日提醒',
   'settings.reminderHint': '在你选的时间提醒你开始学习，会话进行中不会打扰。',
-  'reminder.title': '该学习了',
-  'reminder.body': '几分钟也算。准备好了就打开 FocusLoop。',
+  'settings.reminderBlocked': 'FocusLoop 的通知被关闭了，提醒无法弹出。',
+  'settings.reminderAllow': '允许通知',
+  'reminder.title': REMINDER_COPY.zh.title,
+  'reminder.body': REMINDER_COPY.zh.body,
   'onboarding.eyebrow': '欢迎',
-  'onboarding.title': '两个小选择',
+  'onboarding.title': '三个小选择',
   'onboarding.body': '以后随时可以在「设置」里改。',
   'onboarding.reminder': '每天提醒我一次',
   'onboarding.theme': '界面怎么显示？',

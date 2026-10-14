@@ -3,11 +3,14 @@ import {
   DEFAULT_REMINDER_ENABLED,
   DEFAULT_REMINDER_TIME,
   DEFAULT_THEME,
+  SUPPORTED_LOCALES,
   THEME_PREFERENCES,
+  type Locale,
   type ThemePreference,
 } from '@focusloop/shared-types';
 import { AppStateService } from '../core/app-state.service';
-import { I18nService } from '../core/i18n/i18n.service';
+import { ReminderService } from '../core/reminder.service';
+import { I18nService, LOCALE_LABELS } from '../core/i18n/i18n.service';
 import type { MessageKey } from '../core/i18n/i18n.service';
 
 const THEME_KEYS: Record<ThemePreference, MessageKey> = {
@@ -17,12 +20,16 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
 };
 
 /**
- * The first-run questionnaire: two questions whose answers are real settings.
+ * The first-run questionnaire: three questions whose answers are real settings.
  *
- * Deliberately not a tour and not a slideshow. It asks the two things the app would otherwise guess —
- * whether to be nudged, and how it should look — edits a **draft**, and writes it only when the
- * learner accepts. "Later" therefore changes nothing but still stops it asking again, which is what
- * makes it a questionnaire rather than a wall.
+ * Deliberately not a tour and not a slideshow. It asks the three things the app would otherwise guess —
+ * which language to read, whether to be nudged, and how it should look — edits a **draft**, and writes
+ * it only when the learner accepts. "Later" therefore changes nothing but still stops it asking again,
+ * which is what makes it a questionnaire rather than a wall.
+ *
+ * The language is asked first and **previewed** as it is chosen, because the rest of the questionnaire is
+ * written in it: a learner who picks Chinese should not have to answer two English questions to get it.
+ * The preview is renderer-only until "Start"; "Later" puts the interface back where it started.
  */
 @Component({
   selector: 'fl-onboarding',
@@ -40,6 +47,22 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
         <p class="eyebrow">{{ t('onboarding.eyebrow') }}</p>
         <h2 id="onboarding-title">{{ t('onboarding.title') }}</h2>
         <p class="muted small">{{ t('onboarding.body') }}</p>
+
+        <div class="onboarding__question">
+          <h3>{{ t('app.language') }}</h3>
+          <select
+            class="onboarding__language"
+            data-testid="onboarding-language"
+            [value]="locale()"
+            (change)="onLocale($event)"
+          >
+            @for (option of locales; track option) {
+              <option [value]="option" [selected]="locale() === option">
+                {{ labels[option] }}
+              </option>
+            }
+          </select>
+        </div>
 
         <div class="onboarding__question">
           <div>
@@ -112,16 +135,28 @@ const THEME_KEYS: Record<ThemePreference, MessageKey> = {
 })
 export class OnboardingDialogComponent {
   private readonly state = inject(AppStateService);
+  private readonly reminder = inject(ReminderService);
   private readonly i18n = inject(I18nService);
 
   protected readonly t = this.i18n.t;
   protected readonly themes = THEME_PREFERENCES;
   protected readonly THEME_KEYS = THEME_KEYS;
+  protected readonly locales = SUPPORTED_LOCALES;
+  protected readonly labels = LOCALE_LABELS;
 
   /** A draft: nothing here reaches the store until `start()`. */
   protected readonly reminderEnabled = signal(DEFAULT_REMINDER_ENABLED);
   protected readonly reminderTime = signal(DEFAULT_REMINDER_TIME);
   protected readonly theme = signal<ThemePreference>(DEFAULT_THEME);
+  /** Seeded from what the app is already speaking, which the first launch took from the OS. */
+  protected readonly locale = signal<Locale>(this.state.locale());
+
+  protected onLocale(event: Event): void {
+    const locale = (event.target as HTMLSelectElement).value as Locale;
+    this.locale.set(locale);
+    // A preview only: the store is written on Start, and Later puts this back.
+    this.i18n.set(locale);
+  }
 
   protected onReminderTime(event: Event): void {
     this.reminderTime.set((event.target as HTMLInputElement).value);
@@ -129,6 +164,7 @@ export class OnboardingDialogComponent {
 
   protected async start(): Promise<void> {
     await this.applyAndDismiss({
+      locale: this.locale(),
       reminderEnabled: this.reminderEnabled(),
       reminderTime: this.reminderTime(),
       theme: this.theme(),
@@ -138,15 +174,26 @@ export class OnboardingDialogComponent {
   /** The answers the learner saw are discarded; the questionnaire still does not ask twice. */
   protected async skip(): Promise<void> {
     await this.applyAndDismiss(null);
+    // Discard the language preview too: "Later" means nothing changed, including the interface.
+    this.i18n.set(this.state.locale());
   }
 
   private async applyAndDismiss(
-    answers: { reminderEnabled: boolean; reminderTime: string; theme: ThemePreference } | null,
+    answers: {
+      locale: Locale;
+      reminderEnabled: boolean;
+      reminderTime: string;
+      theme: ThemePreference;
+    } | null,
   ): Promise<void> {
     if (answers !== null) {
+      await this.state.setLocale(answers.locale);
       await this.state.setTheme(answers.theme);
       await this.state.setReminderEnabled(answers.reminderEnabled);
       await this.state.setReminderTime(answers.reminderTime);
+      // Asked here because this click is the gesture the platform requires, and this is the only moment
+      // the learner is looking at a reminder they just opted into.
+      if (answers.reminderEnabled) await this.reminder.requestPermission();
     }
     await this.state.setOnboarded(true);
   }

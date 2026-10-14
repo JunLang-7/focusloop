@@ -36,6 +36,10 @@ export function hermeticEnv(sourceEnv = process.env) {
     FOCUSLOOP_DEV: '1',
     FOCUSLOOP_DISTRACTION_SENSOR: '0',
     FOCUSLOOP_ONBOARDING: '0',
+    // Never touch the machine's own scheduler, and never take the OS language: a suite that asserts
+    // English wording must not depend on the machine it runs on.
+    FOCUSLOOP_SYSTEM_REMINDER: '0',
+    FOCUSLOOP_DETECT_LOCALE: '0',
   };
   // Electron's launch env is Record<string, string>; drop any undefined leftovers from process.env.
   return Object.fromEntries(

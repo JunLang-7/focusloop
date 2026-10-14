@@ -90,6 +90,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
   now finds its refusal size 139 characters lower. `replyLanguageInstruction` in
   `packages/agent-core/src/model-language.ts` is the single wording, keyed by `Locale` so a locale added
   without one fails the typecheck instead of answering in whatever the material happened to be written in.
+- **The reminder now arrives with the app closed, and in the right language.** It was owned by the
+  renderer, which meant it could only fire while the window was open — a reminder to start a session
+  that required already being in the app. The app now registers a daily entry with the platform's own
+  scheduler (Task Scheduler on Windows, a LaunchAgent on macOS, a systemd user timer on Linux), which
+  launches the executable with `--reminder-fire` at the chosen time. Which of the two speaks is decided by
+  the single-instance lock: a window already open holds it, so the scheduled launch exits quietly and the
+  window's own timer fires; with the app closed the launch takes the lock, shows one notification and
+  exits. The window is the owner only for a time it was open to see (`runningSince`), so opening the app an
+  hour after a reminder already arrived does not say the same sentence twice. The two sentences moved to
+  `packages/shared-types/src/reminder.ts` so the window and the scheduler say
+  the same thing, and the scheduled launch carries the language in its arguments rather than opening the
+  database the running instance already has open. The first run also takes the machine's language from
+  `app.getLocale()` when nothing is stored yet, and asks it as the questionnaire's first question with a
+  live preview, rather than opening a Chinese machine on an English questionnaire. A reminder whose
+  notifications the platform will not show now says so in Settings — with the button that asks for
+  permission, which only a gesture can do — instead of looking switched on while being silently dropped.
 
 ### Changed
 

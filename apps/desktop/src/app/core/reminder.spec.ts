@@ -19,7 +19,12 @@ describe('reminderMinutes', () => {
 });
 
 describe('reminderDue', () => {
-  const base = { enabled: true, reminderTime: '09:00', lastFiredDate: null } as const;
+  const base = {
+    enabled: true,
+    reminderTime: '09:00',
+    lastFiredDate: null,
+    runningSince: at(8, 0),
+  } as const;
 
   it('is not due before the chosen time, and is at it', () => {
     expect(reminderDue({ ...base, now: at(8, 59) })).toBe(false);
@@ -27,11 +32,25 @@ describe('reminderDue', () => {
   });
 
   /*
-   * "At or after" is the point: a machine that was closed at 09:00 and opened at 10:00 must still get
-   * one reminder. The `lastFiredDate` is what stops "late" from becoming "every minute after".
+   * "At or after" is the point: a timer that was asleep or throttled, or a session that was running at
+   * 09:00 and ended at 09:20, still gets one reminder. `lastFiredDate` is what stops "late" from becoming
+   * "every minute after".
    */
-  it('is still due later the same day', () => {
+  it('is still due later the same day when the window was open across the time', () => {
     expect(reminderDue({ ...base, now: at(10, 30) })).toBe(true);
+  });
+
+  /*
+   * The half the platform scheduler owns. A time that passed while the app was closed was delivered by
+   * the scheduler, and replaying it on open would say the same sentence twice, an hour apart.
+   */
+  it('stays quiet for a time that passed before this window opened', () => {
+    expect(reminderDue({ ...base, now: at(10, 30), runningSince: at(10, 0) })).toBe(false);
+  });
+
+  it('is due for a time on a later day than the window opened', () => {
+    const yesterday = new Date(2026, 5, 14, 20, 0, 0, 0);
+    expect(reminderDue({ ...base, now: at(9, 0), runningSince: yesterday })).toBe(true);
   });
 
   it('fires once a day', () => {

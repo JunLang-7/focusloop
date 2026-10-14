@@ -38,6 +38,24 @@
   font-weight: 600;
 }
 
+.onboarding__language {
+  align-self: flex-start;
+  height: 36px;
+  min-width: 140px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--bg-soft);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  color-scheme: dark;
+}
+
+:host-context([data-theme='light']) .onboarding__language {
+  color-scheme: light;
+}
+
 .onboarding__reminder {
   display: flex;
   align-items: center;
