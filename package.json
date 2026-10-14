@@ -12,7 +12,7 @@
   "scripts": {
     "lint": "nx run-many -t lint",
     "typecheck": "nx run-many -t typecheck",
-    "test": "nx run-many -t test",
+    "test": "nx run-many -t test && node --test scripts/test-llm-connection.test.mjs",
     "build": "nx run-many -t build",
     "e2e": "nx run desktop-e2e:e2e",
     "format": "prettier --write \"**/*.{ts,js,mjs,json,md,yml,yaml,html,css}\"",

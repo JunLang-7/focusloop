@@ -292,6 +292,8 @@ export class OpenAICompatibleProvider implements ExecutableAIProvider {
         if (choice === null || typeof choice !== 'object')
           throw new ProviderError('bad-response', this.id, 'Invalid SSE choice');
         const fields = choice as Record<string, unknown>;
+        if (fields['finish_reason'] === 'length')
+          throw new ProviderError('bad-response', this.id, 'Stream token limit reached');
         if (
           fields['finish_reason'] !== null &&
           fields['finish_reason'] !== undefined &&

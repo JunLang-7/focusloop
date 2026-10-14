@@ -88,3 +88,12 @@ and a failing line carries the numeric HTTP status when there was one — `{"rea
 is an account with nothing left on it, while a `bad-response` with no status is a reply that broke the
 published contract. The [retry policy](runtime-retry-policy.md) shows which of those reasons a caller
 may retry.
+
+Failed smoke tests also name the `phase` (`discovery`, `completion` or `streaming`) and a fixed
+`diagnostic` code. For example, `stream-token-limit` means the stream ended with `finish_reason:
+length`, `stream-missing-done` means it ended without `[DONE]`, and `stream-invalid-json` means an
+SSE frame could not be parsed. These codes never contain response text or raw exception messages;
+unrecognized errors use `unclassified`. A partial or token-limited stream still fails the check.
+
+`pnpm test` includes the smoke script's offline regression tests against a temporary loopback
+server. Those tests use synthetic credentials and do not call a remote provider.

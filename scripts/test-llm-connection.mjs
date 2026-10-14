@@ -20,6 +20,25 @@ function writeResult(result) {
   process.stdout.write(`${JSON.stringify(result)}\n`);
 }
 
+// Only fixed adapter messages map to diagnostics. Unknown exception text, response bodies,
+// credentials and URLs are never echoed, even when the transport supplies them in an error.
+const diagnostics = new Map([
+  ['Stream token limit reached', 'stream-token-limit'],
+  ['Stream did not finish normally', 'stream-non-stop-finish'],
+  ['Provider stream ended without DONE', 'stream-missing-done'],
+  ['Empty provider stream', 'stream-empty'],
+  ['Malformed SSE JSON', 'stream-invalid-json'],
+  ['Invalid SSE record', 'stream-invalid-record'],
+  ['Invalid SSE choices', 'stream-invalid-choices'],
+  ['Stream model changed', 'stream-model-changed'],
+  ['Stream reported output beyond token cap', 'stream-token-overshoot'],
+  ['Invalid SSE choice', 'stream-invalid-choice'],
+  ['Invalid SSE delta', 'stream-invalid-delta'],
+  ['Invalid stream text', 'stream-invalid-text'],
+  ['Stream output character limit exceeded', 'stream-character-limit'],
+  ['Provider stream response unavailable', 'stream-unavailable'],
+]);
+
 const { values } = parseArgs({
   options: {
     provider: { type: 'string', default: 'compatible' },
@@ -66,6 +85,7 @@ try {
     });
     process.exitCode = 1;
   } else {
+    let phase = values['list-only'] ? 'discovery' : 'completion';
     try {
       if (values['list-only']) {
         const models = await fetchModelList({ providerId: values.provider, apiKey, baseUrl });
@@ -91,6 +111,7 @@ try {
           latencyMs: result.latencyMs,
           usage: result.usage,
         });
+        phase = 'streaming';
         let characters = 0;
         let completed = false;
         for await (const event of provider.stream({ prompt: 'Reply with OK.', maxTokens: 64 })) {
@@ -115,6 +136,8 @@ try {
         model,
         ok: false,
         reason: error?.reason ?? 'bad-response',
+        phase,
+        diagnostic: diagnostics.get(error?.message) ?? 'unclassified',
         ...(typeof status === 'number' ? { status } : {}),
       };
       writeResult(failure);

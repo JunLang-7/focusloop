@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ## [Unreleased]
 
+### Fixed
+
+- Live provider smoke failures now identify the request phase and a fixed stream diagnostic,
+  distinguishing token-limited output, missing stream termination and malformed SSE without
+  exposing response bodies, credentials or raw exceptions. Offline regression tests exercise
+  the smoke CLI against synthetic streams; incomplete streams still fail the release gate.
+
 ## [0.2.0-alpha.1] — 2026-10-14
 
 An alpha preview for trying the learning loop with your own material. Since `0.1.0-demo`,
