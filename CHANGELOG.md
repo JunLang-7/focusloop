@@ -259,6 +259,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and 
 
 ### Fixed
 
+- **Three transitive advisories are pinned out of the tree.** Dependabot reports fourteen, and none of
+  them is reachable from the app's own code: `nx` pins `axios` (nine of the fourteen) and `smol-toml`,
+  and `source-map-js` arrives through vitest's coverage instrumentation. Three of the four packages
+  have published fixes inside the major the tree already resolves, so `pnpm-workspace.yaml` overrides
+  them and the lockfile follows — `axios` 1.18.1 → 1.20.0, `smol-toml` 1.6.1 → 1.9.1, `source-map-js`
+  1.2.1 → 1.2.2 — and dropping an entry is one line once its parent moves. The other two are left
+  alone on purpose: `brace-expansion`'s fix is 5.0.12 where the `minimatch` 3 that electron-builder's
+  asar tooling calls expects the 1.x API, and `sprintf-js` has no fix published at all (it is reached
+  through `mammoth`, which the document reader depends on). Forcing either would be a behaviour change
+  made to silence a report, so both stay open and are named here rather than quietly dismissed.
 - **Study time no longer depends on how often the app wrote an event.** The insights timeline capped
   every stretch at the idle threshold, so the same ten minutes of reading counted as ten with an event
   every two minutes and as two with only a start and an end, and a witnessed absence was credited in full

@@ -3,6 +3,16 @@ packages:
   - 'packages/*'
   - 'tooling/*'
 
+# Three transitive advisories the tree cannot fix upstream: nx pins axios and
+# smol-toml, and source-map-js arrives through vitest's coverage instrumentation.
+# Each override stays inside its current major, so nothing a consumer expects
+# changes shape; brace-expansion (minimatch 3 → 5) and sprintf-js (no fix
+# published) are deliberately left alone. Drop an entry when its parent moves.
+overrides:
+  axios: ^1.20.0
+  smol-toml: ^1.9.0
+  source-map-js: ^1.2.2
+
 # Dependencies allowed to run install scripts. Keep this list explicit and short.
 allowBuilds:
   esbuild: true
